@@ -1,4 +1,8 @@
-export const escapeNewline = (str: string) => str.replace(/\r|\n/g, "");
+const HOME = 'https://bookmeter.com/';
+
+export type groups = {
+  [key: string]: string;
+} | undefined
 
 export const extractRegex = (str: string, regex: RegExp): Array<string> => {
   const matchesIterator = str.matchAll(regex);
@@ -8,3 +12,19 @@ export const extractRegex = (str: string, regex: RegExp): Array<string> => {
   }
   return matchedStrings;
 };
+
+export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => {
+  const matchesIterator = str.matchAll(regex);
+  let matchedStrings: Array<groups> = [];
+  for (const match of matchesIterator) {
+    matchedStrings = [...matchedStrings, match.groups];
+  }
+  return matchedStrings;
+};
+
+export const urlWrapper = (url: string | undefined) => {
+  if(!url) return undefined;
+  return `${HOME}${url}`.replace(/\/\//g, "/");
+}
+
+export const escapeNewline = (str: string) => str.replace(/\r|\n/g, "");

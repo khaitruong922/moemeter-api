@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { createErrorMessage } from "./error";
-import { getHTML } from "./app";
+import { getHTML, getBooks, getListBooks } from "./app";
 const app = new Hono();
 
 const getReadingBooks = async () => {
@@ -22,6 +22,13 @@ app.get('/users/:id/books/read', async (c) => {
 	const id = c.req.param('id');
 	const html = await getHTML(`https://bookmeter.com/users/${id}/books/read`);
 	return c.text(html);
+});
+
+app.get('/users/:id/books/reading', async (c) => {
+	const id = c.req.param('id');
+	const html = await getHTML(`https://bookmeter.com/users/${id}/books/reading`);
+	const books = getBooks(html);
+	return c.json(getListBooks(books));
 });
 
 app.notFound((c) => {
