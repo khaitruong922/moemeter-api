@@ -23,8 +23,13 @@ export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => 
 };
 
 export const urlWrapper = (url: string | undefined) => {
-  if(!url) return undefined;
-  return `${HOME}${url}`.replace(/\/\//g, "/");
+  return url ? `${HOME}${url}`.replace(/\/\//g, "/") : undefined;
 }
 
-export const escapeNewline = (str: string) => str.replace(/\r|\n/g, "");
+export const escapeNewline = (str: string | undefined): string => {
+  return str ? str.replace(/\r|\n/g, "") : "";
+}
+
+export const parseNatNum = (str: string | undefined): number => {
+  return str ? parseInt(str) : NaN;
+}
