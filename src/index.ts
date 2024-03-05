@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { prettyJSON } from 'hono/pretty-json'
 import { createErrorMessage } from "./error";
 import userBooks from "./route/user-books";
 
 const app = new Hono();
+app.use('*', prettyJSON());
 
 const getReadingBooks = async () => {
 	return {
