@@ -1,9 +1,12 @@
-import { type groups, extractRegex, extractRegexGroup, urlWrapper, escapeNewline, parseNatNum } from "./util";
+import { type groups, extractRegex, extractRegexGroup, escapeNewline, parseNatNum } from "./utils/string-utils";
+import { BOOKS_PER_PAGE, joinBaseUrl } from "./utils/bookmeter-utils";
 
 export const getJsonBooks = async (url: string, limit: number) => {
   const total = getBooksTotal(await getHTML(url));
   limit = limit > total ? total : limit;
-  const lastPage = limit % 20 == 0 ? limit / 20 : (limit / 20 | 0) + 1;
+  const lastPage = limit % BOOKS_PER_PAGE == 0
+    ? limit / BOOKS_PER_PAGE
+    : (limit / BOOKS_PER_PAGE | 0) + 1;
   let listBooks: Array<string>  = [];
 
   await Promise.all(
@@ -18,7 +21,7 @@ export const getJsonBooks = async (url: string, limit: number) => {
   return {
     ...getBooksDetails(listBooks, limit),
     total: total,
-  };
+  }
 }
 
 const getHTML = async (url: string): Promise<string> => {
@@ -53,16 +56,16 @@ const getBooksDetails = (books: string[], limit: number) => {
       const authorInfo = getBookAuthorInfo(value);
         return ({
           title: titleInfo?.title,
-          url: urlWrapper(titleInfo?.url),
+          url: joinBaseUrl(titleInfo?.url),
           author: authorInfo?.author,
-          authorUrl: urlWrapper(authorInfo?.url),
+          authorUrl: joinBaseUrl(authorInfo?.url),
           thumb: getBookThumb(value),
           date: getBookDate(value),
-        })
+        });
       }
     ),
     count: limit,
-	};
+	}
 }
 
 const getBookTitleInfo = (htmlBook: string): groups => {
@@ -81,8 +84,4 @@ const getBookAuthorInfo = (htmlBook: string): groups => {
 
 const getBookThumb = (htmlBook: string): string => {
   return extractRegex(htmlBook, /class="cover__image" src="(.*?)" \/>/g)[0];
-}
-
-export const getBooksValidatedLimit = (limit: number) => {
-  return isNaN(limit) ? 20 : limit;
 }

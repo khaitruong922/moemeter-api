@@ -1,5 +1,3 @@
-const HOME = 'https://bookmeter.com/';
-
 export type groups = {
   [key: string]: string;
 } | undefined
@@ -21,10 +19,6 @@ export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => 
   }
   return matchedStrings;
 };
-
-export const urlWrapper = (url: string | undefined) => {
-  return url ? `${HOME}${url}`.replace(/\/\//g, "/") : undefined;
-}
 
 export const escapeNewline = (str: string | undefined): string => {
   return str ? str.replace(/\r|\n/g, "") : "";

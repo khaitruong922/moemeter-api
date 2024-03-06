@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
-import { getJsonBooks, getBooksValidatedLimit } from "../app";
-import { parseNatNum } from '../util';
+import { getJsonBooks } from "../app";
+import { parseNatNum } from '../utils/string-utils';
+import { getBooksValidatedLimit } from '../utils/bookmeter-utils';
 
 const app = new Hono();
 
