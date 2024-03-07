@@ -51,7 +51,7 @@ const getBooksTotal = (html: string): number => {
 
 const getBooksDetails = (books: string[], limit: number) => {
   return {
-		book: books.slice(0, limit).map(value => {
+		books: books.slice(0, limit).map(value => {
       const titleInfo = getBookTitleInfo(value);
       const authorInfo = getBookAuthorInfo(value);
         return ({
