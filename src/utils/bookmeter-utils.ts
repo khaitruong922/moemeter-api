@@ -3,7 +3,7 @@ export const DEFAULT_BOOKS_LIMIT = 20;
 export const BOOKS_PER_PAGE = 20;
 
 export const joinBaseUrl = (url: string | undefined) => {
-  return url ? `${BASE_URL}${url}`.replace(/\/\//g, "/") : undefined;
+  return url ? `${BASE_URL}${url}`.replace(/(?<!https:|http:)\/\//g, "/") : undefined;
 }
 
 export const getBooksValidatedLimit = (limit: number) => {
