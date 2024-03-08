@@ -23,7 +23,3 @@ export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => 
 export const escapeNewline = (str: string | undefined): string => {
   return str ? str.replace(/\r|\n/g, "") : "";
 }
-
-export const parseNatNum = (str: string | undefined): number => {
-  return str ? parseInt(str) : NaN;
-}
