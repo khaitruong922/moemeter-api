@@ -1,18 +1,38 @@
 import { type groups, extractRegex, extractRegexGroup, escapeNewline } from "./utils/string-utils";
 import { BOOKS_PER_PAGE, joinBaseUrl } from "./utils/bookmeter-utils";
-import { applyNaNVL, parseNatNum } from "./utils/number-utils";
+import { applyLimit, applyNaNVL, parseNatNum } from "./utils/number-utils";
 
-export const getJsonBooks = async (url: string, limit: number, reqPage: number) => {
+type reqParams = {
+  perPage: number,
+  reqPage: number,
+  isAsc: boolean,
+}
+
+type offsetBookParams = {
+  offsetArrayStart: number,
+  offsetArrayEnd: number,
+  offsetBookNo: number
+}
+
+export const getJsonBooks = async (url: string, params: reqParams) => {
+  let { perPage } = params;
+  const { reqPage, isAsc } = params;
   const totalCount = getBooksTotal(await getHTML(url));
-  if (limit > totalCount) limit = totalCount;
-  const lastPage = totalCount % limit == 0
-    ? totalCount / limit
-    : (totalCount / limit | 0) + 1;
+  if (perPage > totalCount) perPage = totalCount;
+  const lastPage = totalCount % perPage == 0
+    ? totalCount / perPage
+    : (totalCount / perPage | 0) + 1;
   const prevPage = reqPage > 1 ? reqPage - 1 : null;
   const nextPage = lastPage > reqPage ? reqPage + 1 : null;
 
-  const offsetStart = (reqPage - 1) * limit;
-  const offsetEnd = offsetStart + limit;
+  let offsetStart, offsetEnd;
+  if (isAsc) {
+    offsetEnd = applyLimit(totalCount - (reqPage - 1) * perPage, 0);
+    offsetStart = applyLimit(offsetEnd - perPage, 0);
+  } else {
+    offsetStart = (reqPage - 1) * perPage;
+    offsetEnd = offsetStart + perPage;
+  }
   const firstPageFetch = (offsetStart / BOOKS_PER_PAGE | 0) + 1;
   const lastPageFetch = offsetEnd % BOOKS_PER_PAGE == 0
     ? offsetEnd / BOOKS_PER_PAGE
@@ -20,18 +40,21 @@ export const getJsonBooks = async (url: string, limit: number, reqPage: number) 
   let listBooks: Array<string> = [];
   const offsetArrayStart = offsetStart - (firstPageFetch - 1) * BOOKS_PER_PAGE;
   const offsetArrayEnd = offsetEnd - (firstPageFetch - 1) * BOOKS_PER_PAGE;
+  const offsetBookNo = totalCount - offsetStart;
 
-  await Promise.all(
-    [...Array(1 + lastPageFetch - firstPageFetch)].map((_, i) =>
-      getHTML(url.concat(`?page=${i + firstPageFetch}`)))
-  ).then(pages =>
-    pages.map(page =>
-      listBooks = [...listBooks, ...getBooks(page)]
-    )
-  );
+  if (reqPage <= lastPage && reqPage > 0) {
+    await Promise.all(
+      [...Array(1 + lastPageFetch - firstPageFetch)].map((_, i) =>
+        getHTML(url.concat(`?page=${i + firstPageFetch}`)))
+    ).then(pages =>
+      pages.map(page =>
+        listBooks = [...listBooks, ...getBooks(page)]
+      )
+    );
+  }
 
   return {
-    ...getBooksDetails(listBooks, offsetArrayStart, offsetArrayEnd),
+    ...getBooksDetails(listBooks, isAsc, { offsetArrayStart, offsetArrayEnd, offsetBookNo }),
     totalCount,
     pageInfo: {
       currentPage: reqPage,
@@ -68,13 +91,16 @@ const getBooksTotal = (html: string): number => {
   return applyNaNVL(totalCount, 0);
 }
 
-const getBooksDetails = (listBooks: string[], offsetArrayStart: number, offsetArrayEnd: number) => {
+const getBooksDetails = (listBooks: string[], isAsc: boolean, params: offsetBookParams) => {
+  const { offsetArrayStart, offsetArrayEnd, offsetBookNo } = params;
   const targetBooks = listBooks.slice(offsetArrayStart, offsetArrayEnd);
+  if (isAsc) targetBooks.reverse();
   return {
-    books: targetBooks.map(book => {
+    books: targetBooks.map((book, i) => {
       const titleInfo = getBookTitleInfo(book);
       const authorInfo = getBookAuthorInfo(book);
       return ({
+        no: isAsc ? offsetBookNo - (targetBooks.length - i - 1) : offsetBookNo - i,
         title: titleInfo?.title,
         url: joinBaseUrl(titleInfo?.url),
         author: authorInfo?.author,
