@@ -9,7 +9,7 @@ export const extractRegex = (str: string, regex: RegExp): Array<string> => {
     matchedStrings = [...matchedStrings, match[1]];
   }
   return matchedStrings;
-};
+}
 
 export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => {
   const matchesIterator = str.matchAll(regex);
@@ -18,8 +18,12 @@ export const extractRegexGroup = (str: string, regex: RegExp): Array<groups> => 
     matchedStrings = [...matchedStrings, match.groups];
   }
   return matchedStrings;
-};
+}
 
 export const escapeNewline = (str: string | undefined): string => {
-  return str ? str.replace(/\r|\n/g, "") : "";
+  return str ? str.replace(/\r|\n/g, '') : '';
+}
+
+export const replaceAmpCode = (str: string | undefined): string => {
+  return str ? str.replace(/%5Cu0026|\\u0026/g, '&') : '';
 }

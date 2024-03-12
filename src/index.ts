@@ -3,27 +3,20 @@ import { prettyJSON } from 'hono/pretty-json'
 import { cors } from 'hono/cors'
 import { createErrorMessage } from "./error";
 import userBooks from "./routes/user-books";
+import summary from "./routes/summary";
 
 const app = new Hono();
 app.use('*', prettyJSON());
 app.use('*', cors());
 
-const getReadingBooks = async () => {
-	return {
-		test: 'test',
-		testInfo: {
-			test1: 'test1',
-			test2: 'test2',
-		},
-	};
-}
-
 app.get("/", async (c) => {
-	const listResult = await getReadingBooks();
-	return c.json(listResult);
+	return c.json({
+    message: 'Bookmeter API is running.',
+  })
 });
 
 app.route('/', userBooks);
+app.route('/', summary);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);
