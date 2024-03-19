@@ -1,18 +1,18 @@
 import { applyLimits } from "./number-utils";
 
-type pageInfo = {
+type PageInfo = {
   currentPage: number,
   prevPage: number | null,
   nextPage: number | null,
   lastPage: number,
 }
 
-type offsetsInfo = {
+type OffsetsInfo = {
   offsetStart: number,
   offsetEnd: number;
 }
 
-export const getPageInfo = (reqPage: number, countPerPage: number, totalCount: number): pageInfo => {
+export const getPageInfo = (reqPage: number, countPerPage: number, totalCount: number): PageInfo => {
   if (countPerPage > totalCount) countPerPage = totalCount;
   const lastPage = totalCount % countPerPage == 0
     ? totalCount / countPerPage
@@ -28,7 +28,7 @@ export const getPageInfo = (reqPage: number, countPerPage: number, totalCount: n
   }
 }
 
-export const getOffsetsPerPage = (reqPage: number, countPerPage: number, totalCount: number, isAsc: boolean): offsetsInfo => {
+export const getOffsetsPerPage = (reqPage: number, countPerPage: number, totalCount: number, isAsc: boolean): OffsetsInfo => {
   let offsetStart: number, offsetEnd: number;
   if (isAsc) {
     offsetEnd = applyLimits(totalCount - (reqPage - 1) * countPerPage, 0);

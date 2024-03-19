@@ -27,4 +27,4 @@ app.onError((e, c) => {
 	return c.json(createErrorMessage('Internal Server Error'), 500);
 });
 
-app.fire();
+export default app;
