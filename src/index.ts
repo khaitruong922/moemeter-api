@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { prettyJSON } from 'hono/pretty-json'
 import { cors } from 'hono/cors'
+import { HTTPException } from "hono/http-exception";
 import { createErrorMessage } from "./error";
 import userBooks from "./routes/user-books";
 import summary from "./routes/summary";
@@ -23,6 +24,10 @@ app.notFound((c) => {
 });
 
 app.onError((e, c) => {
+	if (e instanceof HTTPException) {
+		console.log(`${e}`);
+		return c.json(createErrorMessage(e.message), e.status);
+	}
 	console.log(`${e}`);
 	return c.json(createErrorMessage('Internal Server Error'), 500);
 });
