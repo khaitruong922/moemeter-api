@@ -1,6 +1,7 @@
 # Bookmeter API
 
 [読書メーター](https://bookmeter.com/)の各種情報を取得するRESTful APIです．
+
 APIは全てGETリクエストのみを使用します．
 
 ## APIs
@@ -119,6 +120,7 @@ GET /users/618830/summary/monthly/2024/1?pretty&limit=1&page=53
 ## Errors
 
 次のHTTPステータスコードが主に発生します． - `404`，`400`，`500`
+
 Bookmeterに由来するエラー（例：無効なユーザーID）の場合，メッセージ先頭に`"Bookmeter:"`が付与されます．
 
 ### Sample response (404):
