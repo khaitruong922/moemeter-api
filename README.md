@@ -73,7 +73,7 @@ GET /users/618830/books/read?pretty&limit=3&page=1&order=1
 
 #### Optional Params
 
-- `limit` - The number of results to fetch per page. Default is `20`.
+- `limit` - The number of results to fetch per page. Default is `100`.
 - `page` - The page number to fetch. Default is `1`.
 - `order` - Accepts `1` to indicate ascending order. Default is Desc.
 - `pretty` - Flag of JSON pretty printing.
