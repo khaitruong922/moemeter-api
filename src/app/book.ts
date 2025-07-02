@@ -25,7 +25,6 @@ export type BooksDetails = {
 
 export const getBooksDetails = (listBooks: string[], isAsc: boolean, params: OffsetBookParams): BooksDetails => {
 	const { offsetArrayStart, offsetArrayEnd, offsetBookNo } = params;
-	console.log(params);
 	const targetBooks = listBooks.slice(offsetArrayStart, offsetArrayEnd);
 	if (isAsc) targetBooks.reverse();
 	return {
@@ -49,7 +48,7 @@ export const getBooksDetails = (listBooks: string[], isAsc: boolean, params: Off
 
 export const getBooks = (html: string): string[] => {
 	const books = extractRegex(html, /<li class="group__book">(.*?)<\/div><\/li>/g);
-	console.log('getBooks', books.length);
+	console.log(`Found ${books.length} books`);
 	return books;
 };
 
