@@ -1,14 +1,20 @@
-import { Context } from 'hono';
-import { createDbClient } from './index';
+import postgres from 'postgres';
+import { User } from '../types/models';
 
-export const addUser = async (c: Context): Promise<void> => {
-	const db = createDbClient(c);
-	try {
-		await db`INSERT INTO users (id, name) VALUES (${userId}, ${userName}) ON CONFLICT (id) DO NOTHING`;
-	} catch (error) {
-		console.error('Error adding user:', error);
-		throw error;
-	} finally {
-		await db.end();
-	}
+export const getAllUsers = async (sql: postgres.Sql<{}>) => {
+	const users = await sql<User[]>`
+    SELECT 
+      id,
+      name,
+      avatar_url,
+      books_read,
+      pages_read
+    FROM users
+    ORDER BY books_read DESC NULLS LAST
+  `;
+
+	return users.map((user) => ({
+		...user,
+		id: Number(user.id),
+	}));
 };

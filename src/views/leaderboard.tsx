@@ -1,17 +1,23 @@
 import type { User } from '../types/models';
 import { Layout } from '../components/Layout';
 import { LeaderboardTable } from '../components/LeaderboardTable';
-import { ErrorPage } from '../components/ErrorPage';
 
 export const leaderboardView = (users: User[]) => {
 	return (
 		<Layout
-			title="Bookmeter Leaderboard"
+			title="読書メーター | 読書ランキング"
 			children={
 				<>
-					<h1 class="text-3xl font-bold text-center mb-8 text-gray-800">📚 Bookmeter Leaderboard</h1>
-					<LeaderboardTable users={users} />
-					<div class="mt-8 text-center text-sm text-gray-500">Last updated: {new Date().toLocaleString()}</div>
+					<div class="max-w-4xl mx-auto">
+						<div class="mb-8">
+							<h2 class="text-xl font-bold text-gray-800 mb-2">読書ランキング</h2>
+							<p class="text-sm text-gray-600">読書メーターのユーザーの読書量ランキングです。</p>
+						</div>
+						<LeaderboardTable users={users} />
+						<div class="mt-6 text-center text-xs text-gray-500">
+							最終更新: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+						</div>
+					</div>
 				</>
 			}
 		/>

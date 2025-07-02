@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createErrorMessage } from './error';
 import userBooks from './routes/user-books';
 import summary from './routes/summary';
-import users from './routes/users';
+import leaderboard from './routes/leaderboard';
 import { createDbClient } from './db';
 
 const app = new Hono();
@@ -31,7 +31,7 @@ app.get('/health', async (c) => {
 
 app.route('/', userBooks);
 app.route('/', summary);
-app.route('/users', users);
+app.route('/', leaderboard);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);
