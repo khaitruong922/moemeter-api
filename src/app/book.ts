@@ -15,7 +15,7 @@ export type Book = {
 	authorUrl: string;
 	thumb: string;
 	date: string;
-	id: string;
+	id: number;
 };
 
 export type BooksDetails = {
@@ -70,6 +70,7 @@ export const getBookThumb = (htmlBook: string): string => {
 	return extractRegex(htmlBook, /class="cover__image" src="(.*?)" \/>/g)[0];
 };
 
-export const getBookId = (htmlBook: string): string => {
-	return extractRegex(htmlBook, /<a href="\/books\/(.*?)">/g)[0];
+export const getBookId = (htmlBook: string): number => {
+	const id = extractRegex(htmlBook, /<a href="\/books\/(.*?)">/g)[0];
+	return parseInt(id, 10);
 };
