@@ -12,9 +12,16 @@ type OffsetsInfo = {
 	offsetEnd: number;
 };
 
-export const getPageInfo = (reqPage: number, countPerPage: number, totalCount: number): PageInfo => {
+export const getPageInfo = (
+	reqPage: number,
+	countPerPage: number,
+	totalCount: number
+): PageInfo => {
 	if (countPerPage > totalCount) countPerPage = totalCount;
-	const lastPage = totalCount % countPerPage == 0 ? totalCount / countPerPage : ((totalCount / countPerPage) | 0) + 1;
+	const lastPage =
+		totalCount % countPerPage == 0
+			? totalCount / countPerPage
+			: ((totalCount / countPerPage) | 0) + 1;
 	const prevPage = reqPage > 1 ? reqPage - 1 : null;
 	const nextPage = lastPage > reqPage ? reqPage + 1 : null;
 
@@ -26,7 +33,12 @@ export const getPageInfo = (reqPage: number, countPerPage: number, totalCount: n
 	};
 };
 
-export const getOffsetsPerPage = (reqPage: number, countPerPage: number, totalCount: number, isAsc: boolean): OffsetsInfo => {
+export const getOffsetsPerPage = (
+	reqPage: number,
+	countPerPage: number,
+	totalCount: number,
+	isAsc: boolean
+): OffsetsInfo => {
 	let offsetStart: number, offsetEnd: number;
 	if (isAsc) {
 		offsetEnd = applyLimits(totalCount - (reqPage - 1) * countPerPage, 0);

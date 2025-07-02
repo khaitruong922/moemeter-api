@@ -17,7 +17,10 @@ export const getUserFromBookmeterUrl = async (bookmeterUrl: string): Promise<Use
 };
 
 export const getUserSectionHtml = (html: string): string => {
-	return extractRegex(html, /<section class="bm-block-side userdata">(.*?)<\/section><\/section>/g)[0];
+	return extractRegex(
+		html,
+		/<section class="bm-block-side userdata">(.*?)<\/section><\/section>/g
+	)[0];
 };
 
 export const getUserIdFromBookmeterUrl = (bookmeterUrl: string): number => {
@@ -29,7 +32,10 @@ export const getUserName = (html: string): string => {
 };
 
 export const getUserAvatarUrl = (html: string): string => {
-	const groups = extractRegexGroup(html, /<figure class="userdata-side__avatar"><img alt="(?<name>.*?)" src="(?<url>.*?)"/g);
+	const groups = extractRegexGroup(
+		html,
+		/<figure class="userdata-side__avatar"><img alt="(?<name>.*?)" src="(?<url>.*?)"/g
+	);
 	return groups[0]?.url;
 };
 
@@ -39,12 +45,21 @@ export const getUserDetailsHtml = (html: string): string => {
 };
 
 export const getUserBooksRead = (html: string): number => {
-	return parseInt(extractRegex(html, /<dt class="bm-details-side__title">読んだ本<\/dt><dd class="bm-details-side__item">(.*?)冊/g)[0], 10);
+	return parseInt(
+		extractRegex(
+			html,
+			/<dt class="bm-details-side__title">読んだ本<\/dt><dd class="bm-details-side__item">(.*?)冊/g
+		)[0],
+		10
+	);
 };
 
 export const getUserPagesRead = (html: string): number => {
 	return parseInt(
-		extractRegex(html, /<dt class="bm-details-side__title">読んだページ<\/dt><dd class="bm-details-side__item">(.*?)ページ/g)[0],
-		10,
+		extractRegex(
+			html,
+			/<dt class="bm-details-side__title">読んだページ<\/dt><dd class="bm-details-side__item">(.*?)ページ/g
+		)[0],
+		10
 	);
 };

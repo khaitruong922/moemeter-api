@@ -12,25 +12,37 @@ const buildPaginationParams = (c) => {
 
 app.get('/users/:id/books/read', async (c) => {
 	const id = c.req.param('id');
-	const jsonBooks = await getJsonUserBooks(`https://bookmeter.com/users/${id}/books/read`, buildPaginationParams(c));
+	const jsonBooks = await getJsonUserBooks(
+		`https://bookmeter.com/users/${id}/books/read`,
+		buildPaginationParams(c)
+	);
 	return c.json(jsonBooks);
 });
 
 app.get('/users/:id/books/reading', async (c) => {
 	const id = c.req.param('id');
-	const jsonBooks = await getJsonUserBooks(`https://bookmeter.com/users/${id}/books/reading`, buildPaginationParams(c));
+	const jsonBooks = await getJsonUserBooks(
+		`https://bookmeter.com/users/${id}/books/reading`,
+		buildPaginationParams(c)
+	);
 	return c.json(jsonBooks);
 });
 
 app.get('/users/:id/books/stacked', async (c) => {
 	const id = c.req.param('id');
-	const jsonBooks = await getJsonUserBooks(`https://bookmeter.com/users/${id}/books/stacked`, buildPaginationParams(c));
+	const jsonBooks = await getJsonUserBooks(
+		`https://bookmeter.com/users/${id}/books/stacked`,
+		buildPaginationParams(c)
+	);
 	return c.json(jsonBooks);
 });
 
 app.get('/users/:id/books/wish', async (c) => {
 	const id = c.req.param('id');
-	const jsonBooks = await getJsonUserBooks(`https://bookmeter.com/users/${id}/books/wish`, buildPaginationParams(c));
+	const jsonBooks = await getJsonUserBooks(
+		`https://bookmeter.com/users/${id}/books/wish`,
+		buildPaginationParams(c)
+	);
 	return c.json(jsonBooks);
 });
 

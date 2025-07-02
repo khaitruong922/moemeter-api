@@ -14,7 +14,8 @@ export const parsePerPageYearly = (query: string | undefined) =>
 	applyNaNVL(parseNatNum(query), DEFAULT_LIMITS.SUMMARY_YEARLY_LIMIT) as PerPageYearly;
 
 type ReqPage = Branded<number, 'ReqPage'>;
-export const parseReqPage = (query: string | undefined) => applyNaNVL(parseNatNum(query), 1) as ReqPage;
+export const parseReqPage = (query: string | undefined) =>
+	applyNaNVL(parseNatNum(query), 1) as ReqPage;
 
 type IsAsc = Branded<boolean, 'IsAsc'>;
 export const parseIsAsc = (query: string | undefined) => isBoolQueryOn(query) as IsAsc;
@@ -89,7 +90,11 @@ export const getJsonSummaryYearly = async (url: string, params: JsonSummaryYearl
 	let offsetBookNo = showTotalCount - offsetStart;
 
 	return {
-		...getSummaryYearlyBooksDetails(listBooks, isAsc, { offsetArrayStart, offsetArrayEnd, offsetBookNo }),
+		...getSummaryYearlyBooksDetails(listBooks, isAsc, {
+			offsetArrayStart,
+			offsetArrayEnd,
+			offsetBookNo,
+		}),
 		showTotalCount,
 		totalCount,
 		totalPages: applyNaNVL(parseNatNum(summaryYearlyDetails?.totalReadingPages), 0),
@@ -104,7 +109,7 @@ export const getJsonSummaryYearly = async (url: string, params: JsonSummaryYearl
 const getSummaryMonthlyDetails = (html: string): groups => {
 	return extractRegexGroup(
 		html,
-		/<dt>読んだ本<\/dt><dd><span class="list__data">(?<totalCount>.*?)<\/span><span class="list__unit">冊<\/span><\/dd><\/dl><dl class="stats__list"><dt>読んだページ<\/dt><dd><span class="list__data">(?<totalReadingPages>.*?)<\/span><span class="list__unit">ページ<\/span><\/dd><\/dl><dl class="stats__list"><dt>感想・レビュー<\/dt><dd><span class="list__data">(?<totalReviews>.*?)<\/span><span class="list__unit">件<\/span><\/dd><\/dl><dl class="stats__list"><dt>ナイス<\/dt><dd><span class="list__data">(?<totalNice>.*?)<\/span>/g,
+		/<dt>読んだ本<\/dt><dd><span class="list__data">(?<totalCount>.*?)<\/span><span class="list__unit">冊<\/span><\/dd><\/dl><dl class="stats__list"><dt>読んだページ<\/dt><dd><span class="list__data">(?<totalReadingPages>.*?)<\/span><span class="list__unit">ページ<\/span><\/dd><\/dl><dl class="stats__list"><dt>感想・レビュー<\/dt><dd><span class="list__data">(?<totalReviews>.*?)<\/span><span class="list__unit">件<\/span><\/dd><\/dl><dl class="stats__list"><dt>ナイス<\/dt><dd><span class="list__data">(?<totalNice>.*?)<\/span>/g
 	)[0];
 };
 
@@ -119,11 +124,15 @@ const getSummaryYearlyBooks = (html: string): string[] => {
 const getSummaryYearlyDetails = (html: string): groups => {
 	return extractRegexGroup(
 		html,
-		/<dt class="list__title">読んだ本<\/dt><dd class="list__item"><span class="item__number">(?<totalCount>.*?)<\/span><span class="item__unit">冊<\/span><\/dd><dt class="list__title">読んだページ<\/dt><dd class="list__item"><span class="item__number">(?<totalReadingPages>.*?)<\/span><span class="item__unit">ページ<\/span><\/dd><dt class="list__title">感想・レビュー<\/dt><dd class="list__item"><span class="item__number">(?<totalReviews>.*?)<\/span><span class="item__unit">件<\/span><\/dd><dt class="list__title">ナイス<\/dt><dd class="list__item"><span class="item__number">(?<totalNice>.*?)<\/span><span class="item__unit">ナイス<\/span><\/dd><dt class="list__title">月間平均冊数<\/dt><dd class="list__item"><span class="item__number">(?<countPerMonth>.*?)<\/span><span class="item__unit">冊<\/span><\/dd><dt class="list__title">月間平均ページ数<\/dt><dd class="list__item"><span class="item__number">(?<pagesPerMonth>.*?)<\/span>/g,
+		/<dt class="list__title">読んだ本<\/dt><dd class="list__item"><span class="item__number">(?<totalCount>.*?)<\/span><span class="item__unit">冊<\/span><\/dd><dt class="list__title">読んだページ<\/dt><dd class="list__item"><span class="item__number">(?<totalReadingPages>.*?)<\/span><span class="item__unit">ページ<\/span><\/dd><dt class="list__title">感想・レビュー<\/dt><dd class="list__item"><span class="item__number">(?<totalReviews>.*?)<\/span><span class="item__unit">件<\/span><\/dd><dt class="list__title">ナイス<\/dt><dd class="list__item"><span class="item__number">(?<totalNice>.*?)<\/span><span class="item__unit">ナイス<\/span><\/dd><dt class="list__title">月間平均冊数<\/dt><dd class="list__item"><span class="item__number">(?<countPerMonth>.*?)<\/span><span class="item__unit">冊<\/span><\/dd><dt class="list__title">月間平均ページ数<\/dt><dd class="list__item"><span class="item__number">(?<pagesPerMonth>.*?)<\/span>/g
 	)[0];
 };
 
-const getSummaryYearlyBooksDetails = (listBooks: string[], isAsc: IsAsc, params: OffsetBookParams) => {
+const getSummaryYearlyBooksDetails = (
+	listBooks: string[],
+	isAsc: IsAsc,
+	params: OffsetBookParams
+) => {
 	const { offsetArrayStart, offsetArrayEnd, offsetBookNo } = params;
 	const targetBooks = listBooks.slice(offsetArrayStart, offsetArrayEnd);
 	if (isAsc) targetBooks.reverse();

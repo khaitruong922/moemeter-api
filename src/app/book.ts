@@ -23,7 +23,11 @@ export type BooksDetails = {
 	count: number;
 };
 
-export const getBooksDetails = (listBooks: string[], isAsc: boolean, params: OffsetBookParams): BooksDetails => {
+export const getBooksDetails = (
+	listBooks: string[],
+	isAsc: boolean,
+	params: OffsetBookParams
+): BooksDetails => {
 	const { offsetArrayStart, offsetArrayEnd, offsetBookNo } = params;
 	const targetBooks = listBooks.slice(offsetArrayStart, offsetArrayEnd);
 	if (isAsc) targetBooks.reverse();
@@ -55,7 +59,10 @@ export const getBooks = (html: string): string[] => {
 export const getBookTitleInfo = (htmlBook: string): groups => {
 	// img altの場合、タイトルが省略されていない
 	// return extractRegexGroup(htmlBook, /<div class="detail__title"><a href="(?<url>.*?)">(?<title>.*?)<\/a><\/div>/g)[0];
-	return extractRegexGroup(htmlBook, /<div class="thumbnail__cover"><a href="(?<url>.*?)"><img alt="(?<title>.*?)" class/g)[0];
+	return extractRegexGroup(
+		htmlBook,
+		/<div class="thumbnail__cover"><a href="(?<url>.*?)"><img alt="(?<title>.*?)" class/g
+	)[0];
 };
 
 export const getBookDate = (htmlBook: string): string => {
@@ -63,7 +70,10 @@ export const getBookDate = (htmlBook: string): string => {
 };
 
 export const getBookAuthorInfo = (htmlBook: string): groups => {
-	return extractRegexGroup(htmlBook, /<ul class="detail__authors"><li><a href="(?<url>.*?)">(?<author>.*?)<\/a><\/li><\/ul>/g)[0];
+	return extractRegexGroup(
+		htmlBook,
+		/<ul class="detail__authors"><li><a href="(?<url>.*?)">(?<author>.*?)<\/a><\/li><\/ul>/g
+	)[0];
 };
 
 export const getBookThumb = (htmlBook: string): string => {
