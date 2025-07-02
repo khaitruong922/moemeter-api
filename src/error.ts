@@ -1,17 +1,17 @@
 type Error = {
-  message: string
-}
+	message: string;
+};
 
 type ErrorMessage = {
-  errors: Error[]
-}
+	errors: Error[];
+};
 
 export const createErrorMessage = (message: string): ErrorMessage => {
-  return {
-    errors: [
-      {
-        message: message,
-      },
-    ],
-  }
-}
+	return {
+		errors: [
+			{
+				message: message,
+			},
+		],
+	};
+};

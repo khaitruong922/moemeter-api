@@ -1,19 +1,19 @@
-import { Hono } from "hono";
-import { prettyJSON } from 'hono/pretty-json'
-import { cors } from 'hono/cors'
-import { HTTPException } from "hono/http-exception";
-import { createErrorMessage } from "./error";
-import userBooks from "./routes/user-books";
-import summary from "./routes/summary";
+import { Hono } from 'hono';
+import { prettyJSON } from 'hono/pretty-json';
+import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
+import { createErrorMessage } from './error';
+import userBooks from './routes/user-books';
+import summary from './routes/summary';
 
 const app = new Hono();
 app.use('*', prettyJSON());
 app.use('*', cors());
 
-app.get("/", async (c) => {
+app.get('/', async (c) => {
 	return c.json({
-    message: 'Bookmeter API is running.',
-  })
+		message: 'Bookmeter API is running.',
+	});
 });
 
 app.route('/', userBooks);
