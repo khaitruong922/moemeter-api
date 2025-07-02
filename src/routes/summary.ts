@@ -15,7 +15,7 @@ app.get('/users/:id/summary/monthly/:year/:month', async (c) => {
 	const id = c.req.param('id');
 	const year = c.req.param('year');
 	const month = c.req.param('month');
-	const perPage = parsePerPageMonthly(c.req.query('limit'));
+	const perPage = parsePerPageMonthly(c.req.query('per_page'));
 	const reqPage = parseReqPage(c.req.query('page'));
 	const isAsc = parseIsAsc(c.req.query('order'));
 	const jsonBooks = await getJsonSummaryMonthly(`https://bookmeter.com/users/${id}/summary/monthly/${year}/${month}`, {
@@ -29,7 +29,7 @@ app.get('/users/:id/summary/monthly/:year/:month', async (c) => {
 app.get('/users/:id/summary/yearly/:year', async (c) => {
 	const id = c.req.param('id');
 	const year = c.req.param('year');
-	const perPage = parsePerPageYearly(c.req.query('limit'));
+	const perPage = parsePerPageYearly(c.req.query('per_page'));
 	const reqPage = parseReqPage(c.req.query('page'));
 	const isAsc = parseIsAsc(c.req.query('order'));
 	// 一旦簡易版表示

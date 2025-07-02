@@ -1,6 +1,6 @@
-import postgres from 'postgres';
 import { Context } from 'hono';
-import { env, getRuntimeKey } from 'hono/adapter';
+import { env } from 'hono/adapter';
+import postgres from 'postgres';
 
 export function createDbClient(c: Context): postgres.Sql<{}> {
 	const { DATABASE_URL } = env(c);

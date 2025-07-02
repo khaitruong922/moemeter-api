@@ -2,6 +2,7 @@ import { escapeNewline } from '../utils/string-utils';
 import { HTTPException } from 'hono/http-exception';
 
 export const getHTML = async (url: string): Promise<string> => {
+	console.log(`Fetching URL: ${url}`);
 	const escapedUrl = escapeNewline(url);
 	let response: Response;
 	try {

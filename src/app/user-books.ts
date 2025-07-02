@@ -20,14 +20,26 @@ type JsonUserBooksParams = {
 	isAsc: IsAsc;
 };
 
-export const getJsonUserBooks = async (url: string, params: JsonUserBooksParams) => {
+export const getJsonUserBooks = async (url: string, params: JsonUserBooksParams, retries: number = 2) => {
+	if (retries <= 0) {
+		console.error('getJsonUserBooks: Too many retries, returning empty result');
+		return {
+			books: [],
+			count: 0,
+			totalCount: 0,
+			pageInfo: null,
+		};
+	}
+
 	let { perPage } = params;
 	const { reqPage, isAsc } = params;
 
 	const totalCount = getBooksTotal(await getHTML(url));
 	const pageInfo = getPageInfo(reqPage, perPage, totalCount);
 
-	const { offsetStart, offsetEnd } = getOffsetsPerPage(reqPage, perPage, totalCount, isAsc);
+	let { offsetStart, offsetEnd } = getOffsetsPerPage(reqPage, perPage, totalCount, isAsc);
+	offsetEnd = Math.min(offsetEnd, totalCount);
+
 	const firstPageFetch = ((offsetStart / BOOKS_PER_PAGE) | 0) + 1;
 	const lastPageFetch = offsetEnd % BOOKS_PER_PAGE == 0 ? offsetEnd / BOOKS_PER_PAGE : ((offsetEnd / BOOKS_PER_PAGE) | 0) + 1;
 	const offsetArrayStart = offsetStart - (firstPageFetch - 1) * BOOKS_PER_PAGE;
@@ -36,16 +48,22 @@ export const getJsonUserBooks = async (url: string, params: JsonUserBooksParams)
 
 	let listBooks: Array<string> = [];
 	if (isWithinLimits(reqPage, 0, pageInfo.lastPage)) {
-		await Promise.all(
-			[...Array(1 + lastPageFetch - firstPageFetch)].map((_, i) => getHTML(url.concat(`?page=${i + firstPageFetch}`))),
-		).then((pages) => pages.map((page) => (listBooks = [...listBooks, ...getBooks(page)])));
+		for (let i = firstPageFetch; i <= lastPageFetch; i++) {
+			const pageHTML = await getHTML(url.concat(`?page=${i}`));
+			listBooks = [...listBooks, ...getBooks(pageHTML)];
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
 	}
 
-	return {
-		...getBooksDetails(listBooks, isAsc, { offsetArrayStart, offsetArrayEnd, offsetBookNo }),
-		totalCount,
-		pageInfo,
-	};
+	const booksDetails = getBooksDetails(listBooks, isAsc, { offsetArrayStart, offsetArrayEnd, offsetBookNo });
+	if (booksDetails.books.length === totalCount)
+		return {
+			...booksDetails,
+			totalCount,
+			pageInfo,
+		};
+
+	return getJsonUserBooks(url, params, retries - 1);
 };
 
 const getBooksTotal = (html: string): number => {
