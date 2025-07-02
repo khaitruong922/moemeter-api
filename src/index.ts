@@ -6,6 +6,7 @@ import { createErrorMessage } from './error';
 import userBooks from './routes/user-books';
 import summary from './routes/summary';
 import leaderboard from './routes/leaderboard';
+import join from './routes/join';
 import { createDbClient } from './db';
 
 const app = new Hono();
@@ -32,6 +33,7 @@ app.get('/health', async (c) => {
 app.route('/', userBooks);
 app.route('/', summary);
 app.route('/', leaderboard);
+app.route('/', join);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);
