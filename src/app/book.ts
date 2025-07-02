@@ -23,6 +23,7 @@ export const getBooksDetails = (listBooks: string[], isAsc: boolean, params: Off
 				authorUrl: joinBaseUrl(authorInfo?.url),
 				thumb: getBookThumb(book),
 				date: getBookDate(book),
+				id: getBookId(book),
 			};
 		}),
 		count: targetBooks.length,
@@ -49,4 +50,8 @@ export const getBookAuthorInfo = (htmlBook: string): groups => {
 
 export const getBookThumb = (htmlBook: string): string => {
 	return extractRegex(htmlBook, /class="cover__image" src="(.*?)" \/>/g)[0];
+};
+
+export const getBookId = (htmlBook: string): string => {
+	return extractRegex(htmlBook, /<a href="\/books\/(.*?)">/g)[0];
 };
