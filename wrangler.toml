@@ -1,3 +1,4 @@
 name = "bookmeter-api"
 main = "src/index.ts"
-compatibility_date = "2024-02-23"
+compatibility_flags = [ "nodejs_compat" ]
+compatibility_date = "2024-09-23"

@@ -5,15 +5,26 @@ import { HTTPException } from 'hono/http-exception';
 import { createErrorMessage } from './error';
 import userBooks from './routes/user-books';
 import summary from './routes/summary';
+import { createDbClient } from './db/db';
 
 const app = new Hono();
 app.use('*', prettyJSON());
 app.use('*', cors());
 
 app.get('/', async (c) => {
-	return c.json({
-		message: 'Bookmeter API is running.',
-	});
+	const db = createDbClient(c);
+	console.log(db);
+	try {
+		const res = await db`SELECT * from users;`;
+		console.log('Database connection successful:', res);
+		return c.json({
+			message: 'Database connection successful.',
+			data: res,
+		});
+	} catch (error) {
+		console.error('Database connection error:', error);
+		return c.json(createErrorMessage('Database connection failed'), 500);
+	}
 });
 
 app.route('/', userBooks);
