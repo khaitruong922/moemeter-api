@@ -33,7 +33,7 @@ GET /users/618830/books/read?pretty&per_page=3&page=1&order=1
 			"url": "https://bookmeter.com/books/579988",
 			"author": "結城 浩",
 			"authorUrl": "https://bookmeter.com/search?author=%E7%B5%90%E5%9F%8E+%E6%B5%A9",
-			"thumb": "https://m.media-amazon.com/images/I/514bGkTG2BL._SL500_.jpg",
+			"thumbnailUrl": "https://m.media-amazon.com/images/I/514bGkTG2BL._SL500_.jpg",
 			"date": "日付不明"
 		},
 		{
@@ -42,7 +42,7 @@ GET /users/618830/books/read?pretty&per_page=3&page=1&order=1
 			"url": "https://bookmeter.com/books/570685",
 			"author": "夢野 久作",
 			"authorUrl": "https://bookmeter.com/search?author=%E5%A4%A2%E9%87%8E+%E4%B9%85%E4%BD%9C",
-			"thumb": "https://m.media-amazon.com/images/I/41wwx3FSyFL._SL500_.jpg",
+			"thumbnailUrl": "https://m.media-amazon.com/images/I/41wwx3FSyFL._SL500_.jpg",
 			"date": "日付不明"
 		},
 		{
@@ -51,7 +51,7 @@ GET /users/618830/books/read?pretty&per_page=3&page=1&order=1
 			"url": "https://bookmeter.com/books/570188",
 			"author": "夢野 久作",
 			"authorUrl": "https://bookmeter.com/search?author=%E5%A4%A2%E9%87%8E+%E4%B9%85%E4%BD%9C",
-			"thumb": "https://m.media-amazon.com/images/I/41510Rl6QPL._SL500_.jpg",
+			"thumbnailUrl": "https://m.media-amazon.com/images/I/41510Rl6QPL._SL500_.jpg",
 			"date": "日付不明"
 		}
 	],
@@ -91,7 +91,7 @@ GET /users/618830/summary/monthly/2024/1?pretty&per_page=1&page=53
 			"url": "https://bookmeter.com/books/21557218",
 			"author": "宮澤 伊織",
 			"authorUrl": "https://bookmeter.com/search?author=%E5%AE%AE%E6%BE%A4+%E4%BC%8A%E7%B9%94",
-			"thumb": "https://m.media-amazon.com/images/I/51L6d84hbDL._SL500_.jpg",
+			"thumbnailUrl": "https://m.media-amazon.com/images/I/51L6d84hbDL._SL500_.jpg",
 			"date": "2024/01/01"
 		}
 	],

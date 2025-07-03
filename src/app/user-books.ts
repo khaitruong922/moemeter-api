@@ -1,19 +1,19 @@
 import { getHTML } from '../infra/html';
 import { BOOKS_PER_PAGE, DEFAULT_LIMITS, isBoolQueryOn } from '../utils/bookmeter-utils';
 import { applyNaNVL, isWithinLimits, parseNatNum } from '../utils/number-utils';
-import { getOffsetsPerPage, getPageInfo } from '../utils/paging-utils';
+import { getOffsetsPerPage, getPageInfo, PageInfo } from '../utils/paging-utils';
 import { extractRegex } from '../utils/string-utils';
-import { getBooks, getBooksDetails } from './book';
+import { BookData, BooksDetails, getBooks, getBooksDetails } from './book';
 
-type PerPage = Branded<number, 'PerPage'>;
+type PerPage = number | undefined;
 export const parsePerPage = (query: string | undefined) =>
 	applyNaNVL(parseNatNum(query), DEFAULT_LIMITS.BOOKS_LIMIT) as PerPage;
 
-type ReqPage = Branded<number, 'ReqPage'>;
+type ReqPage = number | undefined;
 export const parseReqPage = (query: string | undefined) =>
 	applyNaNVL(parseNatNum(query), 1) as ReqPage;
 
-type IsAsc = Branded<boolean, 'IsAsc'>;
+type IsAsc = boolean | undefined;
 export const parseIsAsc = (query: string | undefined) => isBoolQueryOn(query) as IsAsc;
 
 type JsonUserBooksParams = {
@@ -22,11 +22,30 @@ type JsonUserBooksParams = {
 	isAsc: IsAsc;
 };
 
+export const getAllUserBookData = async (url: string, retries: number = 2): Promise<BookData[]> => {
+	const res = await getJsonUserBooks(
+		url,
+		{
+			perPage: 99999,
+			reqPage: 1,
+			isAsc: true,
+		},
+		retries
+	);
+	return res.books;
+};
+
+type JsonUserBooksResponse = BooksDetails & {
+	totalCount: number;
+	pageInfo: PageInfo;
+	message?: string;
+};
+
 export const getJsonUserBooks = async (
 	url: string,
 	params: JsonUserBooksParams,
 	retries: number = 2
-) => {
+): Promise<JsonUserBooksResponse> => {
 	let { perPage } = params;
 	const { reqPage, isAsc } = params;
 	const totalCount = getBooksTotal(await getHTML(url));

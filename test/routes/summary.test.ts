@@ -6,7 +6,7 @@ const firstBookMonthly202401Data = {
 	url: 'https://bookmeter.com/books/21557218',
 	author: '宮澤 伊織',
 	authorUrl: 'https://bookmeter.com/search?author=%E5%AE%AE%E6%BE%A4+%E4%BC%8A%E7%B9%94',
-	thumb: 'https://m.media-amazon.com/images/I/51L6d84hbDL._SL500_.jpg',
+	thumbnailUrl: 'https://m.media-amazon.com/images/I/51L6d84hbDL._SL500_.jpg',
 	date: '2024/01/01',
 };
 

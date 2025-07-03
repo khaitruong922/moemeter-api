@@ -1,0 +1,32 @@
+export interface User {
+	id: number;
+	name: string | null;
+	avatar_url: string | null;
+	books_read: number | null;
+	pages_read: number | null;
+}
+
+export interface Book {
+	id: number;
+	title: string | null;
+	url: string | null;
+	author: string | null;
+	author_url: string | null;
+	thumbnail_url: string | null;
+}
+
+export interface Read {
+	user_id: number;
+	book_id: number;
+	date: string;
+}
+
+export interface Group {
+	id: number;
+	name: string;
+}
+
+export interface UserGroup {
+	user_id: number;
+	group_id: number;
+}

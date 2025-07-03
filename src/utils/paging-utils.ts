@@ -1,6 +1,6 @@
 import { applyLimits } from './number-utils';
 
-type PageInfo = {
+export type PageInfo = {
 	currentPage: number;
 	prevPage: number | null;
 	nextPage: number | null;

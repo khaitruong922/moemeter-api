@@ -1,14 +1,14 @@
 import { getHTML } from '../infra/html';
-import { User } from '../types/models';
+import { User } from '../db/models';
 import { extractRegex, extractRegexGroup } from '../utils/string-utils';
 
 export const getUserFromBookmeterUrl = async (bookmeterUrl: string): Promise<User> => {
+	bookmeterUrl = bookmeterUrl.trim();
 	const userId = getUserIdFromBookmeterUrl(bookmeterUrl);
 	const html = await getHTML(bookmeterUrl);
 	const userSectionHtml = getUserSectionHtml(html);
 	return {
 		id: userId,
-		bookmeter_url: bookmeterUrl,
 		name: getUserName(userSectionHtml),
 		avatar_url: getUserAvatarUrl(userSectionHtml),
 		books_read: getUserBooksRead(userSectionHtml),

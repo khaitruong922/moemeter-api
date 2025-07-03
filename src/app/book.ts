@@ -1,5 +1,6 @@
-import { type groups, extractRegex, extractRegexGroup } from '../utils/string-utils';
+import { Book } from '../db/models';
 import { joinBaseUrl } from '../utils/bookmeter-utils';
+import { type groups, extractRegex, extractRegexGroup } from '../utils/string-utils';
 
 export type OffsetBookParams = {
 	offsetArrayStart: number;
@@ -7,20 +8,31 @@ export type OffsetBookParams = {
 	offsetBookNo: number;
 };
 
-export type Book = {
+export type BookData = {
 	no: number;
 	title: string;
 	url: string;
 	author: string;
 	authorUrl: string;
-	thumb: string;
+	thumbnailUrl: string;
 	date: string;
 	id: number;
 };
 
 export type BooksDetails = {
-	books: Book[];
+	books: BookData[];
 	count: number;
+};
+
+export const mapBookDataToBookModel = (book: BookData): Book => {
+	return {
+		id: book.id,
+		url: book.url || null,
+		title: book.title || null,
+		author: book.author || null,
+		author_url: book.authorUrl || null,
+		thumbnail_url: book.thumbnailUrl || null,
+	};
 };
 
 export const getBooksDetails = (
@@ -41,7 +53,7 @@ export const getBooksDetails = (
 				url: joinBaseUrl(titleInfo?.url),
 				author: authorInfo?.author ?? '',
 				authorUrl: joinBaseUrl(authorInfo?.url),
-				thumb: getBookThumb(book),
+				thumbnailUrl: getBookThumbnailUrl(book),
 				date: getBookDate(book),
 				id: getBookId(book),
 			};
@@ -76,7 +88,7 @@ export const getBookAuthorInfo = (htmlBook: string): groups => {
 	)[0];
 };
 
-export const getBookThumb = (htmlBook: string): string => {
+export const getBookThumbnailUrl = (htmlBook: string): string => {
 	return extractRegex(htmlBook, /class="cover__image" src="(.*?)" \/>/g)[0];
 };
 

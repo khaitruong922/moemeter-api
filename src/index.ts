@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
-import { prettyJSON } from 'hono/pretty-json';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
-import { createErrorMessage } from './error';
-import userBooks from './routes/user-books';
-import summary from './routes/summary';
-import leaderboard from './routes/leaderboard';
-import join from './routes/join';
+import { prettyJSON } from 'hono/pretty-json';
 import { createDbClient } from './db';
+import { createErrorMessage } from './error';
+import books from './routes/books';
+import reads from './routes/reads';
+import users from './routes/users';
+import groups from './routes/groups';
 
 const app = new Hono();
 app.use('*', prettyJSON());
@@ -30,10 +30,10 @@ app.get('/health', async (c) => {
 	}
 });
 
-app.route('/', userBooks);
-app.route('/', summary);
-app.route('/', leaderboard);
-app.route('/', join);
+app.route('/users', users);
+app.route('/books', books);
+app.route('/reads', reads);
+app.route('/groups', groups);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);

@@ -6,7 +6,7 @@ const firstReadBookData = {
 	url: 'https://bookmeter.com/books/579988',
 	author: '結城 浩',
 	authorUrl: 'https://bookmeter.com/search?author=%E7%B5%90%E5%9F%8E+%E6%B5%A9',
-	thumb: 'https://m.media-amazon.com/images/I/514bGkTG2BL._SL500_.jpg',
+	thumbnailUrl: 'https://m.media-amazon.com/images/I/514bGkTG2BL._SL500_.jpg',
 	date: '日付不明',
 };
 

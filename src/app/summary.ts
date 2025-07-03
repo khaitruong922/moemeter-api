@@ -3,7 +3,7 @@ import { DEFAULT_LIMITS, isBoolQueryOn, joinBaseUrl } from '../utils/bookmeter-u
 import { applyNaNVL, isWithinLimits, parseNatNum } from '../utils/number-utils';
 import { getOffsetsPerPage, getPageInfo } from '../utils/paging-utils';
 import { extractRegex, extractRegexGroup, groups } from '../utils/string-utils';
-import { getBooks, getBooksDetails, getBookThumb, type OffsetBookParams } from './book';
+import { getBooks, getBooksDetails, getBookThumbnailUrl, type OffsetBookParams } from './book';
 
 type PerPageMonthly = Branded<number, 'PerPageMonthly'>;
 export const parsePerPageMonthly = (query: string | undefined) =>
@@ -144,7 +144,7 @@ const getSummaryYearlyBooksDetails = (
 				url: joinBaseUrl(getSummaryYearlyBookUrl(book)),
 				author: '',
 				authorUrl: '',
-				thumb: getBookThumb(book),
+				thumbnailUrl: getBookThumbnailUrl(book),
 				date: '',
 			};
 		}),
