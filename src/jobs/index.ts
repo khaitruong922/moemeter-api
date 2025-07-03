@@ -3,7 +3,7 @@ import { mapBookDataToBookModel } from '../app/book';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
 import { getAllUserUniqueBookData } from '../app/user-books';
 import { createDbClientFromEnv } from '../db';
-import { bulkUpsertBooks } from '../db/books';
+import { bulkUpsertBooks, deleteUnreadBooks } from '../db/books';
 import { Read } from '../db/models';
 import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
 import { selectAllUsers, upsertUser } from '../db/users';
@@ -37,4 +37,5 @@ const syncUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> =>
 	}));
 	await deleteReadsOfUser(sql, user.id);
 	await bulkUpsertReads(sql, reads);
+	await deleteUnreadBooks(sql);
 };

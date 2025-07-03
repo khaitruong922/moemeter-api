@@ -55,3 +55,12 @@ export const bulkUpsertBooks = async (sql: postgres.Sql<{}>, books: Book[]): Pro
       thumbnail_url = EXCLUDED.thumbnail_url
   `;
 };
+
+export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    DELETE FROM books
+    WHERE books.id NOT IN (
+      SELECT book_id FROM reads
+    )
+  `;
+};
