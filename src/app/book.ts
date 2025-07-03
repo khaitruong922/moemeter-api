@@ -1,5 +1,5 @@
 import { Book } from '../db/models';
-import { joinBaseUrl } from '../utils/bookmeter-utils';
+import { joinBaseUrl, getBookUrl } from '../utils/bookmeter-utils';
 import { type groups, extractRegex, extractRegexGroup } from '../utils/string-utils';
 
 export type OffsetBookParams = {
@@ -11,7 +11,6 @@ export type OffsetBookParams = {
 export type BookData = {
 	no: number;
 	title: string;
-	url: string;
 	author: string;
 	authorUrl: string;
 	thumbnailUrl: string;
@@ -27,7 +26,6 @@ export type BooksDetails = {
 export const mapBookDataToBookModel = (book: BookData): Book => {
 	return {
 		id: book.id,
-		url: book.url || null,
 		title: book.title || null,
 		author: book.author || null,
 		author_url: book.authorUrl || null,
@@ -47,15 +45,15 @@ export const getBooksDetails = (
 		books: targetBooks.map((book, i) => {
 			const titleInfo = getBookTitleInfo(book);
 			const authorInfo = getBookAuthorInfo(book);
+			const id = getBookId(book);
 			return {
 				no: isAsc ? offsetBookNo - (targetBooks.length - i - 1) : offsetBookNo - i,
 				title: titleInfo?.title ?? '',
-				url: joinBaseUrl(titleInfo?.url),
 				author: authorInfo?.author ?? '',
 				authorUrl: joinBaseUrl(authorInfo?.url),
 				thumbnailUrl: getBookThumbnailUrl(book),
 				date: getBookDate(book),
-				id: getBookId(book),
+				id,
 			};
 		}),
 		count: targetBooks.length,

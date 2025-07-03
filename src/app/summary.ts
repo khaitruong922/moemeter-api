@@ -1,5 +1,5 @@
 import { getHTML } from '../infra/html';
-import { DEFAULT_LIMITS, isBoolQueryOn, joinBaseUrl } from '../utils/bookmeter-utils';
+import { DEFAULT_LIMITS, isBoolQueryOn, joinBaseUrl, getBookUrl } from '../utils/bookmeter-utils';
 import { applyNaNVL, isWithinLimits, parseNatNum } from '../utils/number-utils';
 import { getOffsetsPerPage, getPageInfo } from '../utils/paging-utils';
 import { extractRegex, extractRegexGroup, groups } from '../utils/string-utils';
@@ -138,14 +138,15 @@ const getSummaryYearlyBooksDetails = (
 	if (isAsc) targetBooks.reverse();
 	return {
 		books: targetBooks.map((book, i) => {
+			const id = getBookId(book);
 			return {
 				no: isAsc ? offsetBookNo - (targetBooks.length - i - 1) : offsetBookNo - i,
 				title: getSummaryYearlyBookTitle(book),
-				url: joinBaseUrl(getSummaryYearlyBookUrl(book)),
 				author: '',
 				authorUrl: '',
 				thumbnailUrl: getBookThumbnailUrl(book),
 				date: '',
+				id,
 			};
 		}),
 		count: targetBooks.length,
@@ -158,4 +159,9 @@ const getSummaryYearlyBookUrl = (htmlBook: string): string => {
 
 const getSummaryYearlyBookTitle = (htmlBook: string): string => {
 	return extractRegex(htmlBook, /<div class="item__title">(.*?)<\/div>/g)[0];
+};
+
+const getBookId = (htmlBook: string): number => {
+	const url = extractRegex(htmlBook, /<a href="\/books\/(.*?)">/g)[0];
+	return parseInt(url, 10);
 };

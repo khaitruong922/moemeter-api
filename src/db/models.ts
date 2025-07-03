@@ -9,7 +9,6 @@ export interface User {
 export interface Book {
 	id: number;
 	title: string | null;
-	url: string | null;
 	author: string | null;
 	author_url: string | null;
 	thumbnail_url: string | null;
