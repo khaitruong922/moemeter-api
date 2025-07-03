@@ -11,6 +11,18 @@ export const selectAllUsers = async (sql: postgres.Sql<{}>): Promise<User[]> => 
 	return rows;
 };
 
+export const selectUserById = async (
+	sql: postgres.Sql<{}>,
+	userId: number
+): Promise<User | null> => {
+	const rows = await sql<User[]>`
+    SELECT id, name, avatar_url, books_read, pages_read
+    FROM users
+    WHERE id = ${userId}
+  `;
+	return rows[0] ?? null;
+};
+
 export const selectUserByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<User[]> => {
 	if (ids.length === 0) return [];
 	const rows = await sql<User[]>`

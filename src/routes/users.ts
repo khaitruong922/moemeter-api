@@ -1,13 +1,19 @@
 import { Hono } from 'hono';
 import { mapBookDataToBookModel } from '../app/book';
-import { getUserFromBookmeterUrl } from '../app/user';
+import { getUserFromBookmeterUrl, getBookmeterUrlFromUserId } from '../app/user';
 import { getAllUserUniqueBookData } from '../app/user-books';
 import { createDbClientFromContext } from '../db';
 import { bulkUpsertBooks, selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { Read } from '../db/models';
 import { bulkUpsertReads, selectCommonReadsOfUser } from '../db/reads';
-import { selectAllUsers, selectUserByIds, upsertUser, userExists } from '../db/users';
+import {
+	selectAllUsers,
+	selectUserById,
+	selectUserByIds,
+	upsertUser,
+	userExists,
+} from '../db/users';
 import { upsertUserGroup } from '../db/users_groups';
 
 const app = new Hono();
@@ -18,10 +24,23 @@ app.get('/leaderboard', async (c) => {
 	return c.json(users);
 });
 
+app.get('/:userId', async (c) => {
+	const userId = c.req.param('userId');
+	if (!userId || isNaN(Number(userId))) {
+		return c.json({ error: 'Invalid user id' }, 400);
+	}
+	const sql = createDbClientFromContext(c);
+	const user = await selectUserById(sql, Number(userId));
+	if (user === null) {
+		return c.json({ error: 'User not found' }, 404);
+	}
+	return c.json(user);
+});
+
 app.post('/join', async (c) => {
-	const { bookmeter_url, group_id, password } = await c.req.json();
-	if (!bookmeter_url || typeof bookmeter_url !== 'string') {
-		return c.json({ error: 'bookmeter_url is required' }, 400);
+	const { user_id, group_id, password } = await c.req.json();
+	if (!user_id || typeof user_id !== 'number') {
+		return c.json({ error: 'user_id is required and must be a number' }, 400);
 	}
 	if (!group_id || typeof group_id !== 'number') {
 		return c.json({ error: 'group_id is required and must be a number' }, 400);
@@ -36,7 +55,8 @@ app.post('/join', async (c) => {
 		return c.json({ error: 'Invalid group ID or password' }, 400);
 	}
 
-	const user = await getUserFromBookmeterUrl(bookmeter_url);
+	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
+	const user = await getUserFromBookmeterUrl(bookmeterUrl);
 	await upsertUserGroup(sql, user.id, group.id);
 	const exists = await userExists(sql, user.id);
 
