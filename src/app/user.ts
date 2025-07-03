@@ -2,6 +2,10 @@ import { getHTML } from '../infra/html';
 import { User } from '../db/models';
 import { extractRegex, extractRegexGroup } from '../utils/string-utils';
 
+export const getBookmeterUrlFromUserId = (userId: number): string => {
+	return `https://bookmeter.com/users/${userId}`;
+};
+
 export const getUserFromBookmeterUrl = async (bookmeterUrl: string): Promise<User> => {
 	bookmeterUrl = bookmeterUrl.trim();
 	const userId = getUserIdFromBookmeterUrl(bookmeterUrl);
