@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { mapBookDataToBookModel } from '../app/book';
 import { getUserFromBookmeterUrl } from '../app/user';
-import { getAllUserBookData } from '../app/user-books';
+import { getAllUserUniqueBookData } from '../app/user-books';
 import { createDbClientFromContext } from '../db';
 import { bulkUpsertBooks, selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
@@ -49,7 +49,9 @@ app.post('/join', async (c) => {
 	}
 
 	await upsertUser(sql, user);
-	const booksData = await getAllUserBookData(`https://bookmeter.com/users/${user.id}/books/read`);
+	const booksData = await getAllUserUniqueBookData(
+		`https://bookmeter.com/users/${user.id}/books/read`
+	);
 	const books = booksData.map(mapBookDataToBookModel);
 	await bulkUpsertBooks(sql, books);
 	const reads: Read[] = booksData.map((bookData) => ({

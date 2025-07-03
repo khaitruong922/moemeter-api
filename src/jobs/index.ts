@@ -1,7 +1,7 @@
 import postgres from 'postgres';
 import { mapBookDataToBookModel } from '../app/book';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
-import { getAllUserBookData } from '../app/user-books';
+import { getAllUserUniqueBookData } from '../app/user-books';
 import { createDbClientFromEnv } from '../db';
 import { bulkUpsertBooks } from '../db/books';
 import { Read } from '../db/models';
@@ -25,7 +25,9 @@ const syncUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> =>
 	const bookmeterUrl = getBookmeterUrlFromUserId(userId);
 	const user = await getUserFromBookmeterUrl(bookmeterUrl);
 	await upsertUser(sql, user);
-	const booksData = await getAllUserBookData(`https://bookmeter.com/users/${user.id}/books/read`);
+	const booksData = await getAllUserUniqueBookData(
+		`https://bookmeter.com/users/${user.id}/books/read`
+	);
 	const books = booksData.map(mapBookDataToBookModel);
 	await bulkUpsertBooks(sql, books);
 	const reads: Read[] = booksData.map((bookData) => ({

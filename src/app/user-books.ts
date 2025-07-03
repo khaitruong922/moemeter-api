@@ -22,17 +22,27 @@ type JsonUserBooksParams = {
 	isAsc: IsAsc;
 };
 
-export const getAllUserBookData = async (url: string, retries: number = 2): Promise<BookData[]> => {
+export const getAllUserUniqueBookData = async (
+	url: string,
+	retries: number = 2
+): Promise<BookData[]> => {
 	const res = await getJsonUserBooks(
 		url,
 		{
 			perPage: 99999,
 			reqPage: 1,
-			isAsc: true,
+			isAsc: false,
 		},
 		retries
 	);
-	return res.books;
+	const ids = new Set<number>();
+	const uniqueBooks = [];
+	for (const book of res.books) {
+		if (ids.has(book.id)) continue;
+		ids.add(book.id);
+		uniqueBooks.push(book);
+	}
+	return uniqueBooks;
 };
 
 type JsonUserBooksResponse = BooksDetails & {
