@@ -1,27 +1,24 @@
 import postgres from 'postgres';
 import { Book, User } from './models';
 
-type BookWithUser = Book & {
+type BookWithReaderCount = Book & {
 	read_count: string | number;
 	user_ids: number[];
 };
 
-type SimpleUser = {
+type ReaderSummary = {
 	id: number;
 	name: string;
 	avatar_url: string;
 };
 
-type UserRead = {
-	id: number;
-	name: string;
-	avatar_url: string;
+type BookReader = ReaderSummary & {
 	book_id: number;
 };
 
-type SelectAllBooksResult = {
-	books: BookWithUser[];
-	users: Record<string, SimpleUser>;
+type GetBooksResponse = {
+	books: BookWithReaderCount[];
+	users: Record<string, ReaderSummary>;
 	total_count: number;
 };
 
@@ -29,13 +26,13 @@ export const selectBooks = async (
 	sql: postgres.Sql<{}>,
 	offset: number,
 	limit: number
-): Promise<SelectAllBooksResult> => {
+): Promise<GetBooksResponse> => {
 	const [{ total }] = await sql<[{ total: number }]>`
     SELECT COUNT(*) as total
     FROM books
   `;
 
-	const bookRows = await sql<BookWithUser[]>`
+	const bookRows = await sql<BookWithReaderCount[]>`
     SELECT books.*, COUNT(reads.book_id) as read_count
     FROM books
     JOIN reads ON books.id = reads.book_id
@@ -46,14 +43,14 @@ export const selectBooks = async (
   `;
 
 	const bookIds = bookRows.map((book) => book.id);
-	const bookReadUsers = await sql<UserRead[]>`
+	const bookReadUsers = await sql<BookReader[]>`
     SELECT id, name, avatar_url, reads.book_id
     FROM users
     JOIN reads ON users.id = reads.user_id
     WHERE reads.book_id IN ${sql(bookIds)}
   `;
 
-	const users: Record<string, SimpleUser> = {};
+	const users: Record<string, ReaderSummary> = {};
 	const bookUserIds: Record<string, number[]> = {};
 
 	bookReadUsers.forEach((user) => {
@@ -68,7 +65,7 @@ export const selectBooks = async (
 		};
 	});
 
-	const books: BookWithUser[] = bookRows.map((row) => {
+	const books: BookWithReaderCount[] = bookRows.map((row) => {
 		return {
 			...row,
 			user_ids: bookUserIds[row.id] || [],
