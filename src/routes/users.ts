@@ -57,11 +57,11 @@ app.post('/join', async (c) => {
 
 	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
 	const user = await getUserFromBookmeterUrl(bookmeterUrl);
-	await upsertUserGroup(sql, user.id, group.id);
 	const exists = await userExists(sql, user.id);
 
 	// Skip importing data if the user already exists
 	if (exists) {
+		await upsertUserGroup(sql, user.id, group.id);
 		return c.json({
 			user,
 			message: 'User already exists, skipping data import.',
@@ -69,6 +69,7 @@ app.post('/join', async (c) => {
 	}
 
 	await upsertUser(sql, user);
+	await upsertUserGroup(sql, user.id, group.id);
 	const booksData = await getAllUserUniqueBookData(
 		`https://bookmeter.com/users/${user.id}/books/read`
 	);

@@ -5,18 +5,34 @@ type BookWithReadCount = Book & {
 	read_count: string | number;
 };
 
-export const selectAllBooks = async (sql: postgres.Sql<{}>): Promise<BookWithReadCount[]> => {
-	const rows = await sql<BookWithReadCount[]>`
+export const selectAllBooks = async (
+	sql: postgres.Sql<{}>,
+	offset: number,
+	limit: number
+): Promise<{ books: BookWithReadCount[]; totalCount: number }> => {
+	const [{ total }] = await sql<[{ total: number }]>`
+    SELECT COUNT(*) as total
+    FROM books
+    JOIN reads ON books.id = reads.book_id
+  `;
+
+	const books = await sql<BookWithReadCount[]>`
     SELECT books.*, COUNT(reads.book_id) as read_count
     FROM books
     JOIN reads ON books.id = reads.book_id
     GROUP BY books.id
     ORDER BY read_count DESC, books.id DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
   `;
-	return rows.map((row) => ({
-		...row,
-		read_count: Number(row.read_count),
-	}));
+
+	return {
+		books: books.map((row) => ({
+			...row,
+			read_count: Number(row.read_count),
+		})),
+		totalCount: Number(total),
+	};
 };
 
 export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<Book[]> => {
