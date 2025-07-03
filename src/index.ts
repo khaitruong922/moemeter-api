@@ -2,12 +2,14 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { prettyJSON } from 'hono/pretty-json';
-import { createDbClient } from './db';
+import { createDbClientFromContext } from './db';
 import { createErrorMessage } from './error';
 import books from './routes/books';
+import groups from './routes/groups';
 import reads from './routes/reads';
 import users from './routes/users';
-import groups from './routes/groups';
+import { Env } from './types/env';
+import { syncAllUsers } from './jobs';
 
 const app = new Hono();
 app.use('*', prettyJSON());
@@ -21,7 +23,7 @@ app.get('/', async (c) => {
 
 app.get('/health', async (c) => {
 	try {
-		const db = createDbClient(c);
+		const db = createDbClientFromContext(c);
 		await db`SELECT 1`;
 		return c.json({ status: 'ok' });
 	} catch (error) {
@@ -48,4 +50,11 @@ app.onError((e, c) => {
 	return c.json(createErrorMessage('Internal Server Error'), 500);
 });
 
-export default app;
+export default {
+	fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		return app.fetch(request, env, ctx);
+	},
+	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		syncAllUsers(env);
+	},
+};

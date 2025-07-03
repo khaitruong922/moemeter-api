@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { mapBookDataToBookModel } from '../app/book';
 import { getUserFromBookmeterUrl } from '../app/user';
 import { getAllUserBookData } from '../app/user-books';
-import { createDbClient } from '../db';
+import { createDbClientFromContext } from '../db';
 import { bulkUpsertBooks, selectBookByIds } from '../db/books';
 import { Read } from '../db/models';
 import { bulkUpsertReads, selectCommonReadsOfUser } from '../db/reads';
@@ -13,7 +13,7 @@ import { upsertUserGroup } from '../db/users_groups';
 const app = new Hono();
 
 app.get('/leaderboard', async (c) => {
-	const sql = createDbClient(c);
+	const sql = createDbClientFromContext(c);
 	const users = await selectAllUsers(sql);
 	return c.json(users);
 });
@@ -30,7 +30,7 @@ app.post('/join', async (c) => {
 		return c.json({ error: 'password is required' }, 400);
 	}
 
-	const sql = createDbClient(c);
+	const sql = createDbClientFromContext(c);
 	const group = await selectGroupByIdAndPassword(sql, group_id, password);
 	if (group === null) {
 		return c.json({ error: 'Invalid group ID or password' }, 400);
@@ -61,7 +61,7 @@ app.get('/:userId/common_reads', async (c) => {
 	if (!userId || isNaN(Number(userId))) {
 		return c.json({ error: 'Invalid userId' }, 400);
 	}
-	const sql = createDbClient(c);
+	const sql = createDbClientFromContext(c);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
 	const userIds = new Set<number>();
 	const bookIds = new Set<number>();

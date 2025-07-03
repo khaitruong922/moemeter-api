@@ -1,26 +1,28 @@
-import { Context } from 'hono';
 import postgres from 'postgres';
 import { mapBookDataToBookModel } from '../app/book';
 import { getAllUserBookData } from '../app/user-books';
-import { createDbClient } from '../db';
+import { createDbClientFromEnv } from '../db';
 import { bulkUpsertBooks } from '../db/books';
 import { Read, User } from '../db/models';
 import { bulkUpsertReads } from '../db/reads';
 import { selectAllUsers, upsertUser } from '../db/users';
+import { Env } from '../types/env';
 
-export const syncAll = async (c: Context): Promise<void> => {
-	const sql = createDbClient(c);
+export const syncAllUsers = async (env: Env): Promise<void> => {
+	const sql = createDbClientFromEnv(env);
 	const users = await selectAllUsers(sql);
 	for (const user of users) {
 		try {
+			console.log(`Syncing user ${user.id}...`);
 			await syncUser(sql, user);
 		} catch (error) {
 			console.error(`Failed to sync user ${user.id}:`, error);
 		}
 	}
+	console.log('All users synced successfully');
 };
 
-export const syncUser = async (sql: postgres.Sql<{}>, user: User): Promise<void> => {
+const syncUser = async (sql: postgres.Sql<{}>, user: User): Promise<void> => {
 	await upsertUser(sql, user);
 	const booksData = await getAllUserBookData(`https://bookmeter.com/users/${user.id}/books/read`);
 	const books = booksData.map(mapBookDataToBookModel);
