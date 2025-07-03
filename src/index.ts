@@ -4,12 +4,12 @@ import { HTTPException } from 'hono/http-exception';
 import { prettyJSON } from 'hono/pretty-json';
 import { createDbClientFromContext } from './db';
 import { createErrorMessage } from './error';
+import { syncAllUsers } from './jobs';
 import books from './routes/books';
 import groups from './routes/groups';
 import reads from './routes/reads';
 import users from './routes/users';
 import { Env } from './types/env';
-import { syncAllUsers } from './jobs';
 
 const app = new Hono();
 app.use('*', prettyJSON());
@@ -55,6 +55,10 @@ export default {
 		return app.fetch(request, env, ctx);
 	},
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		syncAllUsers(env);
+		await syncAllUsers(env)
+			.then(() => console.log('All users synced successfully'))
+			.catch((error) => {
+				console.error('Failed to sync users:', error);
+			});
 	},
 };

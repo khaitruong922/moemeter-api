@@ -13,13 +13,11 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 	const users = await selectAllUsers(sql);
 	for (const user of users) {
 		try {
-			console.log(`Syncing user ${user.id}...`);
 			await syncUser(sql, user);
 		} catch (error) {
 			console.error(`Failed to sync user ${user.id}:`, error);
 		}
 	}
-	console.log('All users synced successfully');
 };
 
 const syncUser = async (sql: postgres.Sql<{}>, user: User): Promise<void> => {
