@@ -4,7 +4,7 @@ import { getAllUserBookData } from '../app/user-books';
 import { createDbClientFromEnv } from '../db';
 import { bulkUpsertBooks } from '../db/books';
 import { Read, User } from '../db/models';
-import { bulkUpsertReads } from '../db/reads';
+import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
 import { selectAllUsers, upsertUser } from '../db/users';
 import { Env } from '../types/env';
 
@@ -30,5 +30,6 @@ const syncUser = async (sql: postgres.Sql<{}>, user: User): Promise<void> => {
 		book_id: bookData.id,
 		date: bookData.date,
 	}));
+	await deleteReadsOfUser(sql, user.id);
 	await bulkUpsertReads(sql, reads);
 };

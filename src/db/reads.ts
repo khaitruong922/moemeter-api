@@ -25,3 +25,9 @@ export const selectCommonReadsOfUser = async (
   `;
 	return rows;
 };
+
+export const deleteReadsOfUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> => {
+	await sql`
+    DELETE FROM reads WHERE user_id = ${userId}
+  `;
+};

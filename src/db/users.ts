@@ -31,3 +31,12 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
       pages_read = EXCLUDED.pages_read
   `;
 };
+
+export const userExists = async (sql: postgres.Sql<{}>, userId: number): Promise<boolean> => {
+	const rows = await sql<{ exists: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM users WHERE id = ${userId}
+    ) AS exists
+  `;
+	return rows[0]?.exists ?? false;
+};

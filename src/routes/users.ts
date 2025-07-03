@@ -4,10 +4,10 @@ import { getUserFromBookmeterUrl } from '../app/user';
 import { getAllUserBookData } from '../app/user-books';
 import { createDbClientFromContext } from '../db';
 import { bulkUpsertBooks, selectBookByIds } from '../db/books';
+import { selectGroupByIdAndPassword } from '../db/groups';
 import { Read } from '../db/models';
 import { bulkUpsertReads, selectCommonReadsOfUser } from '../db/reads';
-import { selectAllUsers, selectUserByIds, upsertUser } from '../db/users';
-import { selectGroupByIdAndPassword } from '../db/groups';
+import { selectAllUsers, selectUserByIds, upsertUser, userExists } from '../db/users';
 import { upsertUserGroup } from '../db/users_groups';
 
 const app = new Hono();
@@ -37,8 +37,18 @@ app.post('/join', async (c) => {
 	}
 
 	const user = await getUserFromBookmeterUrl(bookmeter_url);
-	await upsertUser(sql, user);
 	await upsertUserGroup(sql, user.id, group.id);
+	const exists = await userExists(sql, user.id);
+
+	// Skip importing data if the user already exists
+	if (exists) {
+		return c.json({
+			user,
+			message: 'User already exists, skipping data import.',
+		});
+	}
+
+	await upsertUser(sql, user);
 	const booksData = await getAllUserBookData(`https://bookmeter.com/users/${user.id}/books/read`);
 	const books = booksData.map(mapBookDataToBookModel);
 	await bulkUpsertBooks(sql, books);
@@ -51,15 +61,14 @@ app.post('/join', async (c) => {
 
 	return c.json({
 		user,
-		books,
-		reads,
+		message: 'User joined successfully and data imported',
 	});
 });
 
 app.get('/:userId/common_reads', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
-		return c.json({ error: 'Invalid userId' }, 400);
+		return c.json({ error: 'Invalid user id' }, 400);
 	}
 	const sql = createDbClientFromContext(c);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
