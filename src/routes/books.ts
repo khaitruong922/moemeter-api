@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { createDbClientFromContext } from '../db';
-import { selectAllBooks } from '../db/books';
 import { DEFAULT_LIMITS } from '../utils/bookmeter-utils';
 import { applyNaNVL, parseNatNum } from '../utils/number-utils';
 import { getPageInfo } from '../utils/paging-utils';
+import { selectBooks } from '../db/books';
 
 const app = new Hono();
 
@@ -13,13 +13,14 @@ app.get('/', async (c) => {
 
 	const sql = createDbClientFromContext(c);
 	const offset = (reqPage - 1) * perPage;
-	const { books, totalCount } = await selectAllBooks(sql, offset, perPage);
-	const pageInfo = getPageInfo(reqPage, perPage, totalCount);
+	const { books, users, total_count } = await selectBooks(sql, offset, perPage);
+	const pageInfo = getPageInfo(reqPage, perPage, total_count);
 
 	return c.json({
 		books,
+		users,
 		count: books.length,
-		totalCount,
+		total_count,
 		pageInfo,
 	});
 });

@@ -1,22 +1,41 @@
 import postgres from 'postgres';
-import { Book } from './models';
+import { Book, User } from './models';
 
-type BookWithReadCount = Book & {
+type BookWithUser = Book & {
 	read_count: string | number;
+	user_ids: number[];
 };
 
-export const selectAllBooks = async (
+type SimpleUser = {
+	id: number;
+	name: string;
+	avatar_url: string;
+};
+
+type UserRead = {
+	id: number;
+	name: string;
+	avatar_url: string;
+	book_id: number;
+};
+
+type SelectAllBooksResult = {
+	books: BookWithUser[];
+	users: Record<string, SimpleUser>;
+	total_count: number;
+};
+
+export const selectBooks = async (
 	sql: postgres.Sql<{}>,
 	offset: number,
 	limit: number
-): Promise<{ books: BookWithReadCount[]; totalCount: number }> => {
+): Promise<SelectAllBooksResult> => {
 	const [{ total }] = await sql<[{ total: number }]>`
     SELECT COUNT(*) as total
     FROM books
-    JOIN reads ON books.id = reads.book_id
   `;
 
-	const books = await sql<BookWithReadCount[]>`
+	const bookRows = await sql<BookWithUser[]>`
     SELECT books.*, COUNT(reads.book_id) as read_count
     FROM books
     JOIN reads ON books.id = reads.book_id
@@ -26,12 +45,41 @@ export const selectAllBooks = async (
     OFFSET ${offset}
   `;
 
-	return {
-		books: books.map((row) => ({
+	const bookIds = bookRows.map((book) => book.id);
+	const bookReadUsers = await sql<UserRead[]>`
+    SELECT id, name, avatar_url, reads.book_id
+    FROM users
+    JOIN reads ON users.id = reads.user_id
+    WHERE reads.book_id IN ${sql(bookIds)}
+  `;
+
+	const users: Record<string, SimpleUser> = {};
+	const bookUserIds: Record<string, number[]> = {};
+
+	bookReadUsers.forEach((user) => {
+		if (!bookUserIds[user.book_id]) {
+			bookUserIds[user.book_id] = [];
+		}
+		bookUserIds[user.book_id].push(user.id);
+		users[user.id] = {
+			id: user.id,
+			name: user.name,
+			avatar_url: user.avatar_url,
+		};
+	});
+
+	const books: BookWithUser[] = bookRows.map((row) => {
+		return {
 			...row,
+			user_ids: bookUserIds[row.id] || [],
 			read_count: Number(row.read_count),
-		})),
-		totalCount: Number(total),
+		};
+	});
+
+	return {
+		books,
+		users,
+		total_count: Number(total),
 	};
 };
 
