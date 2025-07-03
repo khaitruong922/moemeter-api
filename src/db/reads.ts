@@ -14,14 +14,10 @@ export const selectCommonReadsOfUser = async (
 	userId: number
 ): Promise<Read[]> => {
 	const rows = await sql<Read[]>`
-    WITH user_reads AS (
-      SELECT book_id FROM reads WHERE user_id = ${userId}
-    )
-    SELECT reads.user_id, reads.book_id, reads.date
-    FROM reads
-    WHERE book_id IN (SELECT book_id FROM user_reads)
-    AND user_id != ${userId}
-    ORDER BY book_id, user_id
+    SELECT r.user_id, r.book_id, r.date
+    FROM reads r
+    JOIN (SELECT book_id FROM reads WHERE user_id = ${userId}) AS user_reads ON r.book_id = user_reads.book_id
+    WHERE user_id != ${userId}
   `;
 	return rows;
 };

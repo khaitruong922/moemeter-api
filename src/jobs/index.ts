@@ -1,13 +1,13 @@
 import postgres from 'postgres';
 import { mapBookDataToBookModel } from '../app/book';
+import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
 import { getAllUserBookData } from '../app/user-books';
 import { createDbClientFromEnv } from '../db';
 import { bulkUpsertBooks } from '../db/books';
-import { Read, User } from '../db/models';
+import { Read } from '../db/models';
 import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
 import { selectAllUsers, upsertUser } from '../db/users';
 import { Env } from '../types/env';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
