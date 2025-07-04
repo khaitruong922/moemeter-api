@@ -1,9 +1,9 @@
 import postgres from 'postgres';
-import { User } from './models';
+import { SyncStatus, User } from './models';
 
 export const selectAllUsers = async (sql: postgres.Sql<{}>): Promise<User[]> => {
 	const rows = await sql<User[]>`
-    SELECT id, name, avatar_url, books_read, pages_read
+    SELECT id, name, avatar_url, books_read, pages_read, sync_status
     FROM users
     ORDER BY books_read DESC NULLS LAST
   `;
@@ -51,4 +51,17 @@ export const userExists = async (sql: postgres.Sql<{}>, userId: number): Promise
     ) AS exists
   `;
 	return rows[0]?.exists ?? false;
+};
+
+export const updateSyncStatusByUserIds = async (
+	sql: postgres.Sql<{}>,
+	userIds: number[],
+	status: SyncStatus
+): Promise<void> => {
+	if (userIds.length === 0) return;
+	await sql`
+    UPDATE users
+    SET sync_status = ${status}
+    WHERE id IN ${sql(userIds)}
+  `;
 };

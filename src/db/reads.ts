@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { Read } from './models';
 
 export const bulkUpsertReads = async (sql: postgres.Sql<{}>, reads: Read[]): Promise<void> => {
+	if (reads.length === 0) return;
 	await sql`
     INSERT INTO reads ${sql(reads)}
     ON CONFLICT (user_id, book_id) DO NOTHING

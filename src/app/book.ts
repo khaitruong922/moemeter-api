@@ -26,10 +26,10 @@ export type BooksDetails = {
 export const mapBookDataToBookModel = (book: BookData): Book => {
 	return {
 		id: book.id,
-		title: book.title || null,
-		author: book.author || null,
-		author_url: book.authorUrl || null,
-		thumbnail_url: book.thumbnailUrl || null,
+		title: book.title || '',
+		author: book.author || '',
+		author_url: book.authorUrl || '',
+		thumbnail_url: book.thumbnailUrl || '',
 	};
 };
 

@@ -91,6 +91,7 @@ export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Pro
 };
 
 export const bulkUpsertBooks = async (sql: postgres.Sql<{}>, books: Book[]): Promise<void> => {
+	if (books.length === 0) return;
 	await sql`
     INSERT INTO books ${sql(books)}
     ON CONFLICT (id) DO UPDATE SET
