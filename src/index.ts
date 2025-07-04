@@ -11,6 +11,7 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import { Env } from './types/env';
+import { performKeepAliveQuery } from './db/supabase';
 
 const app = new Hono();
 app.use('*', prettyJSON());
@@ -57,6 +58,7 @@ export default {
 		return app.fetch(request, env, ctx);
 	},
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		await performKeepAliveQuery(env);
 		await syncAllUsers(env).catch((error) => {
 			console.error('Failed to sync users:', error);
 		});
