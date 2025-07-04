@@ -4,8 +4,7 @@ import { Read } from './models';
 export const bulkUpsertReads = async (sql: postgres.Sql<{}>, reads: Read[]): Promise<void> => {
 	await sql`
     INSERT INTO reads ${sql(reads)}
-    ON CONFLICT (user_id, book_id) DO UPDATE SET
-      date = EXCLUDED.date
+    ON CONFLICT (user_id, book_id) DO NOTHING
   `;
 };
 
@@ -14,7 +13,7 @@ export const selectCommonReadsOfUser = async (
 	userId: number
 ): Promise<Read[]> => {
 	const rows = await sql<Read[]>`
-    SELECT r.user_id, r.book_id, r.date
+    SELECT r.user_id, r.book_id
     FROM reads r
     JOIN (SELECT book_id FROM reads WHERE user_id = ${userId}) AS user_reads ON r.book_id = user_reads.book_id
     WHERE user_id != ${userId}

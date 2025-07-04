@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { mapBookDataToBookModel } from '../app/book';
-import { getUserFromBookmeterUrl, getBookmeterUrlFromUserId } from '../app/user';
+import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
 import { getAllUserUniqueBookData } from '../app/user-books';
 import { createDbClientFromContext } from '../db';
 import { bulkUpsertBooks, selectBookByIds } from '../db/books';
@@ -78,7 +78,6 @@ app.post('/join', async (c) => {
 	const reads: Read[] = booksData.map((bookData) => ({
 		user_id: user.id,
 		book_id: bookData.id,
-		date: bookData.date,
 	}));
 	await bulkUpsertReads(sql, reads);
 

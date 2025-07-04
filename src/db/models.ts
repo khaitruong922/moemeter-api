@@ -17,7 +17,6 @@ export interface Book {
 export interface Read {
 	user_id: number;
 	book_id: number;
-	date: string;
 }
 
 export interface Group {
