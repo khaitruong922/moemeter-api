@@ -1,7 +1,7 @@
 import postgres from 'postgres';
-import { mapBookDataToBookModel } from '../app/book';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
-import { getAllUserUniqueBookData } from '../app/user-books';
+import { mapBookDataToBookModel } from '../scraping/book';
+import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
+import { getAllUserUniqueBookData } from '../scraping/user-books';
 import { createDbClientFromEnv } from '../db';
 import { bulkUpsertBooks, deleteUnreadBooks } from '../db/books';
 import { updateMetadata } from '../db/metadata';
@@ -9,6 +9,7 @@ import { Read, User } from '../db/models';
 import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
 import { selectAllUsers, updateSyncStatusByUserIds, upsertUser } from '../db/users';
 import { Env } from '../types/env';
+import { importUser } from '../core/user';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
@@ -59,18 +60,5 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	) {
 		return { skipped: true };
 	}
-
-	await upsertUser(sql, newUser);
-	const booksData = await getAllUserUniqueBookData(
-		`https://bookmeter.com/users/${newUser.id}/books/read`
-	);
-	const books = booksData.map(mapBookDataToBookModel);
-	await bulkUpsertBooks(sql, books);
-	const reads: Read[] = booksData.map((bookData) => ({
-		user_id: newUser.id,
-		book_id: bookData.id,
-	}));
-	await deleteReadsOfUser(sql, newUser.id);
-	await bulkUpsertReads(sql, reads);
-	return { skipped: false };
+	await importUser(sql, newUser);
 };

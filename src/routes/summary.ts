@@ -7,7 +7,7 @@ import {
 	parseIsShort,
 	getJsonSummaryMonthly,
 	getJsonSummaryYearly,
-} from '../app/summary';
+} from '../scraping/summary';
 
 const app = new Hono();
 

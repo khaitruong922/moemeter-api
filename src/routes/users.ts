@@ -1,20 +1,17 @@
 import { Hono } from 'hono';
-import { mapBookDataToBookModel } from '../app/book';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../app/user';
-import { getAllUserUniqueBookData } from '../app/user-books';
+import { importUser } from '../core/user';
 import { createDbClientFromContext } from '../db';
-import { bulkUpsertBooks, selectBookByIds } from '../db/books';
+import { selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
-import { Read } from '../db/models';
-import { bulkUpsertReads, selectCommonReadsOfUser } from '../db/reads';
+import { selectCommonReadsOfUser } from '../db/reads';
 import {
 	selectAllUsers,
 	selectUserById,
 	selectUserByIds,
-	upsertUser,
+	updateSyncStatusByUserIds,
 	userExists,
 } from '../db/users';
-import { upsertUserGroup } from '../db/users_groups';
+import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 
 const app = new Hono();
 
@@ -61,30 +58,23 @@ app.post('/join', async (c) => {
 
 	// Skip importing data if the user already exists
 	if (exists) {
-		await upsertUserGroup(sql, user.id, group.id);
 		return c.json({
 			user,
 			message: 'User already exists, skipping data import.',
 		});
 	}
 
-	await upsertUser(sql, user);
-	await upsertUserGroup(sql, user.id, group.id);
-	const booksData = await getAllUserUniqueBookData(
-		`https://bookmeter.com/users/${user.id}/books/read`
-	);
-	const books = booksData.map(mapBookDataToBookModel);
-	await bulkUpsertBooks(sql, books);
-	const reads: Read[] = booksData.map((bookData) => ({
-		user_id: user.id,
-		book_id: bookData.id,
-	}));
-	await bulkUpsertReads(sql, reads);
-
-	return c.json({
-		user,
-		message: 'User joined successfully and data imported',
-	});
+	try {
+		const result = await importUser(sql, user);
+		await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		return c.json({
+			...result,
+			message: 'User joined successfully and data imported',
+		});
+	} catch (e) {
+		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
+		return c.json({ message: 'Failed to import user data' }, 500);
+	}
 });
 
 app.get('/:userId/common_reads', async (c) => {
