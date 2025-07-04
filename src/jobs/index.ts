@@ -8,6 +8,7 @@ import { Read } from '../db/models';
 import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
 import { selectAllUsers, upsertUser } from '../db/users';
 import { Env } from '../types/env';
+import { updateMetadata } from '../db/metadata';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
@@ -38,4 +39,6 @@ const syncUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> =>
 	await deleteReadsOfUser(sql, user.id);
 	await bulkUpsertReads(sql, reads);
 	await deleteUnreadBooks(sql);
+	await updateMetadata(sql, new Date());
+	console.log(`User ${userId} synced successfully`);
 };

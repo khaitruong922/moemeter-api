@@ -29,3 +29,7 @@ export interface UserGroup {
 	user_id: number;
 	group_id: number;
 }
+
+export interface Metadata {
+	last_updated: Date | null;
+}

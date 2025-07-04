@@ -9,6 +9,7 @@ import books from './routes/books';
 import groups from './routes/groups';
 import reads from './routes/reads';
 import users from './routes/users';
+import metadata from './routes/metadata';
 import { Env } from './types/env';
 
 const app = new Hono();
@@ -36,6 +37,7 @@ app.route('/users', users);
 app.route('/books', books);
 app.route('/reads', reads);
 app.route('/groups', groups);
+app.route('/metadata', metadata);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);

@@ -4,6 +4,7 @@ import { applyNaNVL, isWithinLimits, parseNatNum } from '../utils/number-utils';
 import { getOffsetsPerPage, getPageInfo } from '../utils/paging-utils';
 import { extractRegex, extractRegexGroup, groups } from '../utils/string-utils';
 import { getBooks, getBooksDetails, getBookThumbnailUrl, type OffsetBookParams } from './book';
+import { postgres } from '../infra/postgres';
 
 type PerPageMonthly = Branded<number, 'PerPageMonthly'>;
 export const parsePerPageMonthly = (query: string | undefined) =>
@@ -164,4 +165,10 @@ const getSummaryYearlyBookTitle = (htmlBook: string): string => {
 const getBookId = (htmlBook: string): number => {
 	const url = extractRegex(htmlBook, /<a href="\/books\/(.*?)">/g)[0];
 	return parseInt(url, 10);
+};
+
+export const updateMetadata = async (sql: postgres.Sql<{}>, lastUpdated: Date): Promise<void> => {
+	await sql`
+		UPDATE metadata SET last_updated = ${lastUpdated}
+	`;
 };
