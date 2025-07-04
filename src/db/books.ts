@@ -28,8 +28,9 @@ export const selectBooks = async (
 	limit: number,
 	searchQuery?: string
 ): Promise<GetBooksResponse> => {
+	console.log('searchQuery', searchQuery);
 	const searchCondition = searchQuery
-		? sql`WHERE title &@ ${searchQuery} OR author &@ ${searchQuery}`
+		? sql`WHERE replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery}`
 		: sql``;
 
 	const [{ total }] = await sql<[{ total: number }]>`
