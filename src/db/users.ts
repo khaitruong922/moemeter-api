@@ -5,7 +5,8 @@ export const selectAllUsers = async (sql: postgres.Sql<{}>): Promise<User[]> => 
 	const rows = await sql<User[]>`
     SELECT id, name, avatar_url, books_read, pages_read, sync_status
     FROM users
-    ORDER BY books_read DESC NULLS LAST
+    ORDER BY books_read DESC, pages_read DESC
+    WHERE books_read IS NOT NULL
   `;
 
 	return rows;
