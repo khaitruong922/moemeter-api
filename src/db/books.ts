@@ -25,17 +25,24 @@ type GetBooksResponse = {
 export const selectBooks = async (
 	sql: postgres.Sql<{}>,
 	offset: number,
-	limit: number
+	limit: number,
+	searchQuery?: string
 ): Promise<GetBooksResponse> => {
+	const searchCondition = searchQuery
+		? sql`WHERE title &@ ${searchQuery} OR author &@ ${searchQuery}`
+		: sql``;
+
 	const [{ total }] = await sql<[{ total: number }]>`
     SELECT COUNT(*) as total
     FROM books
+    ${searchCondition}
   `;
 
 	const bookRows = await sql<BookWithReaderCount[]>`
     SELECT books.*, COUNT(reads.book_id) as read_count
     FROM books
     JOIN reads ON books.id = reads.book_id
+    ${searchCondition}
     GROUP BY books.id
     ORDER BY read_count DESC, books.id DESC
     LIMIT ${limit}
