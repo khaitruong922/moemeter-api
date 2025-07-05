@@ -27,7 +27,7 @@ export const selectBooks = async (
 	offset: number,
 	limit: number,
 	searchQuery?: string,
-	field?: 'title' | 'author'
+	field?: string
 ): Promise<GetBooksResponse> => {
 	let searchCondition = sql``;
 
