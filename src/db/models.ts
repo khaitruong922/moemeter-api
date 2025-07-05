@@ -19,6 +19,7 @@ export interface Book {
 export interface Read {
 	user_id: number;
 	book_id: number;
+	merged_book_id: number;
 }
 
 export interface Group {

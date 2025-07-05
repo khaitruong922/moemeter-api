@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { importUser } from '../core/user';
 import { createDbClientFromContext } from '../db';
+import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
@@ -66,6 +67,8 @@ app.post('/join', async (c) => {
 
 	try {
 		const result = await importUser(sql, user);
+		await syncBookMerges(sql);
+		await syncReadsMergedBookId(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({
 			...result,

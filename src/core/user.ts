@@ -16,6 +16,7 @@ export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
 	const reads: Read[] = booksData.map((bookData) => ({
 		user_id: user.id,
 		book_id: bookData.id,
+		merged_book_id: bookData.id,
 	}));
 	await deleteReadsOfUser(sql, user.id);
 	await bulkUpsertReads(sql, reads);

@@ -1,15 +1,12 @@
 import postgres from 'postgres';
-import { mapBookDataToBookModel } from '../scraping/book';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
-import { getAllUserUniqueBookData } from '../scraping/user-books';
-import { createDbClientFromEnv } from '../db';
-import { bulkUpsertBooks, deleteUnreadBooks } from '../db/books';
-import { updateMetadata } from '../db/metadata';
-import { Read, User } from '../db/models';
-import { bulkUpsertReads, deleteReadsOfUser } from '../db/reads';
-import { selectAllUsers, updateSyncStatusByUserIds, upsertUser } from '../db/users';
-import { Env } from '../types/env';
 import { importUser } from '../core/user';
+import { createDbClientFromEnv } from '../db';
+import { deleteUnreadBooks } from '../db/books';
+import { updateMetadata } from '../db/metadata';
+import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
+import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
+import { Env } from '../types/env';
+import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
@@ -35,6 +32,8 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 		}
 	}
 	await deleteUnreadBooks(sql);
+	await syncBookMerges(sql);
+	await syncReadsMergedBookId(sql);
 
 	await updateMetadata(sql, new Date());
 	await updateSyncStatusByUserIds(sql, successUserIds, 'success');
@@ -61,4 +60,5 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 		return { skipped: true };
 	}
 	await importUser(sql, newUser);
+	return { skipped: false };
 };

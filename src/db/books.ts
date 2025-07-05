@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { Book, User } from './models';
+import { Book } from './models';
 
 type BookWithReaderCount = Book & {
 	read_count: string | number;
@@ -33,15 +33,16 @@ export const selectBooks = async (
 		: sql``;
 
 	const [{ total }] = await sql<[{ total: number }]>`
-    SELECT COUNT(*) as total
-    FROM books
+    SELECT COUNT(DISTINCT reads.merged_book_id) AS total
+    FROM books 
+    JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
   `;
 
 	const bookRows = await sql<BookWithReaderCount[]>`
-    SELECT books.*, COUNT(reads.book_id) as read_count
+    SELECT books.*, COUNT(reads.merged_book_id) as read_count
     FROM books
-    JOIN reads ON books.id = reads.book_id
+    JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
     GROUP BY books.id
     ORDER BY read_count DESC, books.id DESC
@@ -51,10 +52,10 @@ export const selectBooks = async (
 
 	const bookIds = bookRows.map((book) => book.id);
 	const bookReadUsers = await sql<BookReader[]>`
-    SELECT id, name, avatar_url, reads.book_id
+    SELECT id, name, avatar_url, reads.merged_book_id AS book_id
     FROM users
     JOIN reads ON users.id = reads.user_id
-    WHERE reads.book_id IN ${sql(bookIds)}
+    WHERE reads.merged_book_id IN ${sql(bookIds)}
   `;
 
 	const users: Record<string, ReaderSummary> = {};
