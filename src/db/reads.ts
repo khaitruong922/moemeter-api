@@ -14,7 +14,7 @@ export const selectCommonReadsOfUser = async (
 	userId: number
 ): Promise<Read[]> => {
 	const rows = await sql<Read[]>`
-    SELECT r.user_id, r.merged_book_id AS book_id
+    SELECT DISTINCT r.user_id, r.merged_book_id AS book_id
     FROM reads r
     JOIN (SELECT merged_book_id FROM reads WHERE user_id = ${userId}) AS user_reads ON r.merged_book_id = user_reads.merged_book_id
     WHERE user_id != ${userId}

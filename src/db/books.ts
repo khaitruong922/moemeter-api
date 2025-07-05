@@ -49,7 +49,9 @@ export const selectBooks = async (
   `;
 
 	const bookRows = await sql<BookWithReaderCount[]>`
-    SELECT books.*, COUNT(reads.merged_book_id) as read_count
+    SELECT 
+      books.*,
+      COUNT(DISTINCT reads.user_id) as read_count
     FROM books
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
@@ -61,7 +63,8 @@ export const selectBooks = async (
 
 	const bookIds = bookRows.map((book) => book.id);
 	const bookReadUsers = await sql<BookReader[]>`
-    SELECT id, name, avatar_url, reads.merged_book_id AS book_id
+    SELECT DISTINCT ON (reads.user_id, reads.merged_book_id)
+      users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id
     FROM users
     JOIN reads ON users.id = reads.user_id
     WHERE reads.merged_book_id IN ${sql(bookIds)}
