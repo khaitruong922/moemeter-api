@@ -1,13 +1,12 @@
 import postgres from 'postgres';
 import { importUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
-import { deleteUnreadBooks } from '../db/books';
+import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { updateMetadata } from '../db/metadata';
 import { User } from '../db/models';
 import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
-import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
@@ -32,7 +31,7 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 			console.error('Failed:', user.id, error);
 		}
 	}
-	await deleteUnreadBooks(sql);
+	// await deleteUnreadBooks(sql);
 	await syncBookMerges(sql);
 	await syncReadsMergedBookId(sql);
 

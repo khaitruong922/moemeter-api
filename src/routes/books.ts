@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { createDbClientFromContext } from '../db';
-import { DEFAULT_LIMITS } from '../utils/bookmeter-utils';
+import { selectBooks } from '../db/books';
 import { applyNaNVL, parseNatNum } from '../utils/number-utils';
 import { getPageInfo } from '../utils/paging-utils';
-import { selectBooks } from '../db/books';
 
 const app = new Hono();
 
