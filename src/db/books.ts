@@ -26,11 +26,20 @@ export const selectBooks = async (
 	sql: postgres.Sql<{}>,
 	offset: number,
 	limit: number,
-	searchQuery?: string
+	searchQuery?: string,
+	field?: 'title' | 'author'
 ): Promise<GetBooksResponse> => {
-	const searchCondition = searchQuery
-		? sql`WHERE replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery}`
-		: sql``;
+	let searchCondition = sql``;
+
+	if (searchQuery) {
+		if (field === 'title') {
+			searchCondition = sql`WHERE replace(title, ' ', '') &@ ${searchQuery}`;
+		} else if (field === 'author') {
+			searchCondition = sql`WHERE replace(author, ' ', '') &@ ${searchQuery}`;
+		} else {
+			searchCondition = sql`WHERE replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery}`;
+		}
+	}
 
 	const [{ total }] = await sql<[{ total: number }]>`
     SELECT COUNT(DISTINCT reads.merged_book_id) AS total
