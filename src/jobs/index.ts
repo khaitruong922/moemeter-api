@@ -3,6 +3,7 @@ import { importUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadata } from '../db/metadata';
+import { User } from '../db/models';
 import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
