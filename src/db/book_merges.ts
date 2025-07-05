@@ -27,7 +27,7 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
         AND (
           (
             b_var.title &^ b_base.title
-            AND LENGTH(b_var.title) > LENGTH(b_base.title)
+            AND LENGTH(b_var.title) - LENGTH(b_base.title) > 4
             AND b_base.open_paren_count < b_var.open_paren_count
           )
           OR (
