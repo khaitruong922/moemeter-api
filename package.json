@@ -1,5 +1,5 @@
 {
-	"name": "bookmeter-api",
+	"name": "moemeter-api",
 	"version": "0.0.1",
 	"main": "src/index.ts",
 	"private": true,
