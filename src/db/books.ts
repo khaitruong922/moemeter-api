@@ -51,6 +51,7 @@ export const selectBooks = async (
 			startDate = new Date(now.getFullYear(), now.getMonth(), 1);
 			endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 		} else {
+			startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 			endDate = new Date(now.getFullYear(), now.getMonth(), 0);
 		}
 
