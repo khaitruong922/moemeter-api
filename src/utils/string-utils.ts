@@ -29,3 +29,25 @@ export const escapeNewline = (str: string | undefined): string => {
 export const replaceAmpCode = (str: string | undefined): string => {
 	return str ? str.replace(/%5Cu0026|\\u0026/g, '&') : '';
 };
+
+/**
+ * Validates if a string is in YYYY/MM/DD format and returns Date object if valid, null if invalid
+ */
+export const validateDate = (dateString: string): Date | null => {
+	// Regular expression for YYYY/MM/DD format
+	const dateRegex = /^\d{4}\/\d{2}\/\d{2}$/;
+
+	if (!dateRegex.test(dateString)) {
+		return null;
+	}
+
+	// Check if it's a valid date
+	const [year, month, day] = dateString.split('/').map(Number);
+	const date = new Date(year, month - 1, day);
+
+	if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+		return null;
+	}
+
+	return date;
+};

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { createDbClientFromContext } from '../db';
-import { selectBooks } from '../db/books';
 import { applyNaNVL, parseNatNum } from '../utils/number-utils';
 import { getPageInfo } from '../utils/paging-utils';
+import { selectBooks } from '../db/books';
 
 const app = new Hono();
 
@@ -11,17 +11,30 @@ app.get('/', async (c) => {
 	const reqPage = applyNaNVL(parseNatNum(c.req.query('page')), 1);
 	const q = c.req.query('q');
 	const field = c.req.query('field');
+	const period = c.req.query('period');
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
 		return c.json({ error: "Field parameter must be either 'title' or 'author'" }, 400);
 	}
 
+	// Validate period parameter
+	if (period && !['this_month', 'last_month'].includes(period)) {
+		return c.json({ error: "Period parameter must be either 'this_month' or 'last_month'" }, 400);
+	}
+
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, ' ') : undefined;
 
 	const sql = createDbClientFromContext(c);
 	const offset = (reqPage - 1) * perPage;
-	const { books, users, total_count } = await selectBooks(sql, offset, perPage, searchQuery, field);
+	const { books, users, total_count } = await selectBooks(
+		sql,
+		offset,
+		perPage,
+		searchQuery,
+		field,
+		period
+	);
 	const pageInfo = getPageInfo(reqPage, perPage, total_count);
 
 	return c.json({

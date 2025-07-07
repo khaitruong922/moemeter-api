@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { Book } from './models';
+import { Book, User } from './models';
 
 type BookWithReaderCount = Book & {
 	read_count: string | number;
@@ -27,9 +27,13 @@ export const selectBooks = async (
 	offset: number,
 	limit: number,
 	searchQuery?: string,
-	field?: string
+	field?: 'title' | 'author',
+	period?: 'this_month' | 'last_month'
 ): Promise<GetBooksResponse> => {
 	let searchCondition = sql``;
+	let dateCondition = sql``;
+	let startDate: Date | undefined;
+	let endDate: Date | undefined;
 
 	if (searchQuery) {
 		if (field === 'title') {
@@ -41,11 +45,26 @@ export const selectBooks = async (
 		}
 	}
 
+	if (period) {
+		const now = new Date();
+		if (period === 'this_month') {
+			startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+			endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+		} else {
+			endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+		}
+
+		dateCondition = searchCondition
+			? sql` AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}`
+			: sql`WHERE reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}`;
+	}
+
 	const [{ total }] = await sql<[{ total: number }]>`
     SELECT COUNT(DISTINCT reads.merged_book_id) AS total
     FROM books 
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
+    ${dateCondition}
   `;
 
 	const bookRows = await sql<BookWithReaderCount[]>`
@@ -55,6 +74,7 @@ export const selectBooks = async (
     FROM books
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
+    ${dateCondition}
     GROUP BY books.id
     ORDER BY read_count DESC, books.id DESC
     LIMIT ${limit}
@@ -68,6 +88,7 @@ export const selectBooks = async (
     FROM users
     JOIN reads ON users.id = reads.user_id
     WHERE reads.merged_book_id IN ${sql(bookIds)}
+    ${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
   `;
 
 	const users: Record<string, ReaderSummary> = {};

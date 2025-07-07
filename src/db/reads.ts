@@ -5,7 +5,7 @@ export const bulkUpsertReads = async (sql: postgres.Sql<{}>, reads: Read[]): Pro
 	if (reads.length === 0) return;
 	await sql`
     INSERT INTO reads ${sql(reads)}
-    ON CONFLICT (user_id, book_id) DO NOTHING
+    ON CONFLICT (user_id, book_id) DO UPDATE SET date = EXCLUDED.date
   `;
 };
 

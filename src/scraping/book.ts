@@ -1,6 +1,6 @@
 import { Book } from '../db/models';
 import { joinBaseUrl, getBookUrl } from '../utils/bookmeter-utils';
-import { type groups, extractRegex, extractRegexGroup } from '../utils/string-utils';
+import { type groups, extractRegex, extractRegexGroup, validateDate } from '../utils/string-utils';
 
 export type OffsetBookParams = {
 	offsetArrayStart: number;
@@ -14,7 +14,7 @@ export type BookData = {
 	author: string;
 	authorUrl: string;
 	thumbnailUrl: string;
-	date: string;
+	date: Date | null;
 	id: number;
 };
 
@@ -41,18 +41,20 @@ export const getBooksDetails = (
 	const { offsetArrayStart, offsetArrayEnd, offsetBookNo } = params;
 	const targetBooks = listBooks.slice(offsetArrayStart, offsetArrayEnd);
 	if (isAsc) targetBooks.reverse();
+
 	return {
 		books: targetBooks.map((book, i) => {
 			const titleInfo = getBookTitleInfo(book);
 			const authorInfo = getBookAuthorInfo(book);
 			const id = getBookId(book);
+			const dateString = getBookDateString(book);
 			return {
 				no: isAsc ? offsetBookNo - (targetBooks.length - i - 1) : offsetBookNo - i,
 				title: titleInfo?.title ?? '',
 				author: authorInfo?.author ?? '',
 				authorUrl: joinBaseUrl(authorInfo?.url),
 				thumbnailUrl: getBookThumbnailUrl(book),
-				date: getBookDate(book),
+				date: validateDate(dateString),
 				id,
 			};
 		}),
@@ -75,7 +77,7 @@ export const getBookTitleInfo = (htmlBook: string): groups => {
 	)[0];
 };
 
-export const getBookDate = (htmlBook: string): string => {
+export const getBookDateString = (htmlBook: string): string => {
 	return extractRegex(htmlBook, /<div class="detail__date">(.*?)<\/div>/g)[0];
 };
 
