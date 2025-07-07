@@ -7,6 +7,7 @@ import { User } from '../db/models';
 import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
+import { deleteUnreadBooks } from '../db/books';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
@@ -32,7 +33,7 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 			console.error('Failed:', user.id, error);
 		}
 	}
-	// await deleteUnreadBooks(sql);
+	await deleteUnreadBooks(sql);
 	await syncBookMerges(sql);
 	await syncReadsMergedBookId(sql);
 
