@@ -77,7 +77,7 @@ export const selectBooks = async (
     ${searchCondition}
     ${dateCondition}
     GROUP BY books.id
-    ORDER BY read_count DESC, books.id DESC
+    ORDER BY read_count DESC, books.id ASC
     LIMIT ${limit}
     OFFSET ${offset}
   `;
