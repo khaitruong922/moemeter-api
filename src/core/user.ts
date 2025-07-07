@@ -9,7 +9,8 @@ import { getAllUserUniqueBookData } from '../scraping/user-books';
 export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
 	await upsertUser(sql, user);
 	const booksData = await getAllUserUniqueBookData(
-		`https://bookmeter.com/users/${user.id}/books/read`
+		`https://bookmeter.com/users/${user.id}/books/read`,
+		user.books_read
 	);
 	const books = booksData.map(mapBookDataToBookModel);
 	await bulkUpsertBooks(sql, books);

@@ -24,7 +24,8 @@ type JsonUserBooksParams = {
 
 export const getAllUserUniqueBookData = async (
 	url: string,
-	retries: number = 2
+	totalCount: number,
+	retries: number = 1
 ): Promise<BookData[]> => {
 	const res = await getJsonUserBooks(
 		url,
@@ -33,6 +34,7 @@ export const getAllUserUniqueBookData = async (
 			reqPage: 1,
 			isAsc: false,
 		},
+		totalCount,
 		retries
 	);
 	const ids = new Set<number>();
@@ -54,21 +56,15 @@ type JsonUserBooksResponse = BooksDetails & {
 export const getJsonUserBooks = async (
 	url: string,
 	params: JsonUserBooksParams,
-	retries: number = 2
+	totalCount: number,
+	retries: number = 1
 ): Promise<JsonUserBooksResponse> => {
 	let { perPage } = params;
 	const { reqPage, isAsc } = params;
-	const totalCount = getBooksTotal(await getHTML(url));
 	const pageInfo = getPageInfo(reqPage, perPage, totalCount);
 
 	if (retries <= 0) {
-		return {
-			books: [],
-			count: 0,
-			totalCount,
-			pageInfo,
-			message: 'Too many retries, returning empty result',
-		};
+		throw new Error('Too many retries');
 	}
 
 	let { offsetStart, offsetEnd } = getOffsetsPerPage(reqPage, perPage, totalCount, isAsc);
@@ -106,6 +102,8 @@ export const getJsonUserBooks = async (
 		offsetArrayEnd,
 		offsetBookNo,
 	});
+
+	console.log('Expected:', expectedCount, 'Actual:', booksDetails.books.length);
 	if (booksDetails.books.length === expectedCount)
 		return {
 			...booksDetails,
@@ -114,11 +112,4 @@ export const getJsonUserBooks = async (
 		};
 
 	return getJsonUserBooks(url, params, retries - 1);
-};
-
-const getBooksTotal = (html: string): number => {
-	const totalCount = parseNatNum(
-		extractRegex(html, /<div class="bm-pagination-notice">全(\d*?)件/g)[0]
-	);
-	return applyNaNVL(totalCount, 0);
 };

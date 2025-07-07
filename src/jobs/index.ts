@@ -26,8 +26,9 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 				console.log('Success:', user.id);
 				successUserIds.push(user.id);
 			}
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 		} catch (error) {
-			failedUserIds;
+			failedUserIds.push(user.id);
 			console.error('Failed:', user.id, error);
 		}
 	}

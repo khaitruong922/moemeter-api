@@ -20,7 +20,7 @@ export interface Read {
 	user_id: number;
 	book_id: number;
 	merged_book_id: number;
-	date: Date;
+	date: Date | null;
 }
 
 export interface Group {

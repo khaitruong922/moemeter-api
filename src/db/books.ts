@@ -27,8 +27,8 @@ export const selectBooks = async (
 	offset: number,
 	limit: number,
 	searchQuery?: string,
-	field?: 'title' | 'author',
-	period?: 'this_month' | 'last_month'
+	field?: string,
+	period?: string
 ): Promise<GetBooksResponse> => {
 	let searchCondition = sql``;
 	let dateCondition = sql``;
