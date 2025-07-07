@@ -37,11 +37,11 @@ export const selectBooks = async (
 
 	if (searchQuery) {
 		if (field === 'title') {
-			searchCondition = sql`WHERE replace(title, ' ', '') &@ ${searchQuery}`;
+			searchCondition = sql`WHERE (replace(title, ' ', '') &@ ${searchQuery})`;
 		} else if (field === 'author') {
-			searchCondition = sql`WHERE replace(author, ' ', '') &@ ${searchQuery}`;
+			searchCondition = sql`WHERE (replace(author, ' ', '') &@ ${searchQuery})`;
 		} else {
-			searchCondition = sql`WHERE replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery}`;
+			searchCondition = sql`WHERE (replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery})`;
 		}
 	}
 
@@ -56,8 +56,8 @@ export const selectBooks = async (
 		}
 
 		dateCondition = searchCondition
-			? sql` AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}`
-			: sql`WHERE reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}`;
+			? sql` AND (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`
+			: sql`WHERE (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`;
 	}
 
 	const [{ total }] = await sql<[{ total: number }]>`
