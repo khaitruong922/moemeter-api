@@ -52,11 +52,18 @@ export const syncReadsMergedBookId = async (sql: postgres.Sql<{}>): Promise<void
   `;
 
 	await sql`
+    WITH all_merges AS (
+      SELECT variant_id, base_id FROM book_merges
+      UNION ALL
+      SELECT variant_id, base_id FROM manual_book_merges
+    ),
+    filtered_merges AS (
+      SELECT * FROM all_merges
+      WHERE variant_id NOT IN (SELECT variant_id FROM book_merge_exceptions)
+    )
     UPDATE reads
-    SET merged_book_id = bm.base_id
-    FROM book_merges bm
-    WHERE reads.book_id = bm.variant_id
-      AND bm.variant_id NOT IN (
-        SELECT variant_id FROM book_merge_exceptions
-  );`;
+    SET merged_book_id = fm.base_id
+    FROM filtered_merges fm
+    WHERE reads.book_id = fm.variant_id;
+  `;
 };
