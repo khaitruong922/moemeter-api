@@ -124,7 +124,7 @@ app.get('/:userId/common_reads', async (c) => {
 		});
 	}
 	for (const userId of Object.keys(relatedUsersMap)) {
-		relatedUsersMap[userId].book_ids.sort((a, b) => a - b);
+		relatedUsersMap[userId].book_ids.sort((a, b) => b - a);
 	}
 
 	return c.json({
