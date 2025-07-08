@@ -8,19 +8,23 @@ export const getBookmeterUrlFromUserId = (userId: number): string => {
 
 export const getUserFromBookmeterUrl = async (
 	bookmeterUrl: string,
-	bookcase: string | null
+	bookcase: string | null = null
 ): Promise<User> => {
 	bookmeterUrl = bookmeterUrl.trim();
 	const userId = getUserIdFromBookmeterUrl(bookmeterUrl);
 	const html = await getHTML(bookmeterUrl);
 	const userSectionHtml = getUserSectionHtml(html);
+	const booksRead = getUserBooksRead(userSectionHtml);
+	const pagesRead = getUserPagesRead(userSectionHtml);
 	return {
 		id: userId,
 		name: getUserName(userSectionHtml),
 		avatar_url: getUserAvatarUrl(userSectionHtml),
-		books_read: getUserBooksRead(userSectionHtml),
-		pages_read: getUserPagesRead(userSectionHtml),
+		books_read: booksRead,
+		pages_read: pagesRead,
 		bookcase,
+		original_books_read: booksRead,
+		original_pages_read: pagesRead,
 	};
 };
 

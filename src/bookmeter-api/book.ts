@@ -18,6 +18,7 @@ type BookmeterResponse = {
 	};
 	resources: Array<{
 		id: number;
+		bookcase_names: string[];
 		created_at: string;
 		page: number;
 		book: {
@@ -38,11 +39,13 @@ export type FetchAllBooksResult = {
 	pages_read: number;
 };
 
-export async function fetchAllBooks(id: number): Promise<FetchAllBooksResult> {
+export async function fetchAllBooks(
+	id: number,
+	bookcase: string | null
+): Promise<FetchAllBooksResult> {
 	const books: BookData[] = [];
 	let page = 1;
 	let hasMorePages = true;
-	console.log('fetching books for user', id);
 
 	while (hasMorePages) {
 		try {
@@ -57,7 +60,10 @@ export async function fetchAllBooks(id: number): Promise<FetchAllBooksResult> {
 			const data: BookmeterResponse = await response.json();
 
 			// Process books from current page
-			data.resources.forEach((resource) => {
+			for (const resource of data.resources) {
+				if (bookcase && !resource.bookcase_names.includes(bookcase)) {
+					continue;
+				}
 				books.push({
 					id: resource.book.id,
 					page: resource.page,
@@ -67,7 +73,7 @@ export async function fetchAllBooks(id: number): Promise<FetchAllBooksResult> {
 					thumbnail_url: resource.book.image_url,
 					date: resource.created_at ? new Date(resource.created_at) : null,
 				});
-			});
+			}
 
 			if (data.metadata.offset + data.metadata.limit >= data.metadata.count) {
 				hasMorePages = false;

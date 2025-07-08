@@ -3,12 +3,9 @@ import { Book } from '../db/models';
 
 export const getUniqueBooksOfUsers = async (
 	id: number,
-	expectedCount: number
+	bookcase: string | null
 ): Promise<FetchAllBooksResult> => {
-	const { books_read, pages_read, books } = await fetchAllBooks(id);
-	if (books_read !== expectedCount) {
-		throw new Error(`Expected ${expectedCount} books, but got ${books_read}`);
-	}
+	const { books_read, pages_read, books } = await fetchAllBooks(id, bookcase);
 	const ids = new Set<number>();
 	const uniqueBooks = [];
 	for (const book of books) {

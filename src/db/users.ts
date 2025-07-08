@@ -24,18 +24,14 @@ export const selectAllUsers = async (
 	syncStatus?: SyncStatus
 ): Promise<User[]> => {
 	const statusCondition = syncStatus ? sql`WHERE sync_status = ${syncStatus}` : sql``;
-	const rows = await sql<RankedUser[]>`
-    WITH ranked_users AS (
-      SELECT id, name, avatar_url, books_read, pages_read, sync_status,
-            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
-      FROM users
-      ${statusCondition}
-    )
-    SELECT * FROM ranked_users
-    ORDER BY rank;
+	const rows = await sql<User[]>`
+    SELECT *
+    FROM users
+    ${statusCondition}
+    ORDER BY books_read ASC
   `;
 
-	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
+	return rows;
 };
 
 export const selectUserById = async (
@@ -67,7 +63,10 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
       name = EXCLUDED.name,
       avatar_url = EXCLUDED.avatar_url,
       books_read = EXCLUDED.books_read,
-      pages_read = EXCLUDED.pages_read
+      pages_read = EXCLUDED.pages_read,
+      bookcase = EXCLUDED.bookcase,
+      original_books_read = EXCLUDED.original_books_read,
+      original_pages_read = EXCLUDED.original_pages_read
   `;
 };
 

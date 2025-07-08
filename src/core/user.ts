@@ -6,7 +6,15 @@ import { upsertUser } from '../db/users';
 import { getUniqueBooksOfUsers, mapBookDataToBookModel } from './book';
 
 export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
-	const { books, books_read, pages_read } = await getUniqueBooksOfUsers(user.id, user.books_read);
+	const { books, books_read, pages_read } = await getUniqueBooksOfUsers(user.id, user.bookcase);
+	if (user.bookcase) {
+		user.books_read = books_read;
+		user.pages_read = pages_read;
+	} else {
+		// Set to null if bookcase is not set
+		user.original_books_read = null;
+		user.original_pages_read = null;
+	}
 	const booksModel = books.map(mapBookDataToBookModel);
 	await upsertUser(sql, user);
 	await bulkUpsertBooks(sql, booksModel);

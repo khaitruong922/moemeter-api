@@ -62,14 +62,25 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
 
-	if (
-		currentUser.books_read === newUser.books_read &&
-		currentUser.pages_read === newUser.pages_read &&
-		(currentUser.sync_status === 'success' || currentUser.sync_status === 'skipped')
-	) {
+	if (shouldSkipUser(currentUser, newUser)) {
 		return { skipped: true };
 	}
 	await new Promise((resolve) => setTimeout(resolve, 1000));
 	await importUser(sql, newUser);
 	return { skipped: false };
+};
+
+const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
+	if (!currentUser.sync_status || currentUser.sync_status === 'failed') return false;
+	if (currentUser.bookcase !== newUser.bookcase) return false;
+	if (newUser.bookcase) {
+		return (
+			currentUser.original_books_read === newUser.original_books_read &&
+			currentUser.original_pages_read === newUser.original_pages_read
+		);
+	}
+
+	return (
+		currentUser.books_read === newUser.books_read && currentUser.pages_read === newUser.pages_read
+	);
 };

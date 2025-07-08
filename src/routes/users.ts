@@ -61,12 +61,12 @@ app.post('/join', async (c) => {
 	const exists = await userExists(sql, user.id);
 
 	// Skip importing data if the user already exists
-	// if (exists) {
-	// 	return c.json({
-	// 		user,
-	// 		message: 'User already exists, skipping data import.',
-	// 	});
-	// }
+	if (exists) {
+		return c.json({
+			user,
+			message: 'User already exists, skipping data import.',
+		});
+	}
 
 	try {
 		const result = await importUser(sql, user);

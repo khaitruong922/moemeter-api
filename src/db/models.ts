@@ -6,7 +6,10 @@ export interface User {
 	books_read: number | null;
 	pages_read: number | null;
 	sync_status?: SyncStatus | null;
+	// Bookcase only fields
 	bookcase: string | null;
+	original_books_read: number | null;
+	original_pages_read: number | null;
 }
 
 export interface Book {
