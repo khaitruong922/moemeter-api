@@ -42,7 +42,10 @@ export const syncAllUsers = async (env: Env, syncStatus?: SyncStatus): Promise<v
 	await syncBookMerges(sql);
 	await syncReadsMergedBookId(sql);
 
-	await updateMetadata(sql, new Date());
+	if (failedUserIds.length === 0) {
+		await updateMetadata(sql, new Date());
+	}
+
 	await updateSyncStatusByUserIds(sql, successUserIds, 'success');
 	await updateSyncStatusByUserIds(sql, failedUserIds, 'failed');
 	await updateSyncStatusByUserIds(sql, skipspedUserIds, 'skipped');
