@@ -27,7 +27,7 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 				console.log('Success:', user.id);
 				successUserIds.push(user.id);
 			}
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+			await new Promise((resolve) => setTimeout(resolve, 1500));
 		} catch (error) {
 			failedUserIds.push(user.id);
 			console.error('Failed:', user.id, error);
@@ -61,6 +61,7 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	) {
 		return { skipped: true };
 	}
+	await new Promise((resolve) => setTimeout(resolve, 1000));
 	await importUser(sql, newUser);
 	return { skipped: false };
 };

@@ -2,7 +2,6 @@ import { getHTML } from '../infra/html';
 import { BOOKS_PER_PAGE, DEFAULT_LIMITS, isBoolQueryOn } from '../utils/bookmeter-utils';
 import { applyNaNVL, isWithinLimits, parseNatNum } from '../utils/number-utils';
 import { getOffsetsPerPage, getPageInfo, PageInfo } from '../utils/paging-utils';
-import { extractRegex } from '../utils/string-utils';
 import { BookData, BooksDetails, getBooks, getBooksDetails } from './book';
 
 type PerPage = number | undefined;
@@ -93,7 +92,7 @@ export const getJsonUserBooks = async (
 		for (let i = firstPageFetch; i <= lastPageFetch; i++) {
 			const pageHTML = await getHTML(url.concat(`?page=${i}`));
 			listBooks = [...listBooks, ...getBooks(pageHTML)];
-			if (i < lastPageFetch) await new Promise((resolve) => setTimeout(resolve, 1000));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 		}
 	}
 
