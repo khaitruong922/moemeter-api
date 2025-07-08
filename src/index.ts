@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { prettyJSON } from 'hono/pretty-json';
 import { createDbClientFromContext } from './db';
+import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
 import books from './routes/books';
@@ -11,7 +12,6 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import { Env } from './types/env';
-import { performKeepAliveQuery } from './db/supabase';
 
 const app = new Hono();
 app.use('*', prettyJSON());
@@ -58,9 +58,18 @@ export default {
 		return app.fetch(request, env, ctx);
 	},
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		await performKeepAliveQuery(env);
-		await syncAllUsers(env).catch((error) => {
-			console.error('Failed to sync users:', error);
-		});
+		const now = new Date(controller.scheduledTime);
+		const utcHour = now.getUTCHours();
+		console.log('UTC Hour: ', utcHour);
+		if (utcHour === 0) {
+			await performKeepAliveQuery(env);
+			await syncAllUsers(env).catch((error) => {
+				console.error('Failed to sync all users:', error);
+			});
+		} else {
+			await syncAllUsers(env, 'failed').catch((error) => {
+				console.error('Failed to sync failed users:', error);
+			});
+		}
 	},
 };

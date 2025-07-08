@@ -3,15 +3,15 @@ import { importUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { updateMetadata } from '../db/metadata';
-import { User } from '../db/models';
-import { selectAllUsersWithRank, updateSyncStatusByUserIds } from '../db/users';
+import { SyncStatus, User } from '../db/models';
+import { selectAllUsers, selectAllUsersWithRank, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
 import { deleteUnreadBooks } from '../db/books';
 
-export const syncAllUsers = async (env: Env): Promise<void> => {
+export const syncAllUsers = async (env: Env, syncStatus?: SyncStatus): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
-	const users = await selectAllUsersWithRank(sql);
+	const users = await selectAllUsers(sql, syncStatus);
 
 	const successUserIds: number[] = [];
 	const failedUserIds: number[] = [];
@@ -27,7 +27,6 @@ export const syncAllUsers = async (env: Env): Promise<void> => {
 				console.log('Success:', user.id);
 				successUserIds.push(user.id);
 			}
-			await new Promise((resolve) => setTimeout(resolve, 1500));
 		} catch (error) {
 			failedUserIds.push(user.id);
 			console.error('Failed:', user.id, error);
@@ -53,7 +52,6 @@ type SyncResult = {
 const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncResult> => {
 	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl);
-
 	if (
 		currentUser.books_read === newUser.books_read &&
 		currentUser.pages_read === newUser.pages_read &&

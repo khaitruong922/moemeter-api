@@ -8,9 +8,28 @@ type RankedUser = User & {
 export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<RankedUser[]> => {
 	const rows = await sql<RankedUser[]>`
     WITH ranked_users AS (
-      SELECT *,
+      SELECT id, name, avatar_url, books_read, pages_read,
             RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
       FROM users
+    )
+    SELECT * FROM ranked_users
+    ORDER BY rank;
+  `;
+
+	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
+};
+
+export const selectAllUsers = async (
+	sql: postgres.Sql<{}>,
+	syncStatus?: SyncStatus
+): Promise<User[]> => {
+	const statusCondition = syncStatus ? sql`WHERE sync_status = ${syncStatus}` : sql``;
+	const rows = await sql<RankedUser[]>`
+    WITH ranked_users AS (
+      SELECT id, name, avatar_url, books_read, pages_read, sync_status,
+            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
+      FROM users
+      ${statusCondition}
     )
     SELECT * FROM ranked_users
     ORDER BY rank;
