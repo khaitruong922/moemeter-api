@@ -87,20 +87,44 @@ app.get('/:userId/common_reads', async (c) => {
 	}
 	const sql = createDbClientFromContext(c);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
-	const userIds = new Set<number>();
-	const bookIds = new Set<number>();
+	const userBooks: Record<string, number[]> = {};
+	const bookUsers: Record<string, number[]> = {};
 	for (const read of reads) {
-		userIds.add(read.user_id);
-		bookIds.add(read.book_id);
+		if (!userBooks[read.user_id]) userBooks[read.user_id] = [];
+		if (!bookUsers[read.book_id]) bookUsers[read.book_id] = [];
+		userBooks[read.user_id].push(read.book_id);
+		bookUsers[read.book_id].push(read.user_id);
 	}
-	const relatedUsers = await selectUserByIds(sql, Array.from(userIds));
-	const relatedUsersMap = Object.fromEntries(relatedUsers.map((user) => [user.id, user]));
-	const relatedBooks = await selectBookByIds(sql, Array.from(bookIds));
-	const relatedBooksMap = Object.fromEntries(relatedBooks.map((book) => [book.id, book]));
 
-	// convert to key-value pairs for easier access
+	const relatedUsers = await selectUserByIds(sql, Object.keys(userBooks).map(Number));
+	const relatedUsersMap = Object.fromEntries(
+		relatedUsers.map((user) => [
+			user.id,
+			{
+				...user,
+				book_ids: userBooks[user.id],
+			},
+		])
+	);
+
+	const relatedBooks = await selectBookByIds(sql, Object.keys(bookUsers).map(Number));
+	const relatedBooksMap = Object.fromEntries(
+		relatedBooks.map((book) => [book.id, { ...book, user_ids: bookUsers[book.id] }])
+	);
+
+	for (const bookId of Object.keys(relatedBooksMap)) {
+		relatedBooksMap[bookId].user_ids.sort((a, b) => {
+			const userA = relatedUsersMap[a];
+			const userB = relatedUsersMap[b];
+			if (!userA || !userB) return 0;
+			return Number(userB.books_read) - Number(userA.books_read);
+		});
+	}
+	for (const userId of Object.keys(relatedUsersMap)) {
+		relatedUsersMap[userId].book_ids.sort((a, b) => a - b);
+	}
+
 	return c.json({
-		reads,
 		books: relatedBooksMap,
 		users: relatedUsersMap,
 	});

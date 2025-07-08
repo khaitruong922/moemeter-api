@@ -84,12 +84,17 @@ export const selectBooks = async (
 
 	const bookIds = bookRows.map((book) => book.id);
 	const bookReadUsers = await sql<BookReader[]>`
-    SELECT DISTINCT ON (reads.user_id, reads.merged_book_id)
-      users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id
-    FROM users
-    JOIN reads ON users.id = reads.user_id
-    WHERE reads.merged_book_id IN ${sql(bookIds)}
-    ${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
+	WITH book_read_users AS (
+		SELECT DISTINCT ON (reads.user_id, reads.merged_book_id)
+			users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id, users.books_read, users.pages_read
+		FROM users
+		JOIN reads ON users.id = reads.user_id
+		WHERE reads.merged_book_id IN ${sql(bookIds)}
+		${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
+	)
+	SELECT * 
+	FROM book_read_users
+	ORDER BY books_read DESC, pages_read DESC
   `;
 
 	const users: Record<string, ReaderSummary> = {};
