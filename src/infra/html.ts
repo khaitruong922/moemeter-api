@@ -1,5 +1,5 @@
-import { escapeNewline } from '../utils/string-utils';
 import { HTTPException } from 'hono/http-exception';
+import { escapeNewline } from '../utils/string-utils';
 
 export const getHTML = async (url: string): Promise<string> => {
 	console.log(`Fetching URL: ${url}`);
@@ -8,7 +8,7 @@ export const getHTML = async (url: string): Promise<string> => {
 	try {
 		response = await fetch(escapedUrl);
 	} catch (e) {
-		throw new HTTPException(500, { message: 'Bad Url' });
+		throw new HTTPException(500, { message: e });
 	}
 	switch (response.status) {
 		case 500:
