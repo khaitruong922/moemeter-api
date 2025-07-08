@@ -4,14 +4,14 @@ import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { updateMetadata } from '../db/metadata';
 import { User } from '../db/models';
-import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
+import { selectAllUsersWithRank, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
 import { deleteUnreadBooks } from '../db/books';
 
 export const syncAllUsers = async (env: Env): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
-	const users = await selectAllUsers(sql);
+	const users = await selectAllUsersWithRank(sql);
 
 	const successUserIds: number[] = [];
 	const failedUserIds: number[] = [];

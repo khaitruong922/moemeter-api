@@ -6,7 +6,7 @@ import { selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
 import {
-	selectAllUsers,
+	selectAllUsersWithRank,
 	selectUserById,
 	selectUserByIds,
 	updateSyncStatusByUserIds,
@@ -18,7 +18,7 @@ const app = new Hono();
 
 app.get('/leaderboard', async (c) => {
 	const sql = createDbClientFromContext(c);
-	const users = await selectAllUsers(sql);
+	const users = await selectAllUsersWithRank(sql);
 	return c.json(users);
 });
 

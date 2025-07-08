@@ -1,14 +1,22 @@
 import postgres from 'postgres';
 import { SyncStatus, User } from './models';
 
-export const selectAllUsers = async (sql: postgres.Sql<{}>): Promise<User[]> => {
-	const rows = await sql<User[]>`
-    SELECT id, name, avatar_url, books_read, pages_read, sync_status
-    FROM users
-    ORDER BY books_read DESC, pages_read DESC
+type RankedUser = User & {
+	rank: number | string;
+};
+
+export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<RankedUser[]> => {
+	const rows = await sql<RankedUser[]>`
+    WITH ranked_users AS (
+      SELECT *,
+            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
+      FROM users
+    )
+    SELECT * FROM ranked_users
+    ORDER BY rank;
   `;
 
-	return rows;
+	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
 };
 
 export const selectUserById = async (
