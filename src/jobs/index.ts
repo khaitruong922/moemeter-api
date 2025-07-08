@@ -2,16 +2,22 @@ import postgres from 'postgres';
 import { importUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
+import { deleteUnreadBooks } from '../db/books';
 import { updateMetadata } from '../db/metadata';
 import { SyncStatus, User } from '../db/models';
-import { selectAllUsers, selectAllUsersWithRank, updateSyncStatusByUserIds } from '../db/users';
+import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { Env } from '../types/env';
-import { deleteUnreadBooks } from '../db/books';
 
 export const syncAllUsers = async (env: Env, syncStatus?: SyncStatus): Promise<void> => {
 	const sql = createDbClientFromEnv(env);
 	const users = await selectAllUsers(sql, syncStatus);
+	if (users.length === 0) {
+		if (syncStatus === 'failed') {
+			console.log('No failed users, skipping.');
+		}
+		return;
+	}
 
 	const successUserIds: number[] = [];
 	const failedUserIds: number[] = [];

@@ -60,8 +60,9 @@ export default {
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
 		const now = new Date(controller.scheduledTime);
 		const utcHour = now.getUTCHours();
-		console.log('UTC Hour: ', utcHour);
-		if (utcHour === 0) {
+		const utcMinutes = now.getUTCMinutes();
+		console.log('Hour: ', utcHour, 'Minutes: ', utcMinutes);
+		if ((utcHour === 0 && utcMinutes === 0) || (utcHour === 12 && utcMinutes === 0)) {
 			await performKeepAliveQuery(env);
 			await syncAllUsers(env).catch((error) => {
 				console.error('Failed to sync all users:', error);
