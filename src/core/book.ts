@@ -1,13 +1,13 @@
-import { BookData, fetchAllBooks } from '../bookmeter-api/book';
+import { BookData, fetchAllBooks, FetchAllBooksResult } from '../bookmeter-api/book';
 import { Book } from '../db/models';
 
-export const getAllUserUniqueBookData = async (
+export const getUniqueBooksOfUsers = async (
 	id: number,
 	expectedCount: number
-): Promise<BookData[]> => {
-	const books = await fetchAllBooks(id);
-	if (books.length !== expectedCount) {
-		throw new Error(`Expected ${expectedCount} books, but got ${books.length}`);
+): Promise<FetchAllBooksResult> => {
+	const { books_read, pages_read, books } = await fetchAllBooks(id);
+	if (books_read !== expectedCount) {
+		throw new Error(`Expected ${expectedCount} books, but got ${books_read}`);
 	}
 	const ids = new Set<number>();
 	const uniqueBooks = [];
@@ -16,7 +16,11 @@ export const getAllUserUniqueBookData = async (
 		ids.add(book.id);
 		uniqueBooks.push(book);
 	}
-	return uniqueBooks;
+	return {
+		books: uniqueBooks,
+		books_read,
+		pages_read,
+	};
 };
 
 export const mapBookDataToBookModel = (book: BookData): Book => {

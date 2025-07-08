@@ -3,14 +3,14 @@ import { bulkUpsertBooks } from '../db/books';
 import { Read, User } from '../db/models';
 import { deleteReadsOfUser, bulkUpsertReads } from '../db/reads';
 import { upsertUser } from '../db/users';
-import { getAllUserUniqueBookData, mapBookDataToBookModel } from './book';
+import { getUniqueBooksOfUsers, mapBookDataToBookModel } from './book';
 
 export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
+	const { books, books_read, pages_read } = await getUniqueBooksOfUsers(user.id, user.books_read);
+	const booksModel = books.map(mapBookDataToBookModel);
 	await upsertUser(sql, user);
-	const booksData = await getAllUserUniqueBookData(user.id, user.books_read);
-	const books = booksData.map(mapBookDataToBookModel);
-	await bulkUpsertBooks(sql, books);
-	const reads: Read[] = booksData.map((bookData) => ({
+	await bulkUpsertBooks(sql, booksModel);
+	const reads: Read[] = books.map((bookData) => ({
 		user_id: user.id,
 		book_id: bookData.id,
 		merged_book_id: bookData.id,
@@ -20,7 +20,7 @@ export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
 	await bulkUpsertReads(sql, reads);
 	return {
 		user,
-		bookCount: books.length,
-		readCount: reads.length,
+		bookCount: books_read,
+		readCount: pages_read,
 	};
 };

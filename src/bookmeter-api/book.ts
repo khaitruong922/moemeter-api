@@ -32,7 +32,13 @@ type BookmeterResponse = {
 	}>;
 };
 
-export async function fetchAllBooks(id: number): Promise<BookData[]> {
+export type FetchAllBooksResult = {
+	books: BookData[];
+	books_read: number;
+	pages_read: number;
+};
+
+export async function fetchAllBooks(id: number): Promise<FetchAllBooksResult> {
 	const books: BookData[] = [];
 	let page = 1;
 	let hasMorePages = true;
@@ -74,5 +80,9 @@ export async function fetchAllBooks(id: number): Promise<BookData[]> {
 		}
 	}
 
-	return books;
+	return {
+		books,
+		books_read: books.length,
+		pages_read: books.reduce((acc, book) => acc + (book.page || 0), 0),
+	};
 }

@@ -36,7 +36,7 @@ app.get('/:userId', async (c) => {
 });
 
 app.post('/join', async (c) => {
-	const { user_id, group_id, password } = await c.req.json();
+	const { user_id, group_id, password, bookcase } = await c.req.json();
 	if (!user_id || typeof user_id !== 'number') {
 		return c.json({ error: 'user_id is required and must be a number' }, 400);
 	}
@@ -46,6 +46,9 @@ app.post('/join', async (c) => {
 	if (!password || typeof password !== 'string') {
 		return c.json({ error: 'password is required' }, 400);
 	}
+	if (bookcase && typeof bookcase !== 'string') {
+		return c.json({ error: 'bookcase must be a string' }, 400);
+	}
 
 	const sql = createDbClientFromContext(c);
 	const group = await selectGroupByIdAndPassword(sql, group_id, password);
@@ -54,16 +57,16 @@ app.post('/join', async (c) => {
 	}
 
 	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
-	const user = await getUserFromBookmeterUrl(bookmeterUrl);
+	const user = await getUserFromBookmeterUrl(bookmeterUrl, bookcase || null);
 	const exists = await userExists(sql, user.id);
 
 	// Skip importing data if the user already exists
-	if (exists) {
-		return c.json({
-			user,
-			message: 'User already exists, skipping data import.',
-		});
-	}
+	// if (exists) {
+	// 	return c.json({
+	// 		user,
+	// 		message: 'User already exists, skipping data import.',
+	// 	});
+	// }
 
 	try {
 		const result = await importUser(sql, user);

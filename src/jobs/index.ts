@@ -60,7 +60,8 @@ type SyncResult = {
 
 const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncResult> => {
 	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
-	const newUser = await getUserFromBookmeterUrl(bookmeterUrl);
+	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
+
 	if (
 		currentUser.books_read === newUser.books_read &&
 		currentUser.pages_read === newUser.pages_read &&

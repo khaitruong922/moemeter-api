@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { Book, User } from './models';
+import { Book } from './models';
 
 type BookWithReaderCount = Book & {
 	read_count: string | number;
