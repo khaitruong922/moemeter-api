@@ -13,6 +13,7 @@ export interface Book {
 	title: string | null;
 	author: string | null;
 	author_url: string | null;
+	page: number | null;
 	thumbnail_url: string | null;
 }
 

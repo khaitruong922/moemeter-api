@@ -3,15 +3,11 @@ import { bulkUpsertBooks } from '../db/books';
 import { Read, User } from '../db/models';
 import { deleteReadsOfUser, bulkUpsertReads } from '../db/reads';
 import { upsertUser } from '../db/users';
-import { mapBookDataToBookModel } from '../scraping/book';
-import { getAllUserUniqueBookData } from '../scraping/user-books';
+import { getAllUserUniqueBookData, mapBookDataToBookModel } from './book';
 
 export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
 	await upsertUser(sql, user);
-	const booksData = await getAllUserUniqueBookData(
-		`https://bookmeter.com/users/${user.id}/books/read`,
-		user.books_read
-	);
+	const booksData = await getAllUserUniqueBookData(user.id, user.books_read);
 	const books = booksData.map(mapBookDataToBookModel);
 	await bulkUpsertBooks(sql, books);
 	const reads: Read[] = booksData.map((bookData) => ({

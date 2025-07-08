@@ -76,7 +76,7 @@ app.post('/join', async (c) => {
 		});
 	} catch (e) {
 		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
-		return c.json({ message: 'Failed to import user data' }, 500);
+		return c.json({ message: e.message }, 500);
 	}
 });
 
