@@ -2,18 +2,19 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { prettyJSON } from 'hono/pretty-json';
-import { createDbClientFromContext } from './db';
+import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
 import books from './routes/books';
 import groups from './routes/groups';
+import job from './routes/job';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
-import { Env } from './types/env';
+import { AppEnv } from './types/app_env';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AppEnv }>();
 app.use('*', prettyJSON());
 app.use('*', cors());
 
@@ -25,7 +26,7 @@ app.get('/', async (c) => {
 
 app.get('/health', async (c) => {
 	try {
-		const db = createDbClientFromContext(c);
+		const db = createDbClientFromEnv(c.env);
 		await db`SELECT 1`;
 		return c.json({ status: 'ok' });
 	} catch (error) {
@@ -39,6 +40,7 @@ app.route('/books', books);
 app.route('/reads', reads);
 app.route('/groups', groups);
 app.route('/metadata', metadata);
+app.route('/job', job);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);
@@ -54,21 +56,22 @@ app.onError((e, c) => {
 });
 
 export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	fetch(request: Request, env: AppEnv, ctx: ExecutionContext) {
 		return app.fetch(request, env, ctx);
 	},
-	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+	async scheduled(controller: ScheduledController, env: AppEnv, ctx: ExecutionContext) {
 		const now = new Date(controller.scheduledTime);
 		const utcHour = now.getUTCHours();
 		const utcMinutes = now.getUTCMinutes();
 		console.log('Hour: ', utcHour, 'Minutes: ', utcMinutes);
+		const sql = createDbClientFromEnv(env);
 		if ((utcHour === 0 && utcMinutes === 0) || (utcHour === 12 && utcMinutes === 0)) {
 			await performKeepAliveQuery(env);
-			await syncAllUsers(env).catch((error) => {
+			await syncAllUsers(sql).catch((error) => {
 				console.error('Failed to sync all users:', error);
 			});
 		} else {
-			await syncAllUsers(env, 'failed').catch((error) => {
+			await syncAllUsers(sql, 'failed').catch((error) => {
 				console.error('Failed to sync failed users:', error);
 			});
 		}

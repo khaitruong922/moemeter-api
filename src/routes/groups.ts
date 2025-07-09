@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import { createDbClientFromContext } from '../db';
+import { createDbClientFromEnv } from '../db';
 import { selectAllGroups } from '../db/groups';
+import { AppEnv } from '../types/app_env';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const groups = await selectAllGroups(sql);
 	return c.json(groups);
 });

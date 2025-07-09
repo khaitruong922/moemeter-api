@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import { createDbClientFromContext } from '../db';
+import { selectBooks } from '../db/books';
+import { AppEnv } from '../types/app_env';
 import { applyNaNVL, parseNatNum } from '../utils/number-utils';
 import { getPageInfo } from '../utils/paging-utils';
-import { selectBooks } from '../db/books';
+import { createDbClientFromEnv } from '../db';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
 	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 50);
@@ -25,7 +26,7 @@ app.get('/', async (c) => {
 
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, ' ') : undefined;
 
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const offset = (reqPage - 1) * perPage;
 	const { books, users, total_count } = await selectBooks(
 		sql,

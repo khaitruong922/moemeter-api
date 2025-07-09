@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { Env } from '../types/env';
+import { AppEnv } from '../types/app_env';
 
-export const createSupabaseClient = (env: Env) => {
+export const createSupabaseClient = (env: AppEnv) => {
 	if (!env.SUPABASE_URL || !env.SUPABASE_KEY) {
 		throw new Error('Supabase configuration is missing in environment variables.');
 	}
 	return createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
 };
 
-export const performKeepAliveQuery = async (env: Env) => {
+export const performKeepAliveQuery = async (env: AppEnv) => {
 	const supabase = createSupabaseClient(env);
 	try {
 		// Execute a simple query to keep the connection alive

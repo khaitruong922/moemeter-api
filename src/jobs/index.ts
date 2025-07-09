@@ -1,37 +1,38 @@
 import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
-import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
-import { updateMetadata } from '../db/metadata';
+import { updateMetadataLastUpdated } from '../db/metadata';
 import { SyncStatus, User } from '../db/models';
 import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
-import { Env } from '../types/env';
 
-export const syncAllUsers = async (env: Env, syncStatus?: SyncStatus): Promise<void> => {
-	const sql = createDbClientFromEnv(env);
-	const users = await selectAllUsers(sql, syncStatus);
+export const syncAllUsers = async (
+	sql: postgres.Sql<{}>,
+	syncStatus?: SyncStatus,
+	limit?: number
+): Promise<User[]> => {
+	const users = await selectAllUsers(sql, syncStatus, limit);
 	if (users.length === 0) {
 		if (syncStatus === 'failed') {
 			console.log('No failed users, skipping.');
 		}
-		return;
+		return [];
 	}
 
-	const successUserIds: number[] = [];
+	const successUsers: User[] = [];
 	const failedUserIds: number[] = [];
 	const skipspedUserIds: number[] = [];
 
 	for (const user of users) {
 		try {
-			const { skipped } = await syncUser(sql, user);
+			const { skipped, user: syncedUser } = await syncUser(sql, user);
 			if (skipped) {
-				skipspedUserIds.push(user.id);
-				console.log('Skipped:', user.id);
+				skipspedUserIds.push(syncedUser.id);
+				console.log('Skipped:', syncedUser.id);
 			} else {
-				console.log('Success:', user.id);
-				successUserIds.push(user.id);
+				console.log('Success:', syncedUser.id);
+				successUsers.push(syncedUser);
 			}
 		} catch (error) {
 			failedUserIds.push(user.id);
@@ -42,20 +43,26 @@ export const syncAllUsers = async (env: Env, syncStatus?: SyncStatus): Promise<v
 	await syncBookMerges(sql);
 	await syncReadsMergedBookId(sql);
 
-	if (failedUserIds.length === 0) {
-		await updateMetadata(sql, new Date());
+	if (syncStatus !== 'failed') {
+		await updateMetadataLastUpdated(sql, new Date());
 	}
 
-	await updateSyncStatusByUserIds(sql, successUserIds, 'success');
+	await updateSyncStatusByUserIds(
+		sql,
+		successUsers.map((u) => u.id),
+		'success'
+	);
 	await updateSyncStatusByUserIds(sql, failedUserIds, 'failed');
 	await updateSyncStatusByUserIds(sql, skipspedUserIds, 'skipped');
 	console.log(
-		`Total: ${users.length}, Success: ${successUserIds.length}, Failed: ${failedUserIds.length}, Skipped: ${skipspedUserIds.length}`
+		`Total: ${users.length}, Success: ${successUsers.length}, Failed: ${failedUserIds.length}, Skipped: ${skipspedUserIds.length}`
 	);
+	return successUsers;
 };
 
 type SyncResult = {
 	skipped: boolean;
+	user: User;
 };
 
 const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncResult> => {
@@ -63,11 +70,11 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
 
 	if (shouldSkipUser(currentUser, newUser)) {
-		return { skipped: true };
+		return { skipped: true, user: currentUser };
 	}
 	await new Promise((resolve) => setTimeout(resolve, 1000));
-	await fullImportUser(sql, newUser);
-	return { skipped: false };
+	const { user } = await fullImportUser(sql, newUser);
+	return { skipped: false, user };
 };
 
 const shouldSkipUser = (currentUser: User, newUser: User): boolean => {

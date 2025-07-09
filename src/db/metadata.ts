@@ -10,7 +10,10 @@ export const selectMetadata = async (sql: postgres.Sql<{}>): Promise<Metadata> =
 	return { last_updated: row.length > 0 ? row[0].last_updated : null };
 };
 
-export const updateMetadata = async (sql: postgres.Sql<{}>, lastUpdated: Date): Promise<void> => {
+export const updateMetadataLastUpdated = async (
+	sql: postgres.Sql<{}>,
+	lastUpdated: Date
+): Promise<void> => {
 	await sql`
     UPDATE metadata SET last_updated = ${lastUpdated}
   `;

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
-import { createDbClientFromContext } from '../db';
+import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
@@ -13,11 +13,12 @@ import {
 	userExists,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
+import { AppEnv } from '../types/app_env';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/leaderboard', async (c) => {
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const users = await selectAllUsersWithRank(sql);
 	return c.json(users);
 });
@@ -27,7 +28,7 @@ app.get('/:userId', async (c) => {
 	if (!userId || isNaN(Number(userId))) {
 		return c.json({ error: 'Invalid user id' }, 400);
 	}
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const user = await selectUserById(sql, Number(userId));
 	if (user === null) {
 		return c.json({ error: 'User not found' }, 404);
@@ -50,7 +51,7 @@ app.post('/join', async (c) => {
 		return c.json({ error: 'bookcase must be a string' }, 400);
 	}
 
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const group = await selectGroupByIdAndPassword(sql, group_id, password);
 	if (group === null) {
 		return c.json({ error: 'Invalid group ID or password' }, 400);
@@ -88,7 +89,7 @@ app.get('/:userId/common_reads', async (c) => {
 	if (!userId || isNaN(Number(userId))) {
 		return c.json({ error: 'Invalid user id' }, 400);
 	}
-	const sql = createDbClientFromContext(c);
+	const sql = createDbClientFromEnv(c.env);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
 	const userBooks: Record<string, number[]> = {};
 	const bookUsers: Record<string, number[]> = {};

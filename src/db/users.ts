@@ -21,14 +21,17 @@ export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<Ran
 
 export const selectAllUsers = async (
 	sql: postgres.Sql<{}>,
-	syncStatus?: SyncStatus
+	syncStatus?: SyncStatus,
+	limit?: number
 ): Promise<User[]> => {
 	const statusCondition = syncStatus ? sql`WHERE sync_status = ${syncStatus}` : sql``;
+	const limitCondition = limit ? sql`LIMIT ${limit}` : sql``;
 	const rows = await sql<User[]>`
     SELECT *
     FROM users
     ${statusCondition}
     ORDER BY books_read DESC
+    ${limitCondition}
   `;
 
 	return rows;
@@ -90,4 +93,19 @@ export const updateSyncStatusByUserIds = async (
     SET sync_status = ${status}
     WHERE id IN ${sql(userIds)}
   `;
+};
+
+export const selectFailedAndTotalUsers = async (
+	sql: postgres.Sql<{}>
+): Promise<{ failed_users: number; total_users: number }> => {
+	const rows = await sql<{ failed_users: number; total_users: number }[]>`
+    SELECT
+      COUNT(*) FILTER (WHERE sync_status = 'failed') AS failed_users,
+      COUNT(*) AS total_users
+    FROM users
+  `;
+	return {
+		failed_users: Number(rows[0]?.failed_users ?? 0),
+		total_users: Number(rows[0]?.total_users ?? 0),
+	};
 };
