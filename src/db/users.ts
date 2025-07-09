@@ -19,18 +19,25 @@ export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<Ran
 	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
 };
 
+export type SelectAllUsersParams = {
+	syncStatus: SyncStatus | null;
+	bookCountOrder: 'ASC' | 'DESC';
+	limit: number | null;
+};
+
 export const selectAllUsers = async (
 	sql: postgres.Sql<{}>,
-	syncStatus?: SyncStatus,
-	limit?: number
+	params: SelectAllUsersParams
 ): Promise<User[]> => {
+	const { syncStatus, bookCountOrder, limit } = params;
 	const statusCondition = syncStatus ? sql`WHERE sync_status = ${syncStatus}` : sql``;
+	const orderCondition = bookCountOrder ? sql`ORDER BY books_read ${bookCountOrder}` : sql``;
 	const limitCondition = limit ? sql`LIMIT ${limit}` : sql``;
 	const rows = await sql<User[]>`
     SELECT *
     FROM users
     ${statusCondition}
-    ORDER BY books_read DESC
+    ${orderCondition}
     ${limitCondition}
   `;
 
