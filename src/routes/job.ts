@@ -24,7 +24,9 @@ app.post('/sync_failed_users', async (c) => {
 		return c.json({ error: 'Invalid group ID or password' }, 400);
 	}
 	const users = await syncAllUsers(sql, 'failed', limit);
-	return c.json(users);
+	return c.json({
+		users,
+	});
 });
 
 export default app;
