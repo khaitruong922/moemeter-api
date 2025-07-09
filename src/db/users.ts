@@ -25,7 +25,7 @@ export type SelectAllUsersParams = {
 	limit: number | null;
 };
 
-export const selectAllUsers = async (
+export const selectAllUsersForSync = async (
 	sql: postgres.Sql<{}>,
 	params: SelectAllUsersParams
 ): Promise<User[]> => {
