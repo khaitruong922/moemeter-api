@@ -67,11 +67,19 @@ export default {
 		const sql = createDbClientFromEnv(env);
 		if ((utcHour === 0 && utcMinutes === 0) || (utcHour === 12 && utcMinutes === 0)) {
 			await performKeepAliveQuery(env);
-			await syncAllUsers(sql).catch((error) => {
+			await syncAllUsers(sql, {
+				syncStatus: null,
+				bookCountOrder: 'ASC',
+				limit: null,
+			}).catch((error) => {
 				console.error('Failed to sync all users:', error);
 			});
 		} else {
-			await syncAllUsers(sql, 'failed').catch((error) => {
+			await syncAllUsers(sql, {
+				syncStatus: 'failed',
+				bookCountOrder: 'ASC',
+				limit: null,
+			}).catch((error) => {
 				console.error('Failed to sync failed users:', error);
 			});
 		}

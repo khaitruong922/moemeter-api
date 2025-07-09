@@ -4,15 +4,15 @@ import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { SyncStatus, User } from '../db/models';
-import { selectAllUsers, updateSyncStatusByUserIds } from '../db/users';
+import { selectAllUsers, SelectAllUsersParams, updateSyncStatusByUserIds } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 
 export const syncAllUsers = async (
 	sql: postgres.Sql<{}>,
-	syncStatus?: SyncStatus,
-	limit?: number
+	params: SelectAllUsersParams
 ): Promise<User[]> => {
-	const users = await selectAllUsers(sql, syncStatus, limit);
+	const users = await selectAllUsers(sql, params);
+	const { syncStatus } = params;
 	if (users.length === 0) {
 		if (syncStatus === 'failed') {
 			console.log('No failed users, skipping.');
