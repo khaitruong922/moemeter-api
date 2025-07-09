@@ -59,13 +59,14 @@ export default {
 	fetch(request: Request, env: AppEnv, ctx: ExecutionContext) {
 		return app.fetch(request, env, ctx);
 	},
-	async scheduled(controller: ScheduledController, env: AppEnv, ctx: ExecutionContext) {
-		const now = new Date(controller.scheduledTime);
+	async scheduled(event: ScheduledController, env: AppEnv, ctx: ExecutionContext) {
+		const now = new Date(event.scheduledTime);
 		const utcHour = now.getUTCHours();
 		const utcMinutes = now.getUTCMinutes();
 		console.log('Hour: ', utcHour, 'Minutes: ', utcMinutes);
 		const sql = createDbClientFromEnv(env);
-		if (controller.cron === '0 * * * *') {
+
+		if (event.cron === '0 * * * *') {
 			if ((utcHour === 0 && utcMinutes === 0) || (utcHour === 12 && utcMinutes === 0)) {
 				await performKeepAliveQuery(env);
 				await syncAllUsers(sql, {
@@ -84,7 +85,7 @@ export default {
 					console.error('Failed to sync failed users:', error);
 				});
 			}
-		} else if (controller.cron === '*/2 * * * *' && utcMinutes !== 0) {
+		} else if (event.cron === '*/2 * * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
