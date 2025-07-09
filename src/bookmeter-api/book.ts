@@ -49,9 +49,9 @@ export async function fetchAllBooks(
 
 	while (hasMorePages) {
 		try {
-			const response = await fetch(
-				`https://bookmeter.com/users/${id}/books/read.json?page=${page}`
-			);
+			const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}`;
+			console.log(`Fetching ${url}`);
+			const response = await fetch(url);
 
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);

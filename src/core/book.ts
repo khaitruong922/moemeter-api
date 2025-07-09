@@ -9,7 +9,9 @@ export const getUniqueBooksOfUsers = async (
 	const ids = new Set<number>();
 	const uniqueBooks = [];
 	for (const book of books) {
-		if (ids.has(book.id)) continue;
+		if (ids.has(book.id)) {
+			continue;
+		}
 		ids.add(book.id);
 		uniqueBooks.push(book);
 	}

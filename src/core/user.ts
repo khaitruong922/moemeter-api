@@ -5,7 +5,7 @@ import { deleteReadsOfUser, bulkUpsertReads } from '../db/reads';
 import { upsertUser } from '../db/users';
 import { getUniqueBooksOfUsers, mapBookDataToBookModel } from './book';
 
-export const importUser = async (sql: postgres.Sql<{}>, user: User) => {
+export const fullImportUser = async (sql: postgres.Sql<{}>, user: User) => {
 	const { books, books_read, pages_read } = await getUniqueBooksOfUsers(user.id, user.bookcase);
 	if (user.bookcase) {
 		user.books_read = books_read;

@@ -52,7 +52,6 @@ export const getUserAvatarUrl = (html: string): string => {
 };
 
 export const getUserDetailsHtml = (html: string): string => {
-	console.log(html);
 	return extractRegex(html, /<dl class="bm-details-side">(.*?)<\/dl>/g)[0];
 };
 

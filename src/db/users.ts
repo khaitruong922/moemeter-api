@@ -28,7 +28,7 @@ export const selectAllUsers = async (
     SELECT *
     FROM users
     ${statusCondition}
-    ORDER BY books_read ASC
+    ORDER BY books_read DESC
   `;
 
 	return rows;

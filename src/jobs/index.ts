@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { importUser } from '../core/user';
+import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
@@ -66,7 +66,7 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 		return { skipped: true };
 	}
 	await new Promise((resolve) => setTimeout(resolve, 1000));
-	await importUser(sql, newUser);
+	await fullImportUser(sql, newUser);
 	return { skipped: false };
 };
 
