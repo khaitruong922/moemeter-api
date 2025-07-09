@@ -25,7 +25,7 @@ app.post('/sync_failed_users', async (c) => {
 	}
 	const users = await syncAllUsers(sql, {
 		syncStatus: 'failed',
-		bookCountOrder: 'DESC',
+		bookCountOrder: 'ASC',
 		limit,
 	});
 

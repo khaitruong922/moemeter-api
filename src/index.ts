@@ -69,7 +69,7 @@ export default {
 			await performKeepAliveQuery(env);
 			await syncAllUsers(sql, {
 				syncStatus: null,
-				bookCountOrder: 'ASC',
+				bookCountOrder: 'DESC',
 				limit: null,
 			}).catch((error) => {
 				console.error('Failed to sync all users:', error);
@@ -77,7 +77,7 @@ export default {
 		} else {
 			await syncAllUsers(sql, {
 				syncStatus: 'failed',
-				bookCountOrder: 'ASC',
+				bookCountOrder: 'DESC',
 				limit: null,
 			}).catch((error) => {
 				console.error('Failed to sync failed users:', error);
