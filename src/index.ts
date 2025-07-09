@@ -66,30 +66,20 @@ export default {
 		console.log('Hour: ', utcHour, 'Minutes: ', utcMinutes);
 		const sql = createDbClientFromEnv(env);
 
-		if (event.cron === '0 * * * *') {
-			if ((utcHour === 0 && utcMinutes === 0) || (utcHour === 12 && utcMinutes === 0)) {
-				await performKeepAliveQuery(env);
-				await syncAllUsers(sql, {
-					syncStatus: null,
-					bookCountOrder: 'DESC',
-					limit: null,
-				}).catch((error) => {
-					console.error('Failed to sync all users:', error);
-				});
-			} else {
-				await syncAllUsers(sql, {
-					syncStatus: 'failed',
-					bookCountOrder: 'DESC',
-					limit: null,
-				}).catch((error) => {
-					console.error('Failed to sync failed users:', error);
-				});
-			}
-		} else if (event.cron === '*/2 * * * *' && utcMinutes !== 0) {
+		if (event.cron === '0 0/12 * * *') {
+			await performKeepAliveQuery(env);
+			await syncAllUsers(sql, {
+				syncStatus: null,
+				bookCountOrder: 'DESC',
+				limit: null,
+			}).catch((error) => {
+				console.error('Failed to sync all users:', error);
+			});
+		} else if (event.cron === '*/3 * * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
-				limit: 3,
+				limit: null,
 			}).catch((error) => {
 				console.error('Failed to sync failed users:', error);
 			});
