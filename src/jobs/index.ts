@@ -26,13 +26,13 @@ export const syncAllUsers = async (
 
 	const successUsers: User[] = [];
 	const failedUserIds: number[] = [];
-	const skipspedUserIds: number[] = [];
+	const skippedUserIds: number[] = [];
 
 	for (const user of users) {
 		try {
 			const { skipped, user: syncedUser } = await syncUser(sql, user);
 			if (skipped) {
-				skipspedUserIds.push(syncedUser.id);
+				skippedUserIds.push(syncedUser.id);
 				console.log('Skipped:', syncedUser.id);
 			} else {
 				console.log('Success:', syncedUser.id);
@@ -57,9 +57,9 @@ export const syncAllUsers = async (
 		'success'
 	);
 	await updateSyncStatusByUserIds(sql, failedUserIds, 'failed');
-	await updateSyncStatusByUserIds(sql, skipspedUserIds, 'skipped');
+	await updateSyncStatusByUserIds(sql, skippedUserIds, 'skipped');
 	console.log(
-		`Total: ${users.length}, Success: ${successUsers.length}, Failed: ${failedUserIds.length}, Skipped: ${skipspedUserIds.length}`
+		`Total: ${users.length}, Success: ${successUsers.length}, Failed: ${failedUserIds.length}, Skipped: ${skippedUserIds.length}`
 	);
 	return successUsers;
 };
