@@ -78,7 +78,6 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 };
 
 const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
-	if (!currentUser.sync_status || currentUser.sync_status === 'failed') return false;
 	if (currentUser.bookcase !== newUser.bookcase) return false;
 	if (newUser.bookcase) {
 		return (
