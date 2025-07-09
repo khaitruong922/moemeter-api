@@ -32,7 +32,9 @@ export const selectAllUsers = async (
 	const { syncStatus, bookCountOrder, limit } = params;
 	const statusCondition = syncStatus ? sql`WHERE sync_status = ${syncStatus}` : sql``;
 	const orderCondition =
-		bookCountOrder === 'ASC' ? sql`ORDER BY books_read ASC` : sql`ORDER BY books_read DESC`;
+		bookCountOrder === 'ASC'
+			? sql`ORDER BY COALESCE(original_books_read, books_read) ASC`
+			: sql`ORDER BY COALESCE(original_books_read, books_read) DESC`;
 	const limitCondition = limit ? sql`LIMIT ${limit}` : sql``;
 	const rows = await sql<User[]>`
     SELECT *

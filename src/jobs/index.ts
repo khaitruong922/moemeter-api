@@ -4,14 +4,18 @@ import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { SyncStatus, User } from '../db/models';
-import { selectAllUsers, SelectAllUsersParams, updateSyncStatusByUserIds } from '../db/users';
+import {
+	selectAllUsersForSync,
+	SelectAllUsersParams,
+	updateSyncStatusByUserIds,
+} from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 
 export const syncAllUsers = async (
 	sql: postgres.Sql<{}>,
 	params: SelectAllUsersParams
 ): Promise<User[]> => {
-	const users = await selectAllUsers(sql, params);
+	const users = await selectAllUsersForSync(sql, params);
 	const { syncStatus } = params;
 	if (users.length === 0) {
 		if (syncStatus === 'failed') {
