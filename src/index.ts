@@ -75,7 +75,7 @@ export default {
 			}).catch((error) => {
 				console.error('Failed to sync all users:', error);
 			});
-		} else if (event.cron === '*/3 * * * *' && utcMinutes !== 0) {
+		} else if (event.cron === '*/3 0/12 * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
