@@ -39,10 +39,10 @@ export type FetchAllBooksResult = {
 	pages_read: number;
 };
 
-export async function fetchAllBooks(
+export const fetchAllBooks = async (
 	id: number,
 	bookcase: string | null
-): Promise<FetchAllBooksResult> {
+): Promise<FetchAllBooksResult> => {
 	const books: BookData[] = [];
 	let page = 1;
 	let hasMorePages = true;
@@ -91,4 +91,4 @@ export async function fetchAllBooks(
 		books_read: books.length,
 		pages_read: books.reduce((acc, book) => acc + (book.page || 0), 0),
 	};
-}
+};

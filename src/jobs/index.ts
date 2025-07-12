@@ -5,6 +5,7 @@ import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { SyncStatus, User } from '../db/models';
 import {
+	refreshYearlyLeaderboard,
 	selectAllUsersForSync,
 	SelectAllUsersParams,
 	updateSyncStatusByUserIds,
@@ -46,6 +47,7 @@ export const syncAllUsers = async (
 	await deleteUnreadBooks(sql);
 	await syncBookMerges(sql);
 	await syncReadsMergedBookId(sql);
+	await refreshYearlyLeaderboard(sql);
 
 	if (syncStatus !== 'failed') {
 		await updateMetadataLastUpdated(sql, new Date());

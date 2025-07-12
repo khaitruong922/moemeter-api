@@ -1,7 +1,7 @@
 import postgres from 'postgres';
 import { SyncStatus, User } from './models';
 
-type RankedUser = User & {
+export type RankedUser = User & {
 	rank: number | string;
 };
 
@@ -17,6 +17,31 @@ export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<Ran
   `;
 
 	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
+};
+
+export const selectYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<RankedUser[]> => {
+	const rows = await sql<RankedUser[]>`
+    WITH ranked_users AS (
+      SELECT id, name, avatar_url, books_read, pages_read,
+            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
+      FROM yearly_leaderboard
+    )
+    SELECT * FROM ranked_users
+    ORDER BY rank;
+  `;
+
+	return rows.map((r) => ({
+		...r,
+		rank: Number(r.rank),
+		books_read: Number(r.books_read),
+		pages_read: Number(r.pages_read),
+	}));
+};
+
+export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW yearly_leaderboard;
+  `;
 };
 
 export type SelectAllUsersParams = {

@@ -1,8 +1,7 @@
 import postgres from 'postgres';
 import { Book } from './models';
 
-type BookWithReaderCount = Book & {
-	read_count: string | number;
+type BookWithReaders = Book & {
 	user_ids: number[];
 };
 
@@ -17,7 +16,7 @@ type BookReader = ReaderSummary & {
 };
 
 type GetBooksResponse = {
-	books: BookWithReaderCount[];
+	books: BookWithReaders[];
 	users: Record<string, ReaderSummary>;
 	total_count: number;
 };
@@ -68,7 +67,7 @@ export const selectBooks = async (
     ${dateCondition}
   `;
 
-	const bookRows = await sql<BookWithReaderCount[]>`
+	const bookRows = await sql<BookWithReaders[]>`
     SELECT 
       books.*,
       COUNT(DISTINCT reads.user_id) as read_count
@@ -112,11 +111,10 @@ export const selectBooks = async (
 		};
 	});
 
-	const books: BookWithReaderCount[] = bookRows.map((row) => {
+	const books: BookWithReaders[] = bookRows.map((row) => {
 		return {
 			...row,
 			user_ids: bookUserIds[row.id] || [],
-			read_count: Number(row.read_count),
 		};
 	});
 

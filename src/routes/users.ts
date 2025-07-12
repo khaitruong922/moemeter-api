@@ -6,11 +6,14 @@ import { selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
 import {
-	selectAllUsersWithRank,
+	selectYearlyLeaderboard,
 	selectUserById,
 	selectUserByIds,
 	updateSyncStatusByUserIds,
 	userExists,
+	selectAllUsersWithRank,
+	RankedUser,
+	refreshYearlyLeaderboard,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
@@ -19,7 +22,14 @@ const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/leaderboard', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
-	const users = await selectAllUsersWithRank(sql);
+	const period = c.req.query('period');
+	let users: RankedUser[];
+	if (period === 'this_year') {
+		users = await selectYearlyLeaderboard(sql);
+	} else {
+		users = await selectAllUsersWithRank(sql);
+	}
+
 	return c.json(users);
 });
 
@@ -73,6 +83,7 @@ app.post('/join', async (c) => {
 		const result = await fullImportUser(sql, user);
 		await syncBookMerges(sql);
 		await syncReadsMergedBookId(sql);
+		await refreshYearlyLeaderboard(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({
 			...result,
