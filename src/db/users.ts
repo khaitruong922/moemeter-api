@@ -108,6 +108,19 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
   `;
 };
 
+export const updateUserNameAndAvatarUrl = async (
+	sql: postgres.Sql<{}>,
+	userId: number,
+	name: string,
+	avatarUrl: string
+): Promise<void> => {
+	await sql`
+    UPDATE users
+    SET name = ${name}, avatar_url = ${avatarUrl}
+    WHERE id = ${userId}
+  `;
+};
+
 export const userExists = async (sql: postgres.Sql<{}>, userId: number): Promise<boolean> => {
 	const rows = await sql<{ exists: boolean }[]>`
     SELECT EXISTS (

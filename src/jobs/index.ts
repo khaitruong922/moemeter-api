@@ -9,6 +9,7 @@ import {
 	selectAllUsersForSync,
 	SelectAllUsersParams,
 	updateSyncStatusByUserIds,
+	updateUserNameAndAvatarUrl,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 
@@ -76,6 +77,9 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
 
 	if (shouldSkipUser(currentUser, newUser)) {
+		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
+			await updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url);
+		}
 		return { skipped: true, user: currentUser };
 	}
 	await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -95,4 +99,8 @@ const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
 	return (
 		currentUser.books_read === newUser.books_read && currentUser.pages_read === newUser.pages_read
 	);
+};
+
+const shouldUpdateNameAndAvatarUrl = (currentUser: User, newUser: User): boolean => {
+	return currentUser.name !== newUser.name || currentUser.avatar_url !== newUser.avatar_url;
 };
