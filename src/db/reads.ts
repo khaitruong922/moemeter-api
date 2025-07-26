@@ -26,3 +26,13 @@ export const deleteReadsOfUser = async (sql: postgres.Sql<{}>, userId: number): 
     DELETE FROM reads WHERE user_id = ${userId}
   `;
 };
+
+export const selectReadsByBookId = async (sql: postgres.Sql<{}>, bookId: number): Promise<Read[]> => {
+	const rows = await sql<Read[]>`
+    SELECT *
+    FROM reads
+    WHERE merged_book_id = ${bookId}
+    ORDER BY date ASC, user_id ASC
+  `;
+	return rows;
+};
