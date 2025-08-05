@@ -51,10 +51,7 @@ export const syncAllUsers = async (
 	await syncReadsMergedBookId(sql);
 	await refreshYearlyLeaderboard(sql);
 	await deleteOrphanReviews(sql);
-
-	if (syncStatus !== 'failed') {
-		await updateMetadataLastUpdated(sql, new Date());
-	}
+	await updateMetadataLastUpdated(sql, new Date());
 
 	await updateSyncStatusByUserIds(
 		sql,
