@@ -22,10 +22,19 @@ export interface Book {
 }
 
 export interface Read {
+	id: number;
 	user_id: number;
 	book_id: number;
 	merged_book_id: number;
 	date: Date | null;
+}
+
+export interface Review {
+	id: number;
+	content: string | null;
+	is_spoiler: boolean | null;
+	nice_count: number;
+	created_at: Date | null;
 }
 
 export interface Group {

@@ -27,7 +27,10 @@ export const deleteReadsOfUser = async (sql: postgres.Sql<{}>, userId: number): 
   `;
 };
 
-export const selectReadsByBookId = async (sql: postgres.Sql<{}>, bookId: number): Promise<Read[]> => {
+export const selectReadsByBookId = async (
+	sql: postgres.Sql<{}>,
+	bookId: number
+): Promise<Read[]> => {
 	const rows = await sql<Read[]>`
     SELECT *
     FROM reads

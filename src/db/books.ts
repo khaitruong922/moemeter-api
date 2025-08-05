@@ -1,8 +1,15 @@
 import postgres from 'postgres';
-import { Book } from './models';
+import { Book, Review } from './models';
+import { selectReviewsByBookIds } from './reviews';
+
+export type BookReview = Review & {
+	book_id: number;
+	user_id: number;
+};
 
 type BookWithReaders = Book & {
 	user_ids: number[];
+	reviews: BookReview[];
 };
 
 type ReaderSummary = {
@@ -82,6 +89,7 @@ export const selectBooks = async (
   `;
 
 	const bookIds = bookRows.map((book) => book.id);
+
 	const bookReadUsers = await sql<BookReader[]>`
 	WITH book_read_users AS (
 		SELECT DISTINCT ON (reads.user_id, reads.merged_book_id)
@@ -98,6 +106,7 @@ export const selectBooks = async (
 
 	const users: Record<string, ReaderSummary> = {};
 	const bookUserIds: Record<string, number[]> = {};
+	const bookReviewsMap: Record<string, BookReview[]> = {};
 
 	bookReadUsers.forEach((user) => {
 		if (!bookUserIds[user.book_id]) {
@@ -111,10 +120,34 @@ export const selectBooks = async (
 		};
 	});
 
+	const bookReviews = await selectReviewsByBookIds(sql, bookIds);
+	bookReviews.forEach((review) => {
+		if (!bookReviewsMap[review.book_id]) {
+			bookReviewsMap[review.book_id] = [];
+		}
+		bookReviewsMap[review.book_id].push({
+			id: review.id,
+			book_id: review.book_id,
+			user_id: review.user_id,
+			content: review.content,
+			is_spoiler: review.is_spoiler,
+			nice_count: review.nice_count,
+			created_at: review.created_at,
+		});
+	});
+
 	const books: BookWithReaders[] = bookRows.map((row) => {
+		const bookReviews = bookReviewsMap[row.id] || []; // sort reviews by created_at in descending order, null last
+		bookReviews.sort((a, b) => {
+			if (a.created_at === null && b.created_at === null) return 0;
+			if (a.created_at === null) return 1;
+			if (b.created_at === null) return -1;
+			return b.created_at.getTime() - a.created_at.getTime();
+		});
 		return {
 			...row,
 			user_ids: bookUserIds[row.id] || [],
+			reviews: bookReviewsMap[row.id] || [],
 		};
 	});
 

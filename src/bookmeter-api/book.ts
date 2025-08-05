@@ -1,5 +1,8 @@
-export type BookData = {
+import { safeParseDate } from '../utils/string-utils';
+
+export type UserReadData = {
 	id: number;
+	book_id: number;
 	title: string;
 	author: string;
 	author_url: string;
@@ -8,7 +11,7 @@ export type BookData = {
 	date: Date | null;
 };
 
-type BookmeterResponse = {
+type BookmeterUserReadsResponse = {
 	metadata: {
 		sort: string;
 		order: string;
@@ -33,17 +36,16 @@ type BookmeterResponse = {
 	}>;
 };
 
-export type FetchAllBooksResult = {
-	books: BookData[];
+export type FetchAllUserReadsResult = {
+	reads: UserReadData[];
 	books_read: number;
 	pages_read: number;
 };
-
-export const fetchAllBooks = async (
+export const fetchAllUserReads = async (
 	id: number,
 	bookcase: string | null
-): Promise<FetchAllBooksResult> => {
-	const books: BookData[] = [];
+): Promise<FetchAllUserReadsResult> => {
+	const reads: UserReadData[] = [];
 	let page = 1;
 	let hasMorePages = true;
 
@@ -57,21 +59,22 @@ export const fetchAllBooks = async (
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 
-			const data: BookmeterResponse = await response.json();
+			const data: BookmeterUserReadsResponse = await response.json();
 
 			// Process books from current page
 			for (const resource of data.resources) {
 				if (bookcase && !resource.bookcase_names.includes(bookcase)) {
 					continue;
 				}
-				books.push({
-					id: resource.book.id,
+				reads.push({
+					id: resource.id,
+					book_id: resource.book.id,
 					page: resource.page,
 					title: resource.book.title,
 					author: resource.book.author.name,
 					author_url: resource.book.author.path,
 					thumbnail_url: resource.book.image_url,
-					date: resource.created_at ? new Date(resource.created_at) : null,
+					date: resource.created_at ? safeParseDate(resource.created_at) : null,
 				});
 			}
 
@@ -87,8 +90,8 @@ export const fetchAllBooks = async (
 	}
 
 	return {
-		books,
-		books_read: books.length,
-		pages_read: books.reduce((acc, book) => acc + (book.page || 0), 0),
+		reads: reads,
+		books_read: reads.length,
+		pages_read: reads.reduce((acc, book) => acc + (book.page || 0), 0),
 	};
 };

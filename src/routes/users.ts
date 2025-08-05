@@ -17,6 +17,7 @@ import {
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
+import { deleteOrphanReviews } from '../db/reviews';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -84,6 +85,7 @@ app.post('/join', async (c) => {
 		await syncBookMerges(sql);
 		await syncReadsMergedBookId(sql);
 		await refreshYearlyLeaderboard(sql);
+		await deleteOrphanReviews(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({
 			...result,

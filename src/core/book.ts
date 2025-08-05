@@ -1,22 +1,22 @@
-import { BookData, fetchAllBooks, FetchAllBooksResult } from '../bookmeter-api/book';
+import { UserReadData, fetchAllUserReads, FetchAllUserReadsResult } from '../bookmeter-api/book';
 import { Book } from '../db/models';
 
-export const getUniqueBooks = (books: BookData[]): BookData[] => {
+export const getUniqueBooks = (userReads: UserReadData[]): UserReadData[] => {
 	const ids = new Set<number>();
 	const uniqueBooks = [];
-	for (const book of books) {
-		if (ids.has(book.id)) {
+	for (const read of userReads) {
+		if (ids.has(read.book_id)) {
 			continue;
 		}
-		ids.add(book.id);
-		uniqueBooks.push(book);
+		ids.add(read.book_id);
+		uniqueBooks.push(read);
 	}
 	return uniqueBooks;
 };
 
-export const mapBookDataToBookModel = (book: BookData): Book => {
+export const mapBookDataToBookModel = (book: UserReadData): Book => {
 	return {
-		id: book.id,
+		id: book.book_id,
 		title: book.title || '',
 		author: book.author || '',
 		author_url: book.author_url || '',

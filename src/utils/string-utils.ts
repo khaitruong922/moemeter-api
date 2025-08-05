@@ -33,7 +33,7 @@ export const replaceAmpCode = (str: string | undefined): string => {
 /**
  * Validates if a string is in YYYY/MM/DD format and returns Date object if valid, null if invalid
  */
-export const validateDate = (dateString: string): Date | null => {
+export const safeParseDate = (dateString: string): Date | null => {
 	// Regular expression for YYYY/MM/DD format
 	const dateRegex = /^\d{4}\/\d{2}\/\d{2}$/;
 

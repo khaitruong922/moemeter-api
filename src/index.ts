@@ -8,7 +8,6 @@ import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
 import books from './routes/books';
 import groups from './routes/groups';
-import job from './routes/job';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
@@ -40,7 +39,6 @@ app.route('/books', books);
 app.route('/reads', reads);
 app.route('/groups', groups);
 app.route('/metadata', metadata);
-app.route('/job', job);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('Not Found'), 404);
