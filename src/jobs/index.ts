@@ -3,7 +3,8 @@ import { fullImportUser } from '../core/user';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
-import { SyncStatus, User } from '../db/models';
+import { User } from '../db/models';
+import { deleteOrphanReviews } from '../db/reviews';
 import {
 	refreshYearlyLeaderboard,
 	selectAllUsersForSync,
@@ -12,7 +13,6 @@ import {
 	updateUserNameAndAvatarUrl,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
-import { deleteOrphanReviews } from '../db/reviews';
 
 export const syncAllUsers = async (
 	sql: postgres.Sql<{}>,
@@ -75,12 +75,12 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
 
-	// if (shouldSkipUser(currentUser, newUser)) {
-	// 	if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
-	// 		await updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url);
-	// 	}
-	// 	return { skipped: true, user: currentUser };
-	// }
+	if (shouldSkipUser(currentUser, newUser)) {
+		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
+			await updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url);
+		}
+		return { skipped: true, user: currentUser };
+	}
 	await new Promise((resolve) => setTimeout(resolve, 1000));
 	const { user } = await fullImportUser(sql, newUser);
 	return { skipped: false, user };

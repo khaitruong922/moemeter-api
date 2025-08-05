@@ -16,10 +16,15 @@ export const selectReviewsByBookIds = async (
       reviews.nice_count,
       reviews.created_at,
       reads.user_id,
-      reads.merged_book_id AS book_id
+      reads.merged_book_id AS book_id,
+      users.id AS user_id,
+      users.name AS user_name,
+      users.avatar_url AS user_avatar_url
     FROM reviews
     JOIN reads ON reads.id = reviews.id
+    JOIN users ON users.id = reads.user_id
     WHERE reads.merged_book_id IN ${sql(bookIds)}
+    ORDER BY reviews.created_at DESC NULLS LAST
   `;
 
 	return rows;

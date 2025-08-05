@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
-import { selectBookByIds } from '../db/books';
+import { BookReview, selectBookByIds } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
 import {
@@ -17,7 +17,7 @@ import {
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
-import { deleteOrphanReviews } from '../db/reviews';
+import { deleteOrphanReviews, selectReviewsByBookIds } from '../db/reviews';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -124,9 +124,23 @@ app.get('/:userId/common_reads', async (c) => {
 		])
 	);
 
+	const book_ids = Object.keys(bookUsers).map(Number);
+	const bookReviews = await selectReviewsByBookIds(sql, book_ids);
+
+	const bookReviewsMap: Record<string, BookReview[]> = {};
+	bookReviews.forEach((review) => {
+		if (!bookReviewsMap[review.book_id]) {
+			bookReviewsMap[review.book_id] = [];
+		}
+		bookReviewsMap[review.book_id].push(review);
+	});
+
 	const relatedBooks = await selectBookByIds(sql, Object.keys(bookUsers).map(Number));
 	const relatedBooksMap = Object.fromEntries(
-		relatedBooks.map((book) => [book.id, { ...book, user_ids: bookUsers[book.id] }])
+		relatedBooks.map((book) => [
+			book.id,
+			{ ...book, user_ids: bookUsers[book.id], reviews: bookReviewsMap[book.id] || [] },
+		])
 	);
 
 	for (const bookId of Object.keys(relatedBooksMap)) {

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { selectBooks } from '../db/books';
+import { selectBooksWithUsersAndReviews } from '../db/books';
 import { AppEnv } from '../types/app_env';
 import { applyNaNVL, parseNatNum } from '../utils/number-utils';
 import { getPageInfo } from '../utils/paging-utils';
@@ -30,7 +30,7 @@ app.get('/', async (c) => {
 
 	const sql = createDbClientFromEnv(c.env);
 	const offset = (reqPage - 1) * perPage;
-	const { books, users, total_count } = await selectBooks(
+	const { books, users, total_count } = await selectBooksWithUsersAndReviews(
 		sql,
 		offset,
 		perPage,

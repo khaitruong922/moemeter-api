@@ -5,9 +5,11 @@ import { selectReviewsByBookIds } from './reviews';
 export type BookReview = Review & {
 	book_id: number;
 	user_id: number;
+	user_name: string;
+	user_avatar_url: string;
 };
 
-type BookWithReaders = Book & {
+export type BookWithReaders = Book & {
 	user_ids: number[];
 	reviews: BookReview[];
 };
@@ -28,7 +30,7 @@ type GetBooksResponse = {
 	total_count: number;
 };
 
-export const selectBooks = async (
+export const selectBooksWithUsersAndReviews = async (
 	sql: postgres.Sql<{}>,
 	offset: number,
 	limit: number,
@@ -125,25 +127,10 @@ export const selectBooks = async (
 		if (!bookReviewsMap[review.book_id]) {
 			bookReviewsMap[review.book_id] = [];
 		}
-		bookReviewsMap[review.book_id].push({
-			id: review.id,
-			book_id: review.book_id,
-			user_id: review.user_id,
-			content: review.content,
-			is_spoiler: review.is_spoiler,
-			nice_count: review.nice_count,
-			created_at: review.created_at,
-		});
+		bookReviewsMap[review.book_id].push(review);
 	});
 
 	const books: BookWithReaders[] = bookRows.map((row) => {
-		const bookReviews = bookReviewsMap[row.id] || []; // sort reviews by created_at in descending order, null last
-		bookReviews.sort((a, b) => {
-			if (a.created_at === null && b.created_at === null) return 0;
-			if (a.created_at === null) return 1;
-			if (b.created_at === null) return -1;
-			return b.created_at.getTime() - a.created_at.getTime();
-		});
 		return {
 			...row,
 			user_ids: bookUserIds[row.id] || [],
