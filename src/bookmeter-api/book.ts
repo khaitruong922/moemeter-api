@@ -1,4 +1,4 @@
-import { safeParseDate } from '../utils/string-utils';
+import { safeParseUTCDate } from '../utils/string-utils';
 
 export type UserReadData = {
 	id: number;
@@ -74,7 +74,7 @@ export const fetchAllUserReads = async (
 					author: resource.book.author.name,
 					author_url: resource.book.author.path,
 					thumbnail_url: resource.book.image_url,
-					date: resource.created_at ? safeParseDate(resource.created_at) : null,
+					date: resource.created_at ? safeParseUTCDate(resource.created_at) : null,
 				});
 			}
 

@@ -1,4 +1,4 @@
-import { safeParseDate } from '../utils/string-utils';
+import { safeParseUTCDate } from '../utils/string-utils';
 
 type UserReviewData = {
 	id: number;
@@ -52,7 +52,7 @@ export const fetchAllUserReviews = async (id: number): Promise<UserReviewData[]>
 					content: resource.content ?? null,
 					is_spoiler: resource.netabare?.netabare ?? null,
 					nice_count: resource.nice?.count ?? 0,
-					created_at: resource.created_at ? safeParseDate(resource.created_at) : null,
+					created_at: resource.created_at ? safeParseUTCDate(resource.created_at) : null,
 				});
 			}
 			if (data.metadata.offset + data.metadata.limit >= data.metadata.count) {
