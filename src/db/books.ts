@@ -56,11 +56,11 @@ export const selectBooksWithUsersAndReviews = async (
 	if (period) {
 		const now = new Date();
 		if (period === 'this_month') {
-			startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-			endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-		} else {
-			startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-			endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+			startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+			endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0));
+		} else if (period === 'last_month') {
+			startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+			endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0));
 		}
 
 		dateCondition = searchCondition
