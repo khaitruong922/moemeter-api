@@ -178,11 +178,71 @@ CREATE TABLE public.reads (
     user_id integer NOT NULL,
     book_id integer NOT NULL,
     merged_book_id integer DEFAULT 334913 NOT NULL,
-    date date
+    date date,
+    id integer NOT NULL
 );
 
 
 ALTER TABLE public.reads OWNER TO postgres;
+
+--
+-- Name: reads_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.reads_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.reads_id_seq OWNER TO postgres;
+
+--
+-- Name: reads_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.reads_id_seq OWNED BY public.reads.id;
+
+
+--
+-- Name: reviews; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.reviews (
+    id integer NOT NULL,
+    created_at date,
+    content text,
+    is_spoiler boolean,
+    nice_count integer DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.reviews OWNER TO postgres;
+
+--
+-- Name: reviews_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.reviews_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.reviews_id_seq OWNER TO postgres;
+
+--
+-- Name: reviews_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.reviews_id_seq OWNED BY public.reviews.id;
+
 
 --
 -- Name: users_groups; Type: TABLE; Schema: public; Owner: postgres
@@ -202,6 +262,41 @@ ALTER TABLE public.users_groups OWNER TO postgres;
 
 ALTER TABLE ONLY public.groups ALTER COLUMN id SET DEFAULT nextval('public.groups_id_seq'::regclass);
 
+
+--
+-- Name: reviews id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reviews ALTER COLUMN id SET DEFAULT nextval('public.reviews_id_seq'::regclass);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: yearly_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
+ SELECT u.id,
+    u.name,
+    u.avatar_url,
+    sum(b.page) AS pages_read,
+    count(DISTINCT r.merged_book_id) AS books_read
+   FROM ((public.reads r
+     JOIN public.books b ON ((r.merged_book_id = b.id)))
+     JOIN public.users u ON ((r.user_id = u.id)))
+  WHERE ((r.date >= date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone)) AND (r.date < (date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone) + '1 year'::interval)))
+  GROUP BY u.id
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.yearly_leaderboard OWNER TO postgres;
 
 --
 -- Name: book_merge_exceptions book_merge_exceptions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
@@ -256,22 +351,22 @@ ALTER TABLE ONLY public.manual_book_merges
 --
 
 ALTER TABLE ONLY public.reads
-    ADD CONSTRAINT reads_pkey PRIMARY KEY (user_id, book_id);
+    ADD CONSTRAINT reads_pkey PRIMARY KEY (id);
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: reviews reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
 
 
 --
--- Name: idx_reads_book_id_merged_book_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_reads_book_id; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_reads_book_id_merged_book_id ON public.reads USING btree (book_id, merged_book_id);
+CREATE INDEX idx_reads_book_id ON public.reads USING btree (book_id);
 
 
 --
@@ -279,6 +374,13 @@ CREATE INDEX idx_reads_book_id_merged_book_id ON public.reads USING btree (book_
 --
 
 CREATE INDEX idx_reads_date ON public.reads USING btree (date);
+
+
+--
+-- Name: idx_reads_merged_book_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reads_merged_book_id ON public.reads USING btree (merged_book_id);
 
 
 --
@@ -307,6 +409,14 @@ CREATE INDEX reads_user_id ON public.reads USING btree (user_id);
 --
 
 CREATE INDEX users_books_pages_desc_idx ON public.users USING btree (books_read DESC, pages_read DESC);
+
+
+--
+-- Name: reads books_merged_book_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reads
+    ADD CONSTRAINT books_merged_book_id FOREIGN KEY (merged_book_id) REFERENCES public.books(id);
 
 
 --
