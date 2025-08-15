@@ -33,6 +33,26 @@ ALTER SCHEMA public OWNER TO pg_database_owner;
 COMMENT ON SCHEMA public IS 'standard public schema';
 
 
+--
+-- Name: clean_title(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.clean_title(original text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+BEGIN
+  RETURN REGEXP_REPLACE(
+           REPLACE(original, ' ', ''),
+           '[\(\)\[\]（）［］]',
+           '',
+           'g'
+         );
+END;
+$$;
+
+
+ALTER FUNCTION public.clean_title(original text) OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -70,7 +90,8 @@ CREATE TABLE public.books (
     author text,
     author_url text,
     thumbnail_url text,
-    page integer
+    page integer,
+    title_cleaned text GENERATED ALWAYS AS (public.clean_title(title)) STORED
 );
 
 
@@ -391,10 +412,10 @@ CREATE INDEX pgroonga_books_author_nospace_idx ON public.books USING pgroonga (r
 
 
 --
--- Name: pgroonga_books_title_nospace_idx; Type: INDEX; Schema: public; Owner: postgres
+-- Name: pgroonga_books_title_cleaned_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX pgroonga_books_title_nospace_idx ON public.books USING pgroonga (replace(title, ' '::text, ''::text));
+CREATE INDEX pgroonga_books_title_cleaned_idx ON public.books USING pgroonga (title_cleaned);
 
 
 --

@@ -26,7 +26,7 @@ app.get('/', async (c) => {
 		return c.json({ error: "Period parameter must be either 'this_month' or 'last_month'" }, 400);
 	}
 
-	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, ' ') : undefined;
+	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, '') : undefined;
 
 	const sql = createDbClientFromEnv(c.env);
 	const offset = (reqPage - 1) * perPage;

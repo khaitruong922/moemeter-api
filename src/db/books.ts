@@ -45,11 +45,11 @@ export const selectBooksWithUsersAndReviews = async (
 
 	if (searchQuery) {
 		if (field === 'title') {
-			searchCondition = sql`WHERE (replace(title, ' ', '') &@ ${searchQuery})`;
+			searchCondition = sql`WHERE (title_cleaned &@ clean_title(${searchQuery})`;
 		} else if (field === 'author') {
 			searchCondition = sql`WHERE (replace(author, ' ', '') &@ ${searchQuery})`;
 		} else {
-			searchCondition = sql`WHERE (replace(title, ' ', '') &@ ${searchQuery} OR replace(author, ' ', '') &@ ${searchQuery})`;
+			searchCondition = sql`WHERE (title_cleaned &@ clean_title(${searchQuery}) OR replace(author, ' ', '') &@ ${searchQuery})`;
 		}
 	}
 
