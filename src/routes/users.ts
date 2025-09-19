@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
-import { BookReview, selectBookByIds } from '../db/books';
+import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
 import {
@@ -18,6 +18,7 @@ import {
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
 import { deleteOrphanReviews, selectReviewsByBookIds } from '../db/reviews';
+import { LonelyBook } from '../db/models';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -160,5 +161,33 @@ app.get('/:userId/common_reads', async (c) => {
 		users: relatedUsersMap,
 	});
 });
+
+app.get('/:userId/lonely_books', async (c) => {
+	const userId = c.req.param('userId');
+	if (!userId || isNaN(Number(userId))) {
+		return c.json({ error: 'Invalid user id' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	const books = await selectLonelyBooksOfUser(sql, Number(userId));
+	const book_ids = books.map(b => b.id);
+	const bookReviews = await selectReviewsByBookIds(sql, book_ids);
+	const bookReviewsMap: Record<string, BookReview[]> = {};
+	bookReviews.forEach((review) => {
+		if (!bookReviewsMap[review.book_id]) {
+			bookReviewsMap[review.book_id] = [];
+		}
+		bookReviewsMap[review.book_id].push(review);
+	});
+
+	const booksWithReviews = books.map(b => ({
+		...b,
+		reviews: bookReviewsMap[b.id] || []
+	}))
+
+	return c.json({
+		books: booksWithReviews
+	});
+});
+
 
 export default app;
