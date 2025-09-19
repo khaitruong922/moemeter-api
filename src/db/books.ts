@@ -146,20 +146,28 @@ export const selectBooksWithUsersAndReviews = async (
 };
 
 export const selectLonelyBooksOfUser = async (
-  sql: postgres.Sql<{}>,
-  userId: number
+	sql: postgres.Sql<{}>,
+	userId: number
 ): Promise<Book[]> => {
-  const rows = await sql<Book[]>`
-    SELECT DISTINCT ON (r.merged_book_id) b.*
-    FROM reads r
-    JOIN books b ON r.merged_book_id = b.id
-    WHERE r.user_id = ${userId} AND NOT EXISTS (
-      SELECT 1 FROM reads r2 WHERE r2.merged_book_id = r.merged_book_id AND r2.user_id != ${userId}
-    )
-	ORDER BY r.merged_book_id ASC
+	const rows = await sql<Book[]>`
+    SELECT b.*
+    FROM books b
+    JOIN (
+      SELECT r.merged_book_id, MAX(r.date) AS completion_date
+      FROM reads r
+      WHERE r.user_id = ${userId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM reads r2
+          WHERE r2.merged_book_id = r.merged_book_id
+            AND r2.user_id != ${userId}
+        )
+      GROUP BY r.merged_book_id
+    ) latest_reads ON latest_reads.merged_book_id = b.id
+    ORDER BY latest_reads.completion_date DESC NULLS LAST
   `;
-  return rows;
-}
+	return rows;
+};
 
 export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<Book[]> => {
 	if (ids.length === 0) return [];

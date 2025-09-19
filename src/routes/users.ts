@@ -169,7 +169,7 @@ app.get('/:userId/lonely_books', async (c) => {
 	}
 	const sql = createDbClientFromEnv(c.env);
 	const books = await selectLonelyBooksOfUser(sql, Number(userId));
-	const book_ids = books.map(b => b.id);
+	const book_ids = books.map((b) => b.id);
 	const bookReviews = await selectReviewsByBookIds(sql, book_ids);
 	const bookReviewsMap: Record<string, BookReview[]> = {};
 	bookReviews.forEach((review) => {
@@ -179,15 +179,14 @@ app.get('/:userId/lonely_books', async (c) => {
 		bookReviewsMap[review.book_id].push(review);
 	});
 
-	const booksWithReviews = books.map(b => ({
+	const booksWithReviews = books.map((b) => ({
 		...b,
-		reviews: bookReviewsMap[b.id] || []
-	}))
+		reviews: bookReviewsMap[b.id] || [],
+	}));
 
 	return c.json({
-		books: booksWithReviews
+		books: booksWithReviews,
 	});
 });
-
 
 export default app;
