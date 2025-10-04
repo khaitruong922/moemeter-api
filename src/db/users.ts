@@ -13,9 +13,9 @@ export const selectAllUsersWithRank = async (
 	order: RankOrder
 ): Promise<RankedUser[]> => {
 	const rankOrder =
-		order === 'books'
-			? sql`RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank`
-			: sql`RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS rank`;
+		order === 'pages'
+			? sql`RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS rank`
+			: sql`RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank`;
 
 	const rows = await sql<RankedUser[]>`
     WITH ranked_users AS (
@@ -34,10 +34,10 @@ export const selectYearlyLeaderboard = async (
 	sql: postgres.Sql<{}>,
 	order: RankOrder
 ): Promise<RankedUser[]> => {
-	const rankField = order === 'books' ? 'rank' : 'pages_rank';
+	const rankField = order === 'pages' ? 'pages_rank' : 'rank';
 	const rows = await sql<RankedUser[]>`
     SELECT * FROM yearly_leaderboard
-    ORDER BY ${rankField};
+    ORDER BY ${sql(rankField)};
   `;
 
 	return rows.map((r) => ({
