@@ -18,18 +18,18 @@ import {
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
 import { deleteOrphanReviews, selectReviewsByBookIds } from '../db/reviews';
-import { LonelyBook } from '../db/models';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/leaderboard', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	const period = c.req.query('period');
+	const rankOrder = c.req.query('order') === 'pages' ? 'pages' : 'books';
 	let users: RankedUser[];
 	if (period === 'this_year') {
-		users = await selectYearlyLeaderboard(sql);
+		users = await selectYearlyLeaderboard(sql, rankOrder);
 	} else {
-		users = await selectAllUsersWithRank(sql);
+		users = await selectAllUsersWithRank(sql, rankOrder);
 	}
 
 	return c.json(users);

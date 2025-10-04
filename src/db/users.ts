@@ -3,13 +3,24 @@ import { SyncStatus, User } from './models';
 
 export type RankedUser = User & {
 	rank: number | string;
+	pages_rank: number | string;
 };
 
-export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<RankedUser[]> => {
+export type RankOrder = 'books' | 'pages';
+
+export const selectAllUsersWithRank = async (
+	sql: postgres.Sql<{}>,
+	order: RankOrder
+): Promise<RankedUser[]> => {
+	const rankOrder =
+		order === 'books'
+			? sql`RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank`
+			: sql`RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS rank`;
+
 	const rows = await sql<RankedUser[]>`
     WITH ranked_users AS (
       SELECT id, name, avatar_url, books_read, pages_read,
-            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
+        ${rankOrder}
       FROM users
     )
     SELECT * FROM ranked_users
@@ -19,20 +30,19 @@ export const selectAllUsersWithRank = async (sql: postgres.Sql<{}>): Promise<Ran
 	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
 };
 
-export const selectYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<RankedUser[]> => {
+export const selectYearlyLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: RankOrder
+): Promise<RankedUser[]> => {
+	const rankField = order === 'books' ? 'rank' : 'pages_rank';
 	const rows = await sql<RankedUser[]>`
-    WITH ranked_users AS (
-      SELECT id, name, avatar_url, books_read, pages_read,
-            RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank
-      FROM yearly_leaderboard
-    )
-    SELECT * FROM ranked_users
-    ORDER BY rank;
+    SELECT * FROM yearly_leaderboard
+    ORDER BY ${rankField};
   `;
 
 	return rows.map((r) => ({
 		...r,
-		rank: Number(r.rank),
+		rank: Number(r[rankField]),
 		books_read: Number(r.books_read),
 		pages_read: Number(r.pages_read),
 	}));
