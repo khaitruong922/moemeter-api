@@ -1,6 +1,7 @@
 import { getHTML } from '../infra/html';
 import { User } from '../db/models';
 import { extractRegex, extractRegexGroup } from '../utils/string-utils';
+import { getBookcase } from '../bookmeter-api/bookcase';
 
 export const getBookmeterUrlFromUserId = (userId: number): string => {
 	return `https://bookmeter.com/users/${userId}`;
@@ -14,7 +15,12 @@ export const getUserFromBookmeterUrl = async (
 	const userId = getUserIdFromBookmeterUrl(bookmeterUrl);
 	const html = await getHTML(bookmeterUrl);
 	const userSectionHtml = getUserSectionHtml(html);
-	const booksRead = getUserBooksRead(userSectionHtml);
+	const originalBooksRead = getUserBooksRead(userSectionHtml);
+	let booksRead = originalBooksRead;
+	if (bookcase) {
+		const userBookcase = await getBookcase(userId, bookcase);
+		booksRead = userBookcase.book_count;
+	}
 	const pagesRead = getUserPagesRead(userSectionHtml);
 	return {
 		id: userId,
@@ -23,7 +29,7 @@ export const getUserFromBookmeterUrl = async (
 		books_read: booksRead,
 		pages_read: pagesRead,
 		bookcase,
-		original_books_read: booksRead,
+		original_books_read: originalBooksRead,
 		original_pages_read: pagesRead,
 	};
 };

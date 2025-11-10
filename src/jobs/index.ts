@@ -87,11 +87,11 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 };
 
 const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
-	if (currentUser.bookcase !== newUser.bookcase) return false;
 	if (newUser.bookcase) {
 		return (
 			currentUser.original_books_read === newUser.original_books_read &&
-			currentUser.original_pages_read === newUser.original_pages_read
+			currentUser.original_pages_read === newUser.original_pages_read &&
+			currentUser.books_read === newUser.books_read
 		);
 	}
 

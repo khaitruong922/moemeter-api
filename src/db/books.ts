@@ -197,6 +197,8 @@ export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> =>
     DELETE FROM books
     WHERE books.id NOT IN (
       SELECT book_id FROM reads
+    ) AND books.id NOT IN (
+      SELECT merged_book_id FROM reads
     )
   `;
 };
