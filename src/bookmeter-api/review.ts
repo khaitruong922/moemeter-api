@@ -37,7 +37,7 @@ export const fetchAllUserReviews = async (id: number): Promise<UserReviewData[]>
 	while (hasMorePages) {
 		try {
 			const url = `https://bookmeter.com/users/${id}/reviews.json?page=${page}&limit=1000`;
-			console.log(`Fetching ${url}`);
+			console.log(`URL取得中: ${url}`);
 			const response = await fetch(url);
 
 			if (!response.ok) {

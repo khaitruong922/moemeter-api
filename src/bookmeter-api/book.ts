@@ -52,7 +52,7 @@ export const fetchAllUserReads = async (
 	while (hasMorePages) {
 		try {
 			const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}&limit=1000`;
-			console.log(`Fetching ${url}`);
+			console.log(`URL取得中: ${url}`);
 			const response = await fetch(url);
 
 			if (!response.ok) {

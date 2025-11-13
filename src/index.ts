@@ -61,7 +61,7 @@ export default {
 		const now = new Date(event.scheduledTime);
 		const utcHour = now.getUTCHours();
 		const utcMinutes = now.getUTCMinutes();
-		console.log('Hour: ', utcHour, 'Minutes: ', utcMinutes);
+		console.log('時刻: ', utcHour, '分: ', utcMinutes);
 		const sql = createDbClientFromEnv(env);
 
 		if (event.cron === '0 0/12 * * *') {
