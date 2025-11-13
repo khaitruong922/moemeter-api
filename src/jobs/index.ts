@@ -22,7 +22,7 @@ export const syncAllUsers = async (
 	const { syncStatus } = params;
 	if (users.length === 0) {
 		if (syncStatus === 'failed') {
-			console.log('No failed users, skipping.');
+			console.log('失敗したユーザーはいません。スキップします。');
 		}
 		return [];
 	}
@@ -36,14 +36,14 @@ export const syncAllUsers = async (
 			const { skipped, user: syncedUser } = await syncUser(sql, user);
 			if (skipped) {
 				skippedUserIds.push(syncedUser.id);
-				console.log('Skipped:', syncedUser.id);
+				console.log('スキップ:', syncedUser.id);
 			} else {
-				console.log('Success:', syncedUser.id);
+				console.log('成功:', syncedUser.id);
 				successUsers.push(syncedUser);
 			}
 		} catch (error) {
 			failedUserIds.push(user.id);
-			console.error('Failed:', user.id, error);
+			console.error('失敗:', user.id, error);
 		}
 	}
 	await deleteUnreadBooks(sql);

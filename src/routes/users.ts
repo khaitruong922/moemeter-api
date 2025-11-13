@@ -38,12 +38,12 @@ app.get('/leaderboard', async (c) => {
 app.get('/:userId', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
-		return c.json({ error: 'Invalid user id' }, 400);
+		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
 	const user = await selectUserById(sql, Number(userId));
 	if (user === null) {
-		return c.json({ error: 'User not found' }, 404);
+		return c.json({ error: 'ユーザーが見つかりません' }, 404);
 	}
 	return c.json(user);
 });
@@ -51,22 +51,22 @@ app.get('/:userId', async (c) => {
 app.post('/join', async (c) => {
 	const { user_id, group_id, password, bookcase } = await c.req.json();
 	if (!user_id || typeof user_id !== 'number') {
-		return c.json({ error: 'user_id is required and must be a number' }, 400);
+		return c.json({ error: 'user_idは必須で、数値である必要があります' }, 400);
 	}
 	if (!group_id || typeof group_id !== 'number') {
-		return c.json({ error: 'group_id is required and must be a number' }, 400);
+		return c.json({ error: 'group_idは必須で、数値である必要があります' }, 400);
 	}
 	if (!password || typeof password !== 'string') {
-		return c.json({ error: 'password is required' }, 400);
+		return c.json({ error: 'passwordは必須です' }, 400);
 	}
 	if (bookcase && typeof bookcase !== 'string') {
-		return c.json({ error: 'bookcase must be a string' }, 400);
+		return c.json({ error: 'bookcaseは文字列である必要があります' }, 400);
 	}
 
 	const sql = createDbClientFromEnv(c.env);
 	const group = await selectGroupByIdAndPassword(sql, group_id, password);
 	if (group === null) {
-		return c.json({ error: 'Invalid group ID or password' }, 400);
+		return c.json({ error: '無効なグループIDまたはパスワードです' }, 400);
 	}
 
 	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
@@ -77,7 +77,7 @@ app.post('/join', async (c) => {
 	if (exists) {
 		return c.json({
 			user,
-			message: 'User already exists, skipping data import.',
+			message: 'ユーザーは既に存在します。データインポートをスキップします。',
 		});
 	}
 
@@ -90,7 +90,7 @@ app.post('/join', async (c) => {
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({
 			...result,
-			message: 'User joined successfully and data imported',
+			message: 'ユーザーが正常に参加し、データがインポートされました',
 		});
 	} catch (e) {
 		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
@@ -101,7 +101,7 @@ app.post('/join', async (c) => {
 app.get('/:userId/common_reads', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
-		return c.json({ error: 'Invalid user id' }, 400);
+		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
@@ -165,7 +165,7 @@ app.get('/:userId/common_reads', async (c) => {
 app.get('/:userId/lonely_books', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
-		return c.json({ error: 'Invalid user id' }, 400);
+		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
 	const books = await selectLonelyBooksOfUser(sql, Number(userId));

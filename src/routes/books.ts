@@ -18,12 +18,18 @@ app.get('/', async (c) => {
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
-		return c.json({ error: "Field parameter must be either 'title' or 'author'" }, 400);
+		return c.json(
+			{ error: "フィールドパラメータは'title'または'author'である必要があります" },
+			400
+		);
 	}
 
 	// Validate period parameter
 	if (period && !['this_month', 'last_month'].includes(period)) {
-		return c.json({ error: "Period parameter must be either 'this_month' or 'last_month'" }, 400);
+		return c.json(
+			{ error: "期間パラメータは'this_month'または'last_month'である必要があります" },
+			400
+		);
 	}
 
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, '') : undefined;
@@ -52,7 +58,7 @@ app.get('/', async (c) => {
 app.get('/:bookId/reads', async (c) => {
 	const bookId = c.req.param('bookId');
 	if (!bookId || isNaN(Number(bookId))) {
-		return c.json({ error: 'Invalid book id' }, 400);
+		return c.json({ error: '無効な本のIDです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
 	const reads = await selectReadsByBookId(sql, Number(bookId));

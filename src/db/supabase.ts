@@ -3,7 +3,7 @@ import { AppEnv } from '../types/app_env';
 
 export const createSupabaseClient = (env: AppEnv) => {
 	if (!env.SUPABASE_URL || !env.SUPABASE_KEY) {
-		throw new Error('Supabase configuration is missing in environment variables.');
+		throw new Error('環境変数にSupabaseの設定がありません。');
 	}
 	return createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
 };
@@ -18,10 +18,10 @@ export const performKeepAliveQuery = async (env: AppEnv) => {
 			throw error;
 		}
 
-		console.log('Supabase keep-alive query successful:', data);
+		console.log('Supabaseキープアライブクエリ成功:', data);
 		return true;
 	} catch (error) {
-		console.error('Supabase keep-alive query failed:', error);
+		console.error('Supabaseキープアライブクエリ失敗:', error);
 		return false;
 	}
 };

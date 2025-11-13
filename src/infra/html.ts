@@ -12,11 +12,11 @@ export const getHTML = async (url: string): Promise<string> => {
 	}
 	switch (response.status) {
 		case 500:
-			throw new HTTPException(500, { message: 'Bookmeter: Internal Server Error' });
+			throw new HTTPException(500, { message: 'ブックメーター: 内部サーバーエラー' });
 		case 404:
-			throw new HTTPException(404, { message: 'Bookmeter: Not found' });
+			throw new HTTPException(404, { message: 'ブックメーター: 見つかりません' });
 		case 400:
-			throw new HTTPException(400, { message: 'Bookmeter: Bad Request' });
+			throw new HTTPException(400, { message: 'ブックメーター: 不正なリクエスト' });
 	}
 	return response.text();
 };

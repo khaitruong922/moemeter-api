@@ -4,7 +4,7 @@ import { AppEnv } from '../types/app_env';
 export const createDbClientFromEnv = (env: AppEnv): postgres.Sql<{}> => {
 	const databaseUrl = env.DATABASE_URL;
 	if (!databaseUrl) {
-		throw new Error('DATABASE_URL is not defined in the environment variables.');
+		throw new Error('環境変数にDATABASE_URLが定義されていません。');
 	}
 	console.log('Connecting to database with URL:', databaseUrl);
 	return createPostgres(databaseUrl, env.DEBUG === 'true');

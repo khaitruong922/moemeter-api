@@ -56,7 +56,7 @@ export const fetchAllUserReads = async (
 			const response = await fetch(url);
 
 			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+				throw new Error(`HTTPエラー! ステータス: ${response.status}`);
 			}
 
 			const data: BookmeterUserReadsResponse = await response.json();
@@ -84,7 +84,7 @@ export const fetchAllUserReads = async (
 				page += 1;
 			}
 		} catch (error) {
-			console.error('Error fetching books:', error);
+			console.error('本の取得エラー:', error);
 			throw error;
 		}
 	}

@@ -41,7 +41,7 @@ export const fetchAllUserReviews = async (id: number): Promise<UserReviewData[]>
 			const response = await fetch(url);
 
 			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+				throw new Error(`HTTPエラー! ステータス: ${response.status}`);
 			}
 
 			const data: BookmeterUserReviewsResponse = await response.json();
@@ -61,7 +61,7 @@ export const fetchAllUserReviews = async (id: number): Promise<UserReviewData[]>
 				page += 1;
 			}
 		} catch (error) {
-			console.error('Error fetching reviews:', error);
+			console.error('レビューの取得エラー:', error);
 			throw error;
 		}
 	}

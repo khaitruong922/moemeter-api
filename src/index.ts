@@ -19,7 +19,7 @@ app.use('*', cors());
 
 app.get('/', async (c) => {
 	return c.json({
-		message: 'Welcome to Bookmeter API',
+		message: 'ブックメーターAPIへようこそ',
 	});
 });
 
@@ -30,7 +30,7 @@ app.get('/health', async (c) => {
 		return c.json({ status: 'ok' });
 	} catch (error) {
 		console.error('Database connection failed:', error);
-		return c.json(createErrorMessage('Database connection failed'), 500);
+		return c.json(createErrorMessage('データベース接続に失敗しました'), 500);
 	}
 });
 
@@ -41,7 +41,7 @@ app.route('/groups', groups);
 app.route('/metadata', metadata);
 
 app.notFound((c) => {
-	return c.json(createErrorMessage('Not Found'), 404);
+	return c.json(createErrorMessage('見つかりません'), 404);
 });
 
 app.onError((e, c) => {
@@ -50,7 +50,7 @@ app.onError((e, c) => {
 		return c.json(createErrorMessage(e.message), e.status);
 	}
 	console.log(`${e}`);
-	return c.json(createErrorMessage('Internal Server Error'), 500);
+	return c.json(createErrorMessage('内部サーバーエラー'), 500);
 });
 
 export default {
@@ -71,7 +71,7 @@ export default {
 				bookCountOrder: 'DESC',
 				limit: null,
 			}).catch((error) => {
-				console.error('Failed to sync all users:', error);
+				console.error('全ユーザーの同期に失敗しました:', error);
 			});
 		} else if (event.cron === '*/3 0/12 * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, {
@@ -79,7 +79,7 @@ export default {
 				bookCountOrder: 'ASC',
 				limit: null,
 			}).catch((error) => {
-				console.error('Failed to sync failed users:', error);
+				console.error('失敗したユーザーの同期に失敗しました:', error);
 			});
 		}
 	},
