@@ -10,15 +10,16 @@ export type UserReadData = {
 	page: number;
 	date: Date | null;
 };
+type Metadata = {
+	sort: string;
+	order: string;
+	offset: number;
+	limit: number;
+	count: number;
+};
 
 type BookmeterUserReadsResponse = {
-	metadata: {
-		sort: string;
-		order: string;
-		offset: number;
-		limit: number;
-		count: number;
-	};
+	metadata: Metadata;
 	resources: Array<{
 		id: number;
 		bookcase_names: string[];
@@ -36,6 +37,47 @@ type BookmeterUserReadsResponse = {
 	}>;
 };
 
+type PagedUserReadsResponse = {
+	metadata: Metadata;
+	reads: UserReadData[];
+};
+
+const fetchUserReadsByPage = async (
+	id: number,
+	page: number,
+	bookcase: string | null
+): Promise<PagedUserReadsResponse> => {
+	const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}&limit=1000`;
+	console.log(`URL取得中: ${url}`);
+	const response = await fetch(url);
+
+	if (!response.ok) {
+		throw new Error(`HTTPエラー! ステータス: ${response.status}`);
+	}
+
+	const data: BookmeterUserReadsResponse = await response.json();
+	const reads: UserReadData[] = [];
+	for (const resource of data.resources) {
+		if (bookcase && !resource.bookcase_names.includes(bookcase)) {
+			continue;
+		}
+		reads.push({
+			id: resource.id,
+			book_id: resource.book.id,
+			page: resource.page,
+			title: resource.book.title,
+			author: resource.book.author.name,
+			author_url: resource.book.author.path,
+			thumbnail_url: resource.book.image_url,
+			date: resource.created_at ? safeParseUTCDate(resource.created_at) : null,
+		});
+	}
+	return {
+		metadata: data.metadata,
+		reads: reads,
+	};
+};
+
 export type FetchAllUserReadsResult = {
 	reads: UserReadData[];
 	books_read: number;
@@ -51,34 +93,9 @@ export const fetchAllUserReads = async (
 
 	while (hasMorePages) {
 		try {
-			const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}&limit=1000`;
-			console.log(`URL取得中: ${url}`);
-			const response = await fetch(url);
-
-			if (!response.ok) {
-				throw new Error(`HTTPエラー! ステータス: ${response.status}`);
-			}
-
-			const data: BookmeterUserReadsResponse = await response.json();
-
-			// Process books from current page
-			for (const resource of data.resources) {
-				if (bookcase && !resource.bookcase_names.includes(bookcase)) {
-					continue;
-				}
-				reads.push({
-					id: resource.id,
-					book_id: resource.book.id,
-					page: resource.page,
-					title: resource.book.title,
-					author: resource.book.author.name,
-					author_url: resource.book.author.path,
-					thumbnail_url: resource.book.image_url,
-					date: resource.created_at ? safeParseUTCDate(resource.created_at) : null,
-				});
-			}
-
-			if (data.metadata.offset + data.metadata.limit >= data.metadata.count) {
+			const { metadata, reads: pageReads } = await fetchUserReadsByPage(id, page, bookcase);
+			reads.push(...pageReads);
+			if (metadata.offset + metadata.limit >= metadata.count) {
 				hasMorePages = false;
 			} else {
 				page += 1;
