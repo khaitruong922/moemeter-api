@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { escapeNewline } from '../utils/string-utils';
+import { escapeNewline } from '../utils/string';
 
 export const getHTML = async (url: string): Promise<string> => {
 	console.log(`URL取得中: ${url}`);

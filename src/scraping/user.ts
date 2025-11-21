@@ -1,6 +1,6 @@
 import { getHTML } from '../infra/html';
 import { User } from '../db/models';
-import { extractRegex, extractRegexGroup } from '../utils/string-utils';
+import { extractRegex, extractRegexGroup } from '../utils/string';
 import { getBookcase } from '../bookmeter-api/bookcase';
 
 export const getBookmeterUrlFromUserId = (userId: number): string => {

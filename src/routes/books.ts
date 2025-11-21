@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { selectBooksWithUsersAndReviews } from '../db/books';
 import { AppEnv } from '../types/app_env';
-import { applyNaNVL, parseNatNum } from '../utils/number-utils';
-import { getPageInfo } from '../utils/paging-utils';
+import { applyNaNVL, parseNatNum } from '../utils/number';
+import { getPageInfo } from '../utils/paging';
 import { createDbClientFromEnv } from '../db';
 import { selectUserByIds } from '../db/users';
 import { selectReadsByBookId } from '../db/reads';

@@ -1,4 +1,4 @@
-import { safeParseUTCDate } from '../utils/string-utils';
+import { safeParseUTCDate } from '../utils/string';
 
 type UserReviewData = {
 	id: number;

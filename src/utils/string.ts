@@ -26,10 +26,6 @@ export const escapeNewline = (str: string | undefined): string => {
 	return str ? str.replace(/\r|\n/g, '') : '';
 };
 
-export const replaceAmpCode = (str: string | undefined): string => {
-	return str ? str.replace(/%5Cu0026|\\u0026/g, '&') : '';
-};
-
 /**
  * Validates if a string is in YYYY/MM/DD format and returns Date object if valid, null if invalid
  */
