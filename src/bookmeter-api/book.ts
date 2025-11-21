@@ -42,12 +42,14 @@ type PagedUserReadsResponse = {
 	reads: UserReadData[];
 };
 
+const PER_PAGE = 24;
+
 const fetchUserReadsByPage = async (
 	id: number,
 	page: number,
 	bookcase: string | null
 ): Promise<PagedUserReadsResponse> => {
-	const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}&limit=1000`;
+	const url = `https://bookmeter.com/users/${id}/books/read.json?page=${page}&limit=${PER_PAGE}`;
 	console.log(`URL取得中: ${url}`);
 	const response = await fetch(url);
 
@@ -85,25 +87,19 @@ export type FetchAllUserReadsResult = {
 };
 export const fetchAllUserReads = async (
 	id: number,
-	bookcase: string | null
+	bookcase: string | null,
+	original_books_read: number
 ): Promise<FetchAllUserReadsResult> => {
 	const reads: UserReadData[] = [];
-	let page = 1;
-	let hasMorePages = true;
-
-	while (hasMorePages) {
-		try {
-			const { metadata, reads: pageReads } = await fetchUserReadsByPage(id, page, bookcase);
-			reads.push(...pageReads);
-			if (metadata.offset + metadata.limit >= metadata.count) {
-				hasMorePages = false;
-			} else {
-				page += 1;
-			}
-		} catch (error) {
-			console.error('本の取得エラー:', error);
-			throw error;
-		}
+	const pageTotal = Math.ceil(original_books_read / PER_PAGE);
+	const promises = [];
+	for (let page = 1; page <= pageTotal; page++) {
+		promises.push(fetchUserReadsByPage(id, page, bookcase));
+	}
+	const results = await Promise.all(promises);
+	for (const result of results) {
+		const { reads: pageReads } = result;
+		reads.push(...pageReads);
 	}
 
 	return {

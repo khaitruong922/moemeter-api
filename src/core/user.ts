@@ -13,7 +13,7 @@ export const fullImportUser = async (sql: postgres.Sql<{}>, user: User) => {
 		reads: userReads,
 		books_read,
 		pages_read,
-	} = await fetchAllUserReads(user.id, user.bookcase);
+	} = await fetchAllUserReads(user.id, user.bookcase, user.original_books_read);
 	const reviews = await fetchAllUserReviews(user.id);
 
 	if (user.bookcase) {

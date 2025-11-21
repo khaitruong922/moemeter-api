@@ -1,4 +1,4 @@
-import { UserReadData, fetchAllUserReads, FetchAllUserReadsResult } from '../bookmeter-api/book';
+import { UserReadData } from '../bookmeter-api/book';
 import { Book } from '../db/models';
 
 export const getUniqueBooks = (userReads: UserReadData[]): UserReadData[] => {
