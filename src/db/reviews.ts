@@ -2,11 +2,11 @@ import postgres from 'postgres';
 import { BookReview } from './books';
 import { Review } from './models';
 
-export const selectReviewsByBookIds = async (
+export const selectReviewsByIds = async (
 	sql: postgres.Sql<{}>,
-	bookIds: number[]
+	ids: number[]
 ): Promise<BookReview[]> => {
-	if (bookIds.length === 0) return [];
+	if (ids.length === 0) return [];
 
 	const rows = await sql<BookReview[]>`
     SELECT
@@ -23,7 +23,7 @@ export const selectReviewsByBookIds = async (
     FROM reviews
     JOIN reads ON reads.id = reviews.id
     JOIN users ON users.id = reads.user_id
-    WHERE reads.merged_book_id IN ${sql(bookIds)}
+    WHERE reviews.id IN ${sql(ids)}
     ORDER BY reviews.created_at DESC NULLS LAST
   `;
 

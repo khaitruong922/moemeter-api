@@ -17,7 +17,7 @@ import {
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
-import { deleteOrphanReviews, selectReviewsByBookIds } from '../db/reviews';
+import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -126,7 +126,7 @@ app.get('/:userId/common_reads', async (c) => {
 	);
 
 	const book_ids = Object.keys(bookUsers).map(Number);
-	const bookReviews = await selectReviewsByBookIds(sql, book_ids);
+	const bookReviews = await selectReviewsByIds(sql, book_ids);
 
 	const bookReviewsMap: Record<string, BookReview[]> = {};
 	bookReviews.forEach((review) => {
@@ -170,7 +170,7 @@ app.get('/:userId/lonely_books', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	const books = await selectLonelyBooksOfUser(sql, Number(userId));
 	const book_ids = books.map((b) => b.id);
-	const bookReviews = await selectReviewsByBookIds(sql, book_ids);
+	const bookReviews = await selectReviewsByIds(sql, book_ids);
 	const bookReviewsMap: Record<string, BookReview[]> = {};
 	bookReviews.forEach((review) => {
 		if (!bookReviewsMap[review.book_id]) {

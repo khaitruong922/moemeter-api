@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { Book, Review } from './models';
-import { selectReviewsByBookIds } from './reviews';
+import { selectReviewsByIds } from './reviews';
 
 export type BookReview = Review & {
 	book_id: number;
@@ -21,7 +21,10 @@ type ReaderSummary = {
 };
 
 type BookReader = ReaderSummary & {
+	read_id: number;
 	book_id: number;
+	books_read: number;
+	pages_read: number;
 };
 
 type GetBooksResponse = {
@@ -94,8 +97,7 @@ export const selectBooksWithUsersAndReviews = async (
 
 	const bookReadUsers = await sql<BookReader[]>`
 	WITH book_read_users AS (
-		SELECT DISTINCT ON (reads.user_id, reads.merged_book_id)
-			users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id, users.books_read, users.pages_read
+		SELECT users.id, users.name, users.avatar_url, reads.id as read_id, reads.merged_book_id AS book_id, users.books_read, users.pages_read
 		FROM users
 		JOIN reads ON users.id = reads.user_id
 		WHERE reads.merged_book_id IN ${sql(bookIds)}
@@ -107,6 +109,7 @@ export const selectBooksWithUsersAndReviews = async (
   `;
 
 	const users: Record<string, ReaderSummary> = {};
+	const reviewIds = bookReadUsers.map((user) => user.read_id);
 	const bookUserIds: Record<string, number[]> = {};
 	const bookReviewsMap: Record<string, BookReview[]> = {};
 
@@ -122,7 +125,7 @@ export const selectBooksWithUsersAndReviews = async (
 		};
 	});
 
-	const bookReviews = await selectReviewsByBookIds(sql, bookIds);
+	const bookReviews = await selectReviewsByIds(sql, reviewIds);
 	bookReviews.forEach((review) => {
 		if (!bookReviewsMap[review.book_id]) {
 			bookReviewsMap[review.book_id] = [];
@@ -133,7 +136,7 @@ export const selectBooksWithUsersAndReviews = async (
 	const books: BookWithReaders[] = bookRows.map((row) => {
 		return {
 			...row,
-			user_ids: bookUserIds[row.id] || [],
+			user_ids: [...new Set(bookUserIds[row.id] || [])],
 			reviews: bookReviewsMap[row.id] || [],
 		};
 	});
