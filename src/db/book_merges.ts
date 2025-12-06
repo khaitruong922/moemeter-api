@@ -2,17 +2,22 @@ import postgres from 'postgres';
 
 export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
+    DELETE FROM book_merges;
+  `;
+
+	await sql`
     WITH cleaned_books AS (
       SELECT
         id,
         REPLACE(author, ' ', '') AS author,
-        TRANSLATE(REPLACE(title, ' ', ''), '？０１２３４５６７８９', '?0123456789') AS title,
-        LENGTH(title) - LENGTH(REPLACE(title, '(', '')) AS open_paren_count
+        normalize_title(title) AS title,
+        LENGTH(title) - LENGTH(REPLACE(title, '(', '')) AS open_paren_count,
+        remove_parentheses(normalize_title(title)) AS title_no_paren
       FROM books
     ),
     base_books AS (
       SELECT DISTINCT ON (author, title)
-        id, author, title, open_paren_count
+        id, author, title, open_paren_count, title_no_paren
       FROM cleaned_books
       ORDER BY author, title, id
     ),
@@ -28,7 +33,8 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
           (
             b_var.title &^ b_base.title
             AND LENGTH(b_var.title) - LENGTH(b_base.title) > 4
-            AND b_base.open_paren_count < b_var.open_paren_count
+            AND b_var.open_paren_count - b_base.open_paren_count = 1
+            AND b_var.title_no_paren = b_base.title_no_paren
           )
           OR (
             b_base.title = b_var.title
@@ -43,9 +49,7 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
     FROM variants v
     ON CONFLICT (variant_id) DO NOTHING;
   `;
-};
 
-export const syncReadsMergedBookId = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     UPDATE reads
     SET merged_book_id = book_id

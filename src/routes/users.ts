@@ -1,23 +1,23 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
-import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
+import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
 import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
+import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import {
-	selectYearlyLeaderboard,
-	selectUserById,
-	selectUserByIds,
-	updateSyncStatusByUserIds,
-	userExists,
-	selectAllUsersWithRank,
 	RankedUser,
 	refreshYearlyLeaderboard,
+	selectAllUsersWithRank,
+	selectUserById,
+	selectUserByIds,
+	selectYearlyLeaderboard,
+	updateSyncStatusByUserIds,
+	userExists,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
-import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -84,7 +84,6 @@ app.post('/join', async (c) => {
 	try {
 		const result = await fullImportUser(sql, user);
 		await syncBookMerges(sql);
-		await syncReadsMergedBookId(sql);
 		await refreshYearlyLeaderboard(sql);
 		await deleteOrphanReviews(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');

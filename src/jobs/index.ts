@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
-import { syncBookMerges, syncReadsMergedBookId } from '../db/book_merges';
+import { syncBookMerges } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
@@ -48,7 +48,6 @@ export const syncAllUsers = async (
 	}
 	await deleteUnreadBooks(sql);
 	await syncBookMerges(sql);
-	await syncReadsMergedBookId(sql);
 	await refreshYearlyLeaderboard(sql);
 	await deleteOrphanReviews(sql);
 	await updateMetadataLastUpdated(sql, new Date());
