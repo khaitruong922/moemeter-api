@@ -11,6 +11,7 @@ import groups from './routes/groups';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
+import bookMerges from './routes/book_merges';
 import { AppEnv } from './types/app_env';
 
 const app = new Hono<{ Bindings: AppEnv }>();
@@ -36,6 +37,7 @@ app.get('/health', async (c) => {
 
 app.route('/users', users);
 app.route('/books', books);
+app.route('/book_merges', bookMerges);
 app.route('/reads', reads);
 app.route('/groups', groups);
 app.route('/metadata', metadata);

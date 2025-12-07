@@ -3,7 +3,6 @@ import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
-import { selectGroupByIdAndPassword } from '../db/groups';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import {
@@ -18,8 +17,10 @@ import {
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
+import { Variables } from '../types/variables';
+import { validateGroupAuth } from '../middlewares/auth';
 
-const app = new Hono<{ Bindings: AppEnv }>();
+const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
 
 app.get('/leaderboard', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
@@ -48,27 +49,19 @@ app.get('/:userId', async (c) => {
 	return c.json(user);
 });
 
-app.post('/join', async (c) => {
-	const { user_id, group_id, password, bookcase } = await c.req.json();
+app.post('/join', validateGroupAuth, async (c) => {
+	// Get the parsed body and verified group from middleware
+	const { user_id, bookcase } = c.get('requestBody');
+
 	if (!user_id || typeof user_id !== 'number') {
 		return c.json({ error: 'user_idは必須で、数値である必要があります' }, 400);
 	}
-	if (!group_id || typeof group_id !== 'number') {
-		return c.json({ error: 'group_idは必須で、数値である必要があります' }, 400);
-	}
-	if (!password || typeof password !== 'string') {
-		return c.json({ error: 'passwordは必須です' }, 400);
-	}
+
 	if (bookcase && typeof bookcase !== 'string') {
 		return c.json({ error: 'bookcaseは文字列である必要があります' }, 400);
 	}
 
 	const sql = createDbClientFromEnv(c.env);
-	const group = await selectGroupByIdAndPassword(sql, group_id, password);
-	if (group === null) {
-		return c.json({ error: '無効なグループIDまたはパスワードです' }, 400);
-	}
-
 	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
 	const user = await getUserFromBookmeterUrl(bookmeterUrl, bookcase || null);
 	const exists = await userExists(sql, user.id);

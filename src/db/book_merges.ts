@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { Book } from './models';
 
 export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
@@ -56,18 +57,61 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
   `;
 
 	await sql`
-    WITH all_merges AS (
-      SELECT variant_id, base_id FROM book_merges
-      UNION ALL
-      SELECT variant_id, base_id FROM manual_book_merges
-    ),
-    filtered_merges AS (
-      SELECT * FROM all_merges
-      WHERE variant_id NOT IN (SELECT variant_id FROM book_merge_exceptions)
-    )
     UPDATE reads
     SET merged_book_id = fm.base_id
-    FROM filtered_merges fm
+    FROM final_book_merges fm
     WHERE reads.book_id = fm.variant_id;
   `;
+};
+
+type BookMergeItem = Omit<Book, 'page' | 'author_url'>;
+type FinalBookMerge = {
+	base: BookMergeItem;
+	variants: BookMergeItem[];
+};
+export const getFinalBookMerges = async (sql: postgres.Sql<{}>): Promise<FinalBookMerge[]> => {
+	const rows = await sql`
+    SELECT
+        fm.base_id,
+        base_book.title AS base_title,
+        base_book.author AS base_author,
+        base_book.thumbnail_url AS base_thumbnail,
+
+        fm.variant_id,
+        variant_book.title AS variant_title,
+        variant_book.author AS variant_author,
+        variant_book.thumbnail_url AS variant_thumbnail
+    FROM final_book_merges fm
+    JOIN books AS base_book
+        ON base_book.id = fm.base_id
+    JOIN books AS variant_book
+        ON variant_book.id = fm.variant_id
+    ORDER BY fm.base_id, fm.variant_id;
+  `;
+
+	// Group variants by base book
+	const mergeMap = new Map<number, FinalBookMerge>();
+
+	for (const row of rows) {
+		if (!mergeMap.has(row.base_id)) {
+			mergeMap.set(row.base_id, {
+				base: {
+					id: row.base_id,
+					title: row.base_title,
+					author: row.base_author,
+					thumbnail_url: row.base_thumbnail,
+				},
+				variants: [],
+			});
+		}
+
+		mergeMap.get(row.base_id)!.variants.push({
+			id: row.variant_id,
+			title: row.variant_title,
+			author: row.variant_author,
+			thumbnail_url: row.variant_thumbnail,
+		});
+	}
+
+	return Array.from(mergeMap.values());
 };
