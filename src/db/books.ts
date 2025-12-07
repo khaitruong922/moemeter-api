@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import { Book, Review } from './models';
 import { selectReviewsByIds } from './reviews';
+import { getDateRangeForPeriod, Period } from '../utils/period';
 
 export type BookReview = Review & {
 	book_id: number;
@@ -31,6 +32,7 @@ type GetBooksResponse = {
 	books: BookWithReaders[];
 	users: Record<string, ReaderSummary>;
 	total_count: number;
+	total_reads_count: number;
 };
 
 export const selectBooksWithUsersAndReviews = async (
@@ -39,7 +41,7 @@ export const selectBooksWithUsersAndReviews = async (
 	limit: number,
 	searchQuery?: string,
 	field?: string,
-	period?: string
+	period?: Period
 ): Promise<GetBooksResponse> => {
 	let searchCondition = sql``;
 	let dateCondition = sql``;
@@ -57,22 +59,14 @@ export const selectBooksWithUsersAndReviews = async (
 	}
 
 	if (period) {
-		const now = new Date();
-		if (period === 'this_month') {
-			startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-			endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0));
-		} else if (period === 'last_month') {
-			startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
-			endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0));
-		}
-
+		[startDate, endDate] = getDateRangeForPeriod(period);
 		dateCondition = searchCondition
 			? sql` AND (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`
 			: sql`WHERE (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`;
 	}
 
-	const [{ total }] = await sql<[{ total: number }]>`
-    SELECT COUNT(DISTINCT reads.merged_book_id) AS total
+	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
+    SELECT COUNT(DISTINCT reads.merged_book_id) AS total, COUNT(reads.id) AS total_reads_count
     FROM books 
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
@@ -145,6 +139,7 @@ export const selectBooksWithUsersAndReviews = async (
 		books,
 		users,
 		total_count: Number(total),
+		total_reads_count: Number(total_reads_count),
 	};
 };
 

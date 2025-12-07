@@ -6,6 +6,7 @@ import { getPageInfo } from '../utils/paging';
 import { createDbClientFromEnv } from '../db';
 import { selectUserByIds } from '../db/users';
 import { selectReadsByBookId } from '../db/reads';
+import { Period } from '../utils/period';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -14,7 +15,7 @@ app.get('/', async (c) => {
 	const reqPage = applyNaNVL(parseNatNum(c.req.query('page')), 1);
 	const q = c.req.query('q');
 	const field = c.req.query('field');
-	const period = c.req.query('period');
+	const period = c.req.query('period') as Period;
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
@@ -24,19 +25,11 @@ app.get('/', async (c) => {
 		);
 	}
 
-	// Validate period parameter
-	if (period && !['this_month', 'last_month'].includes(period)) {
-		return c.json(
-			{ error: "期間パラメータは'this_month'または'last_month'である必要があります" },
-			400
-		);
-	}
-
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, '') : undefined;
 
 	const sql = createDbClientFromEnv(c.env);
 	const offset = (reqPage - 1) * perPage;
-	const { books, users, total_count } = await selectBooksWithUsersAndReviews(
+	const { books, users, total_count, total_reads_count } = await selectBooksWithUsersAndReviews(
 		sql,
 		offset,
 		perPage,
@@ -50,6 +43,7 @@ app.get('/', async (c) => {
 		books,
 		users,
 		count: books.length,
+		total_reads_count,
 		total_count,
 		pageInfo,
 	});
