@@ -24,7 +24,7 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
     WITH cleaned_books AS (
       SELECT
         id,
-        REPLACE(author, ' ', '') AS author,
+        remove_spaces(author) AS author,
         normalize_title(title) AS title,
         LENGTH(title) - LENGTH(REPLACE(title, '(', '')) AS open_paren_count,
         remove_parentheses(normalize_title(title)) AS title_no_paren
