@@ -12,6 +12,8 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import bookMerges from './routes/book_merges';
+import manualBookMerges from './routes/manual_book_merges';
+import bookMergeExceptions from './routes/book_ merge_exceptions';
 import { AppEnv } from './types/app_env';
 
 const app = new Hono<{ Bindings: AppEnv }>();
@@ -38,6 +40,8 @@ app.get('/health', async (c) => {
 app.route('/users', users);
 app.route('/books', books);
 app.route('/book_merges', bookMerges);
+app.route('/manual_book_merges', manualBookMerges);
+app.route('/book_merge_exceptions', bookMergeExceptions);
 app.route('/reads', reads);
 app.route('/groups', groups);
 app.route('/metadata', metadata);

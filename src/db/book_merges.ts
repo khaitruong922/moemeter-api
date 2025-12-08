@@ -1,6 +1,20 @@
 import postgres from 'postgres';
 import { Book } from './models';
 
+export const updateReadsMergedBookIds = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    UPDATE reads
+    SET merged_book_id = book_id
+  `;
+
+	await sql`
+    UPDATE reads
+    SET merged_book_id = fm.base_id
+    FROM final_book_merges fm
+    WHERE reads.book_id = fm.variant_id;
+  `;
+};
+
 export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     DELETE FROM book_merges;
@@ -51,17 +65,56 @@ export const syncBookMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
     ON CONFLICT (variant_id) DO NOTHING;
   `;
 
+	await updateReadsMergedBookIds(sql);
+};
+
+export const addManualBookMerge = async (
+	sql: postgres.Sql<{}>,
+	baseId: number,
+	variantId: number
+): Promise<void> => {
 	await sql`
-    UPDATE reads
-    SET merged_book_id = book_id
+    INSERT INTO manual_book_merges (variant_id, base_id)
+    VALUES (${variantId}, ${baseId})
   `;
 
+	await updateReadsMergedBookIds(sql);
+};
+
+export const addBookMergeException = async (
+	sql: postgres.Sql<{}>,
+	variantId: number
+): Promise<void> => {
 	await sql`
-    UPDATE reads
-    SET merged_book_id = fm.base_id
-    FROM final_book_merges fm
-    WHERE reads.book_id = fm.variant_id;
+    INSERT INTO book_merge_exceptions (variant_id)
+    VALUES (${variantId})
   `;
+
+	await updateReadsMergedBookIds(sql);
+};
+
+export const deleteManualBookMerge = async (
+	sql: postgres.Sql<{}>,
+	variantId: number
+): Promise<void> => {
+	await sql`
+    DELETE FROM manual_book_merges
+    WHERE variant_id = ${variantId}
+  `;
+
+	await updateReadsMergedBookIds(sql);
+};
+
+export const deleteBookMergeException = async (
+	sql: postgres.Sql<{}>,
+	variantId: number
+): Promise<void> => {
+	await sql`
+    DELETE FROM book_merge_exceptions
+    WHERE variant_id = ${variantId}
+  `;
+
+	await updateReadsMergedBookIds(sql);
 };
 
 type BookMergeItem = Omit<Book, 'page' | 'author_url'>;
