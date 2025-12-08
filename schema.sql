@@ -39,19 +39,62 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 CREATE FUNCTION public.clean_title(original text) RETURNS text
     LANGUAGE plpgsql IMMUTABLE
-    AS $$
-BEGIN
+    AS $$BEGIN
   RETURN REGEXP_REPLACE(
-           REPLACE(original, ' ', ''),
+           remove_spaces(original),
            '[\(\)\[\]（）［］]',
            '',
            'g'
          );
+END;$$;
+
+
+ALTER FUNCTION public.clean_title(original text) OWNER TO postgres;
+
+--
+-- Name: normalize_title(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.normalize_title(input text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$BEGIN
+  RETURN TRANSLATE(
+           remove_spaces(input),
+           '？０１２３４５６７８９',
+           '?0123456789'
+         );
+END;$$;
+
+
+ALTER FUNCTION public.normalize_title(input text) OWNER TO postgres;
+
+--
+-- Name: remove_parentheses(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.remove_parentheses(input text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+BEGIN
+  RETURN REGEXP_REPLACE(input, '\([^)]*\)', '', 'g');
 END;
 $$;
 
 
-ALTER FUNCTION public.clean_title(original text) OWNER TO postgres;
+ALTER FUNCTION public.remove_parentheses(input text) OWNER TO postgres;
+
+--
+-- Name: remove_spaces(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.remove_spaces(text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $_$BEGIN
+    RETURN REGEXP_REPLACE($1, '[ \u3000]', '', 'g');
+END;$_$;
+
+
+ALTER FUNCTION public.remove_spaces(text) OWNER TO postgres;
 
 SET default_tablespace = '';
 
@@ -120,7 +163,7 @@ ALTER TABLE public.users OWNER TO postgres;
 -- Name: failed_users; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.failed_users AS
+CREATE VIEW public.failed_users WITH (security_invoker='on') AS
  SELECT id,
     name,
     avatar_url,
@@ -132,6 +175,41 @@ CREATE VIEW public.failed_users AS
 
 
 ALTER VIEW public.failed_users OWNER TO postgres;
+
+--
+-- Name: manual_book_merges; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.manual_book_merges (
+    variant_id integer NOT NULL,
+    base_id integer NOT NULL
+);
+
+
+ALTER TABLE public.manual_book_merges OWNER TO postgres;
+
+--
+-- Name: final_book_merges; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.final_book_merges AS
+ WITH all_merges AS (
+         SELECT book_merges.variant_id,
+            book_merges.base_id
+           FROM public.book_merges
+          WHERE (NOT (book_merges.variant_id IN ( SELECT book_merge_exceptions.variant_id
+                   FROM public.book_merge_exceptions)))
+        UNION ALL
+         SELECT manual_book_merges.variant_id,
+            manual_book_merges.base_id
+           FROM public.manual_book_merges
+        )
+ SELECT variant_id,
+    base_id
+   FROM all_merges;
+
+
+ALTER VIEW public.final_book_merges OWNER TO postgres;
 
 --
 -- Name: groups; Type: TABLE; Schema: public; Owner: postgres
@@ -167,18 +245,6 @@ ALTER SEQUENCE public.groups_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.groups_id_seq OWNED BY public.groups.id;
 
-
---
--- Name: manual_book_merges; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.manual_book_merges (
-    variant_id integer NOT NULL,
-    base_id integer NOT NULL
-);
-
-
-ALTER TABLE public.manual_book_merges OWNER TO postgres;
 
 --
 -- Name: metadata; Type: TABLE; Schema: public; Owner: postgres
@@ -304,16 +370,26 @@ ALTER TABLE ONLY public.users
 --
 
 CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
- SELECT u.id,
-    u.name,
-    u.avatar_url,
-    sum(b.page) AS pages_read,
-    count(DISTINCT r.merged_book_id) AS books_read
-   FROM ((public.reads r
-     JOIN public.books b ON ((r.merged_book_id = b.id)))
-     JOIN public.users u ON ((r.user_id = u.id)))
-  WHERE ((r.date >= date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone)) AND (r.date < (date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone) + '1 year'::interval)))
-  GROUP BY u.id
+ WITH user_stats AS (
+         SELECT u.id,
+            u.name,
+            u.avatar_url,
+            sum(b.page) AS pages_read,
+            count(DISTINCT r.merged_book_id) AS books_read
+           FROM ((public.reads r
+             JOIN public.books b ON ((r.merged_book_id = b.id)))
+             JOIN public.users u ON ((r.user_id = u.id)))
+          WHERE ((r.date >= date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone)) AND (r.date < (date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone) + '1 year'::interval)))
+          GROUP BY u.id
+        )
+ SELECT id,
+    name,
+    avatar_url,
+    books_read,
+    pages_read,
+    rank() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank,
+    rank() OVER (ORDER BY pages_read DESC, books_read DESC) AS pages_rank
+   FROM user_stats
   WITH NO DATA;
 
 
@@ -481,10 +557,64 @@ ALTER TABLE ONLY public.reads
 
 
 --
+-- Name: book_merge_exceptions; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.book_merge_exceptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: book_merges; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.book_merges ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: books; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: groups; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: manual_book_merges; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.manual_book_merges ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: metadata; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
 ALTER TABLE public.metadata ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: reads; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: reviews; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: users; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: users_groups; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.users_groups ENABLE ROW LEVEL SECURITY;
 
 --
 -- PostgreSQL database dump complete
