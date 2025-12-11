@@ -23,3 +23,7 @@ export const getDateRangeForPeriod = (period: Period): [Date, Date] => {
 export const getYearPeriod = (year: number): [Date, Date] => {
 	return [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 11, 31))];
 };
+
+export const getMonthPeriod = (year: number, month: number): [Date, Date] => {
+	return [new Date(Date.UTC(year, month - 1, 1)), new Date(Date.UTC(year, month, 0))];
+};

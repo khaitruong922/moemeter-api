@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { getYearPeriod } from '../utils/period';
+import { getMonthPeriod, getYearPeriod } from '../utils/period';
 import { Book, BookWithReadId, User } from './models';
 
 export type TotalReadsAndPages = {
@@ -32,9 +32,9 @@ type PeakMonthBooks = {
 export const getPeakMonthBooksOfUser = async (
 	sql: postgres.Sql<{}>,
 	userId: number,
-	startDate: Date,
-	endDate: Date
+	year: number
 ): Promise<PeakMonthBooks | null> => {
+	const [startDate, endDate] = getYearPeriod(year);
 	const peakMonths = await sql`
 		SELECT EXTRACT(MONTH FROM r.date) AS month, COUNT(1) AS read_count, SUM(b.page) AS total_pages
 		FROM reads r
@@ -50,11 +50,12 @@ export const getPeakMonthBooksOfUser = async (
 	if (Number(peakMonth.read_count) === 0) return null;
 
 	const month = Number(peakMonth.month);
+	const [monthStart, monthEnd] = getMonthPeriod(year, month);
 	const reads = await sql<BookWithReadId[]>`
 			SELECT r.id as read_id, b.*
 			FROM books b
 			JOIN reads r ON r.merged_book_id = b.id
-			WHERE r.user_id = ${userId} AND r.date IS NOT NULL AND EXTRACT(MONTH FROM r.date) = ${month}
+			WHERE r.user_id = ${userId} AND r.date IS NOT NULL AND r.date >= ${monthStart} AND r.date <= ${monthEnd}
 			ORDER BY r.date ASC
 		`;
 	return {
@@ -78,7 +79,10 @@ export const getBestFriendReads = async (
 	const bestFriends = await sql`
         SELECT r.user_id, COUNT(1) AS read_count, SUM(b.page) AS total_pages
         FROM reads r
-        JOIN (SELECT merged_book_id FROM reads WHERE user_id = ${userId}) AS user_reads ON r.merged_book_id = user_reads.merged_book_id
+        JOIN (
+            SELECT merged_book_id FROM reads WHERE user_id = ${userId} 
+            AND date IS NOT NULL AND date >= ${startDate} AND date <= ${endDate}
+        ) AS user_reads ON r.merged_book_id = user_reads.merged_book_id
         JOIN books b ON r.merged_book_id = b.id
         WHERE user_id != ${userId}
         AND r.date IS NOT NULL AND r.date >= ${startDate} AND r.date <= ${endDate}
@@ -105,7 +109,8 @@ export const getBestFriendReads = async (
         AND r.merged_book_id IN (
             SELECT merged_book_id
             FROM reads
-            WHERE user_id = ${userId}
+            WHERE user_id = ${userId} 
+            AND date IS NOT NULL AND date >= ${startDate} AND date <= ${endDate}
         )
         ORDER BY r.date ASC
     `;
