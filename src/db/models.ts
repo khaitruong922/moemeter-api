@@ -21,6 +21,10 @@ export interface Book {
 	thumbnail_url: string | null;
 }
 
+export interface BookWithReadId extends Book {
+	read_id: number;
+}
+
 export interface LonelyBook extends Book {
 	review: Review;
 }

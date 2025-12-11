@@ -6,6 +6,11 @@ import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/book
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import {
+	getBestFriendReads,
+	getPeakMonthBooksOfUser,
+	getTotalReadsAndPagesOfUser,
+} from '../db/summary';
+import {
 	RankedUser,
 	refreshYearlyLeaderboard,
 	selectAllUsersWithRank,
@@ -15,10 +20,11 @@ import {
 	updateSyncStatusByUserIds,
 	userExists,
 } from '../db/users';
+import { validateGroupAuth } from '../middlewares/auth';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
-import { validateGroupAuth } from '../middlewares/auth';
+import { getYearPeriod } from '../utils/period';
 
 const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
 
@@ -151,6 +157,33 @@ app.get('/:userId/common_reads', async (c) => {
 	return c.json({
 		books: relatedBooksMap,
 		users: relatedUsersMap,
+	});
+});
+
+app.get('/:userId/summary/:year', async (c) => {
+	const userId = Number(c.req.param('userId'));
+	const year = Number(c.req.param('year'));
+	if (!userId || isNaN(userId)) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	if (!year || isNaN(year)) {
+		return c.json({ error: '無効な年です' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+
+	const [startDate, endDate] = getYearPeriod(year);
+
+	const [{ total_reads, total_pages }, peak_month, best_friend] = await Promise.all([
+		getTotalReadsAndPagesOfUser(sql, userId, startDate, endDate),
+		getPeakMonthBooksOfUser(sql, userId, startDate, endDate),
+		getBestFriendReads(sql, userId, startDate, endDate),
+	]);
+
+	return c.json({
+		total_reads,
+		total_pages,
+		peak_month,
+		best_friend,
 	});
 });
 

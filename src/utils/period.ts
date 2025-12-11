@@ -19,3 +19,7 @@ export const getDateRangeForPeriod = (period: Period): [Date, Date] => {
 		];
 	throw new Error('ピリオドが無効です');
 };
+
+export const getYearPeriod = (year: number): [Date, Date] => {
+	return [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 11, 31))];
+};
