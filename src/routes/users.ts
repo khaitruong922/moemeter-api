@@ -170,19 +170,14 @@ app.get('/:userId/summary/2025', async (c) => {
 
 	const [startDate, endDate] = getYearPeriod(year);
 
-	const [{ books_read, pages_read, rank, pages_rank }, peak_month, best_friend] = await Promise.all(
-		[
-			selectYearlyLeaderboardByUserId(sql, userId),
-			getPeakMonthBooksOfUser(sql, userId, year),
-			getBestFriendReads(sql, userId, startDate, endDate),
-		]
-	);
+	const [user, peak_month, best_friend] = await Promise.all([
+		selectYearlyLeaderboardByUserId(sql, userId),
+		getPeakMonthBooksOfUser(sql, userId, year),
+		getBestFriendReads(sql, userId, startDate, endDate),
+	]);
 
 	return c.json({
-		total_reads: books_read,
-		total_pages: pages_read,
-		rank,
-		pages_rank,
+		user,
 		peak_month,
 		best_friend,
 	});
