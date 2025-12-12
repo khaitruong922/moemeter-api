@@ -67,6 +67,7 @@ export const selectYearlyLeaderboardByUserId = async (
 	return {
 		...rows[0],
 		rank: Number(rows[0].rank),
+		pages_rank: Number(rows[0].pages_rank),
 		books_read: Number(rows[0].books_read),
 		pages_read: Number(rows[0].pages_read),
 	};
