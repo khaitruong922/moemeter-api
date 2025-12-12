@@ -1,27 +1,60 @@
 import postgres from 'postgres';
 import { getMonthPeriod, getYearPeriod } from '../utils/period';
-import { Book, BookWithReadId, User } from './models';
+import { BookWithReadId, User } from './models';
+import { RankedUser } from './users';
 
 export type TotalReadsAndPages = {
 	total_reads: number;
 	total_pages: number;
+	rank: number;
 };
-export const getTotalReadsAndPagesOfUser = async (
+export const getRankedUserInPeriod = async (
 	sql: postgres.Sql<{}>,
 	userId: number,
 	startDate: Date,
 	endDate: Date
-): Promise<TotalReadsAndPages> => {
-	// Get all reads for user in the year
-	const reads = await sql<TotalReadsAndPages[]>`
-		SELECT COUNT(1) AS total_reads, SUM(books.page) AS total_pages
-		FROM reads
-		JOIN books ON reads.merged_book_id = books.id
-		WHERE user_id = ${userId} AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}
+): Promise<RankedUser> => {
+	const users = await sql<RankedUser[]>`
+		WITH user_stats AS (
+			SELECT
+				user_id,
+				COUNT(1) AS books_read,
+				SUM(books.page) AS pages_read
+			FROM reads
+			JOIN books ON reads.merged_book_id = books.id
+			WHERE reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}
+			GROUP BY user_id
+		),
+		ranked_users AS (
+			SELECT
+				user_id,
+				books_read,
+				pages_read,
+				RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank,
+        RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS pages_rank
+			FROM user_stats
+		)
+		SELECT u.id, u.name, u.avatar_url, ru.books_read, ru.pages_read, ru.rank, ru.pages_rank
+		FROM ranked_users ru
+    JOIN users u ON ru.user_id = u.id
+		WHERE user_id = ${userId}
 	`;
-	const total_reads = Number(reads[0]?.total_reads || 0);
-	const total_pages = Number(reads[0]?.total_pages || 0);
-	return { total_reads, total_pages };
+
+	const user = users[0];
+	if (!user) throw new Error(`User with ID ${userId} not found in the specified period.`);
+
+	const total_reads = Number(user?.books_read || 0);
+	const total_pages = Number(user?.pages_read || 0);
+	const rank = Number(user?.rank || 0);
+	const pages_rank = Number(user?.pages_rank || 0);
+
+	return {
+		...user,
+		books_read: total_reads,
+		pages_read: total_pages,
+		rank,
+		pages_rank,
+	};
 };
 
 type PeakMonthBooks = {

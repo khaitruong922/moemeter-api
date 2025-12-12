@@ -51,28 +51,6 @@ export const selectYearlyLeaderboard = async (
 	}));
 };
 
-export const selectYearlyLeaderboardByUserId = async (
-	sql: postgres.Sql<{}>,
-	userId: number
-): Promise<RankedUser | null> => {
-	const rows = await sql<RankedUser[]>`
-    SELECT * FROM yearly_leaderboard
-    WHERE id = ${userId}
-    LIMIT 1;
-  `;
-
-	if (rows.length === 0) {
-		return null;
-	}
-	return {
-		...rows[0],
-		rank: Number(rows[0].rank),
-		pages_rank: Number(rows[0].pages_rank),
-		books_read: Number(rows[0].books_read),
-		pages_read: Number(rows[0].pages_read),
-	};
-};
-
 export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW yearly_leaderboard;
