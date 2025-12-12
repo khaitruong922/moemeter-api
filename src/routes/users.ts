@@ -5,11 +5,7 @@ import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
-import {
-	getBestFriendReads,
-	getPeakMonthBooksOfUser,
-	getTotalReadsAndPagesOfUser,
-} from '../db/summary';
+import { getBestFriendReads, getPeakMonthBooksOfUser } from '../db/summary';
 import {
 	RankedUser,
 	refreshYearlyLeaderboard,
@@ -17,6 +13,7 @@ import {
 	selectUserById,
 	selectUserByIds,
 	selectYearlyLeaderboard,
+	selectYearlyLeaderboardByUserId,
 	updateSyncStatusByUserIds,
 	userExists,
 } from '../db/users';
@@ -160,9 +157,9 @@ app.get('/:userId/common_reads', async (c) => {
 	});
 });
 
-app.get('/:userId/summary/:year', async (c) => {
+app.get('/:userId/summary/2025', async (c) => {
 	const userId = Number(c.req.param('userId'));
-	const year = Number(c.req.param('year'));
+	const year = 2025;
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
@@ -173,15 +170,16 @@ app.get('/:userId/summary/:year', async (c) => {
 
 	const [startDate, endDate] = getYearPeriod(year);
 
-	const [{ total_reads, total_pages }, peak_month, best_friend] = await Promise.all([
-		getTotalReadsAndPagesOfUser(sql, userId, startDate, endDate),
+	const [{ books_read, pages_read, rank }, peak_month, best_friend] = await Promise.all([
+		selectYearlyLeaderboardByUserId(sql, userId),
 		getPeakMonthBooksOfUser(sql, userId, year),
 		getBestFriendReads(sql, userId, startDate, endDate),
 	]);
 
 	return c.json({
-		total_reads,
-		total_pages,
+		total_reads: books_read,
+		total_pages: pages_read,
+		rank,
 		peak_month,
 		best_friend,
 	});
