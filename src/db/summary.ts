@@ -3,11 +3,6 @@ import { getMonthPeriod, getYearPeriod } from '../utils/period';
 import { BookWithReadId, User } from './models';
 import { RankedUser } from './users';
 
-export type TotalReadsAndPages = {
-	total_reads: number;
-	total_pages: number;
-	rank: number;
-};
 export const getRankedUserInPeriod = async (
 	sql: postgres.Sql<{}>,
 	userId: number,
@@ -41,7 +36,19 @@ export const getRankedUserInPeriod = async (
 	`;
 
 	const user = users[0];
-	if (!user) throw new Error(`User with ID ${userId} not found in the specified period.`);
+	if (!user) {
+		const userRows = await sql<User[]>`
+      SELECT id, name, avatar_url
+      FROM users
+      WHERE id = ${userId}
+    `;
+		const userInfo = userRows[0];
+		return {
+			...userInfo,
+			rank: -1,
+			pages_rank: -1,
+		};
+	}
 
 	const total_reads = Number(user?.books_read || 0);
 	const total_pages = Number(user?.pages_read || 0);
