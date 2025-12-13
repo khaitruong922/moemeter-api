@@ -158,7 +158,7 @@ app.get('/:userId/common_reads', async (c) => {
 
 app.get('/:userId/summary/:year', async (c) => {
 	const userId = Number(c.req.param('userId'));
-	const year = Number(c.req.params('year'));
+	const year = Number(c.req.param('year'));
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
