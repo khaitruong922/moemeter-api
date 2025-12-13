@@ -156,9 +156,9 @@ app.get('/:userId/common_reads', async (c) => {
 	});
 });
 
-app.get('/:userId/summary/2025', async (c) => {
+app.get('/:userId/summary/:year', async (c) => {
 	const userId = Number(c.req.param('userId'));
-	const year = 2025;
+	const year = Number(c.req.params('year'));
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
