@@ -32,11 +32,14 @@ export const selectAllUsersWithRank = async (
 
 export const selectYearlyLeaderboard = async (
 	sql: postgres.Sql<{}>,
-	order: RankOrder
+	order: RankOrder,
+	user_id?: number
 ): Promise<RankedUser[]> => {
 	const rankField = order === 'pages' ? 'pages_rank' : 'rank';
+	const userCondition = user_id ? sql`WHERE user_id = ${user_id}` : sql``;
 	const rows = await sql<RankedUser[]>`
     SELECT * FROM yearly_leaderboard
+    ${userCondition}
     ORDER BY ${sql(rankField)};
   `;
 

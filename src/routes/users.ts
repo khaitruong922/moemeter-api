@@ -5,11 +5,7 @@ import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
-import {
-	getBestFriendReads,
-	getPeakMonthBooksOfUser,
-	getTotalReadsAndPagesOfUser,
-} from '../db/summary';
+import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
 import {
 	RankedUser,
 	refreshYearlyLeaderboard,
@@ -172,15 +168,14 @@ app.get('/:userId/summary/:year', async (c) => {
 
 	const [startDate, endDate] = getYearPeriod(year);
 
-	const [{ total_reads, total_pages }, peak_month, best_friend] = await Promise.all([
-		getTotalReadsAndPagesOfUser(sql, userId, startDate, endDate),
+	const [user, peak_month, best_friend] = await Promise.all([
+		getRankedUserInPeriod(sql, userId, startDate, endDate),
 		getPeakMonthBooksOfUser(sql, userId, year),
 		getBestFriendReads(sql, userId, startDate, endDate),
 	]);
 
 	return c.json({
-		total_reads,
-		total_pages,
+		user,
 		peak_month,
 		best_friend,
 	});
