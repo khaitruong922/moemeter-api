@@ -56,8 +56,7 @@ app.get('/:userId', async (c) => {
 });
 
 app.post('/join', validateGroupAuth, async (c) => {
-	// Get the parsed body and verified group from middleware
-	const { user_id, bookcase } = c.get('requestBody');
+	const { user_id, bookcase } = await c.req.json();
 
 	if (!user_id || typeof user_id !== 'number') {
 		return c.json({ error: 'user_idは必須で、数値である必要があります' }, 400);
