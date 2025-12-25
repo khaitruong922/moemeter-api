@@ -202,7 +202,6 @@ export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> =>
 };
 
 type BookWithMergeData = Book & {
-	merged_base_id: number | null;
 	total_count: number;
 };
 type SelectBooksWithMergeDataResponse = {
@@ -215,7 +214,7 @@ export const selectBooksWithMergeData = async (
 	limit: number
 ): Promise<SelectBooksWithMergeDataResponse> => {
 	const rows = await sql<BookWithMergeData[]>`
-	SELECT b.*, fbm.base_id AS merged_base_id, COUNT(*) OVER() AS total_count
+	SELECT b.*, COUNT(*) OVER() AS total_count
 	FROM books b
 	LEFT JOIN final_book_merges fbm ON b.id = fbm.variant_id
 	WHERE fbm.base_id IS NULL
