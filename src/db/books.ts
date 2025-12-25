@@ -200,3 +200,31 @@ export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> =>
     )
   `;
 };
+
+type BookWithMergeData = Book & {
+	merged_base_id: number | null;
+	total_count: number;
+};
+type SelectBooksWithMergeDataResponse = {
+	books: Book[];
+	total_count: number;
+};
+export const selectBooksWithMergeData = async (
+	sql: postgres.Sql<{}>,
+	offset: number,
+	limit: number
+): Promise<SelectBooksWithMergeDataResponse> => {
+	const rows = await sql<BookWithMergeData[]>`
+	SELECT b.*, fbm.base_id AS merged_base_id, COUNT(*) OVER() AS total_count
+	FROM books b
+	LEFT JOIN final_book_merges fbm ON b.id = fbm.variant_id
+	WHERE fbm.base_id IS NULL
+	ORDER BY b.title ASC, b.id ASC
+	LIMIT ${limit}
+	OFFSET ${offset}
+	`;
+	return {
+		books: rows,
+		total_count: rows.length > 0 ? Number(rows[0].total_count) : 0,
+	};
+};

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { selectBooksWithUsersAndReviews } from '../db/books';
+import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
 import { AppEnv } from '../types/app_env';
 import { applyNaNVL, parseNatNum } from '../utils/number';
 import { getPageInfo } from '../utils/paging';
@@ -63,6 +63,16 @@ app.get('/:bookId/reads', async (c) => {
 		reads,
 		users: userMap,
 	});
+});
+
+app.get('/library', async (c) => {
+	const page = applyNaNVL(parseNatNum(c.req.query('page')), 1);
+	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 50);
+	const sql = createDbClientFromEnv(c.env);
+	const offset = (page - 1) * perPage;
+	const { books, total_count } = await selectBooksWithMergeData(sql, offset, perPage);
+	const max_page = Math.ceil(total_count / perPage);
+	return c.json({ books, total_count, max_page });
 });
 
 export default app;
