@@ -70,7 +70,7 @@ export default {
 		console.log('時刻: ', utcHour, '分: ', utcMinutes);
 		const sql = createDbClientFromEnv(env);
 
-		if (event.cron === '0 0/12 * * *') {
+		if (event.cron === '0 3/15 * * *') {
 			await performKeepAliveQuery(env);
 			await syncAllUsers(sql, {
 				syncStatus: null,
@@ -79,7 +79,7 @@ export default {
 			}).catch((error) => {
 				console.error('全ユーザーの同期に失敗しました:', error);
 			});
-		} else if (event.cron === '*/3 0/12 * * *' && utcMinutes !== 0) {
+		} else if (event.cron === '*/3 3/15 * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
