@@ -39,10 +39,10 @@ app.get('/health', async (c) => {
 
 app.get('/bookmeter-api-test', async (c) => {
 	const bookmeterApi = await c.env.BOOKMETER_API.fetch(
-		'/users/1485435/reads?page_start=1&page_end=50&per_page=24'
+		'https://bookmeter-api.tsuu2092.workers.dev/users/1485435/reads?page_start=1&page_end=50&per_page=24'
 	);
 	const bookmeterApi2 = await c.env.BOOKMETER_API.fetch(
-		'/users/1485435/reads?page_start=51&page_end=100&per_page=24'
+		'https://bookmeter-api.tsuu2092.workers.dev/users/1485435/reads?page_start=51&page_end=100&per_page=24'
 	);
 	const data = await bookmeterApi.json();
 	const data2 = await bookmeterApi2.json();
