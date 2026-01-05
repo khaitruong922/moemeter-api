@@ -9,5 +9,12 @@
 	"observability": {
 		"enabled": true,
 		"head_sampling_rate": 1
-	}
+	},
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "services": [
+    {
+      "binding": "BOOKMETER_API",
+      "service": "bookmeter-api"
+    }
+  ]
 }

@@ -22,7 +22,7 @@ app.use('*', cors());
 
 app.get('/', async (c) => {
 	return c.json({
-		message: 'ブックメーターAPIへようこそ',
+		message: 'Moemeter APIへようこそ',
 	});
 });
 
@@ -35,6 +35,18 @@ app.get('/health', async (c) => {
 		console.error('Database connection failed:', error);
 		return c.json(createErrorMessage('データベース接続に失敗しました'), 500);
 	}
+});
+
+app.get('/bookmeter-api-test', async (c) => {
+	const bookmeterApi = await c.env.BOOKMETER_API.fetch(
+		'/users/1485435/reads?page_start=1&page_end=50&per_page=24'
+	);
+	const bookmeterApi2 = await c.env.BOOKMETER_API.fetch(
+		'/users/1485435/reads?page_start=51&page_end=100&per_page=24'
+	);
+	const data = await bookmeterApi.json();
+	const data2 = await bookmeterApi2.json();
+	return c.json({ data, data2 });
 });
 
 app.route('/users', users);
