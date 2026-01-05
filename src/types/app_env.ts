@@ -3,4 +3,5 @@ export type AppEnv = {
 	SUPABASE_URL: string;
 	SUPABASE_KEY: string;
 	DEBUG?: string;
+	BOOKMETER_API: Fetcher;
 };
