@@ -63,6 +63,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 	}
 
 	const sql = createDbClientFromEnv(c.env);
+	const bookmeterApiService = c.env.BOOKMETER_API;
 	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
 	const user = await getUserFromBookmeterUrl(bookmeterUrl, bookcase || null);
 	const exists = await userExists(sql, user.id);
@@ -76,7 +77,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 	}
 
 	try {
-		const result = await fullImportUser(sql, user);
+		const result = await fullImportUser(sql, bookmeterApiService, user);
 		await syncBookMerges(sql);
 		await refreshYearlyLeaderboard(sql);
 		await deleteOrphanReviews(sql);

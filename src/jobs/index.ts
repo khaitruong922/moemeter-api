@@ -13,9 +13,11 @@ import {
 	updateUserNameAndAvatarUrl,
 } from '../db/users';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
+import { BookmeterApiService } from '../types/bookmeter_api_service';
 
 export const syncAllUsers = async (
 	sql: postgres.Sql<{}>,
+	bookmeterApiService: BookmeterApiService,
 	params: SelectAllUsersParams
 ): Promise<User[]> => {
 	const users = await selectAllUsersForSync(sql, params);
@@ -33,7 +35,7 @@ export const syncAllUsers = async (
 
 	for (const user of users) {
 		try {
-			const { skipped, user: syncedUser } = await syncUser(sql, user);
+			const { skipped, user: syncedUser } = await syncUser(sql, bookmeterApiService, user);
 			if (skipped) {
 				skippedUserIds.push(syncedUser.id);
 				console.log('スキップ:', syncedUser.id);
@@ -70,7 +72,11 @@ type SyncResult = {
 	user: User;
 };
 
-const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncResult> => {
+const syncUser = async (
+	sql: postgres.Sql<{}>,
+	bookmeterApiService: BookmeterApiService,
+	currentUser: User
+): Promise<SyncResult> => {
 	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
 	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
 
@@ -80,8 +86,7 @@ const syncUser = async (sql: postgres.Sql<{}>, currentUser: User): Promise<SyncR
 		}
 		return { skipped: true, user: currentUser };
 	}
-	await new Promise((resolve) => setTimeout(resolve, 1000));
-	const { user } = await fullImportUser(sql, newUser);
+	const { user } = await fullImportUser(sql, bookmeterApiService, newUser);
 	return { skipped: false, user };
 };
 

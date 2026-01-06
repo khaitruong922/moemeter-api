@@ -6,14 +6,14 @@ import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
+import bookMergeExceptions from './routes/book_ merge_exceptions';
+import bookMerges from './routes/book_merges';
 import books from './routes/books';
 import groups from './routes/groups';
+import manualBookMerges from './routes/manual_book_merges';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
-import bookMerges from './routes/book_merges';
-import manualBookMerges from './routes/manual_book_merges';
-import bookMergeExceptions from './routes/book_ merge_exceptions';
 import { AppEnv } from './types/app_env';
 
 const app = new Hono<{ Bindings: AppEnv }>();
@@ -35,12 +35,6 @@ app.get('/health', async (c) => {
 		console.error('Database connection failed:', error);
 		return c.json(createErrorMessage('データベース接続に失敗しました'), 500);
 	}
-});
-
-app.get('/bookmeter-api-test', async (c) => {
-	const data1 = await c.env.BOOKMETER_API.fetchUserReadsOfPages(1485435, 1, 50, 24, null);
-	const data2 = await c.env.BOOKMETER_API.fetchUserReadsOfPages(1485435, 51, 100, 24, null);
-	return c.json({ data1, data2 });
 });
 
 app.route('/users', users);
@@ -75,10 +69,11 @@ export default {
 		const utcMinutes = now.getUTCMinutes();
 		console.log('時刻: ', utcHour, '分: ', utcMinutes);
 		const sql = createDbClientFromEnv(env);
+		const bookmeterApiService = env.BOOKMETER_API;
 
 		if (event.cron === '0 3,15 * * *') {
 			await performKeepAliveQuery(env);
-			await syncAllUsers(sql, {
+			await syncAllUsers(sql, bookmeterApiService, {
 				syncStatus: null,
 				bookCountOrder: 'DESC',
 				limit: null,
@@ -86,7 +81,7 @@ export default {
 				console.error('全ユーザーの同期に失敗しました:', error);
 			});
 		} else if (event.cron === '*/3 3,15 * * *' && utcMinutes !== 0) {
-			await syncAllUsers(sql, {
+			await syncAllUsers(sql, bookmeterApiService, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
 				limit: null,

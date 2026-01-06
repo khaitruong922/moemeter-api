@@ -1,19 +1,29 @@
 import postgres from 'postgres';
+import { fetchAllUserReadsV2 } from '../bookmeter-api/book';
+import { fetchAllUserReviews } from '../bookmeter-api/review';
 import { bulkUpsertBooks } from '../db/books';
 import { Read, User } from '../db/models';
-import { deleteReadsOfUser, bulkInsertReads } from '../db/reads';
-import { upsertUser } from '../db/users';
-import { getUniqueBooks, mapBookDataToBookModel } from './book';
-import { fetchAllUserReads } from '../bookmeter-api/book';
-import { fetchAllUserReviews } from '../bookmeter-api/review';
+import { bulkInsertReads, deleteReadsOfUser } from '../db/reads';
 import { deleteReviewsOfUser, upsertReviews } from '../db/reviews';
+import { upsertUser } from '../db/users';
+import { BookmeterApiService } from '../types/bookmeter_api_service';
+import { getUniqueBooks, mapBookDataToBookModel } from './book';
 
-export const fullImportUser = async (sql: postgres.Sql<{}>, user: User) => {
+export const fullImportUser = async (
+	sql: postgres.Sql<{}>,
+	bookmeterApiService: BookmeterApiService,
+	user: User
+) => {
 	const {
 		reads: userReads,
 		books_read,
 		pages_read,
-	} = await fetchAllUserReads(user.id, user.bookcase, user.original_books_read);
+	} = await fetchAllUserReadsV2(
+		bookmeterApiService,
+		user.id,
+		user.bookcase,
+		user.original_books_read
+	);
 	const reviews = await fetchAllUserReviews(user.id);
 
 	if (user.bookcase) {

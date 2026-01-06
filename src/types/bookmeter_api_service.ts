@@ -1,4 +1,4 @@
-type UserReadData = {
+export type UserReadData = {
 	id: number;
 	book_id: number;
 	title: string;
@@ -10,10 +10,10 @@ type UserReadData = {
 };
 type FetchUserReadsOfPagesResponse = {
 	reads: UserReadData[];
-	read_pages_count: number;
+	pages_read: number;
 };
 
-export interface ApiService {
+export interface BookmeterApiService {
 	fetchUserReadsOfPages(
 		id: number,
 		pageStart: number,
