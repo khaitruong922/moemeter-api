@@ -15,6 +15,7 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import { AppEnv } from './types/app_env';
+import { fetchAllUserReadsV2 } from './bookmeter-api/book';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 app.use('*', prettyJSON());
@@ -24,6 +25,11 @@ app.get('/', async (c) => {
 	return c.json({
 		message: 'Moemeter APIへようこそ',
 	});
+});
+
+app.get('/test', async (c) => {
+	const bookmeterApi = await fetchAllUserReadsV2(c.env.BOOKMETER_API, 1542943, null, 8019);
+	return c.json(bookmeterApi);
 });
 
 app.get('/health', async (c) => {

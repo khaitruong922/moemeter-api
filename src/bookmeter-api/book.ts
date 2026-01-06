@@ -17,28 +17,28 @@ export const fetchAllUserReadsV2 = async (
 	const reads: UserReadData[] = [];
 	let pages_read = 0;
 	const pageTotal = Math.ceil(original_books_read / PER_PAGE);
-	const pagePartitions = [];
 
 	for (let i = 1; i <= pageTotal; i += MAX_PAGE_COUNT_PER_REQUEST) {
 		const pageStart = i;
 		const pageEnd = Math.min(i + MAX_PAGE_COUNT_PER_REQUEST - 1, pageTotal);
-		pagePartitions.push({ pageStart, pageEnd });
-	}
 
-	const promises = pagePartitions.map(({ pageStart, pageEnd }) =>
-		bookmeterApiService.fetchUserReadsOfPages(id, pageStart, pageEnd, PER_PAGE, bookcase)
-	);
-
-	console.log(
-		'Bookmeter API読み込み中... ユーザーID:',
-		id,
-		'ページ数:',
-		pageTotal,
-		'本棚:',
-		bookcase
-	);
-	const results = await Promise.all(promises);
-	for (const result of results) {
+		console.log(
+			'Bookmeter API読み込み中... ユーザーID:',
+			id,
+			'ページ:',
+			pageStart,
+			'〜',
+			pageEnd,
+			'本棚:',
+			bookcase
+		);
+		const result = await bookmeterApiService.fetchUserReadsOfPages(
+			id,
+			pageStart,
+			pageEnd,
+			PER_PAGE,
+			bookcase
+		);
 		const { reads: partitionReads } = result;
 		reads.push(...partitionReads);
 		console.log(`取得済みの読書数: ${reads.length} / ${original_books_read}`);
