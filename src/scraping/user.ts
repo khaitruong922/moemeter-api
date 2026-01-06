@@ -1,7 +1,13 @@
-import { getHTML } from '../infra/html';
-import { User } from '../db/models';
-import { extractRegex, extractRegexGroup } from '../utils/string';
 import { getBookcase } from '../bookmeter-api/bookcase';
+import { User } from '../db/models';
+import { getHTML } from '../infra/html';
+import { applyNaNVL } from '../utils/number';
+import { extractRegex, extractRegexGroup } from '../utils/string';
+
+const parseIntSafe = (str: string): number => {
+	const num = parseInt(str, 10);
+	return applyNaNVL(num, 0);
+};
 
 export const getBookmeterUrlFromUserId = (userId: number): string => {
 	return `https://bookmeter.com/users/${userId}`;
@@ -22,6 +28,7 @@ export const getUserFromBookmeterUrl = async (
 		booksRead = userBookcase.book_count;
 	}
 	const pagesRead = getUserPagesRead(userSectionHtml);
+	const reviewsCount = getUserReviewsCount(userSectionHtml);
 	return {
 		id: userId,
 		name: getUserName(userSectionHtml),
@@ -31,6 +38,7 @@ export const getUserFromBookmeterUrl = async (
 		bookcase,
 		original_books_read: originalBooksRead,
 		original_pages_read: pagesRead,
+		reviews_count: reviewsCount,
 	};
 };
 
@@ -42,7 +50,7 @@ export const getUserSectionHtml = (html: string): string => {
 };
 
 export const getUserIdFromBookmeterUrl = (bookmeterUrl: string): number => {
-	return parseInt(extractRegex(bookmeterUrl, /\/users\/(\d+)$/g)[0], 10);
+	return parseIntSafe(extractRegex(bookmeterUrl, /\/users\/(\d+)$/g)[0]);
 };
 
 export const getUserName = (html: string): string => {
@@ -62,21 +70,28 @@ export const getUserDetailsHtml = (html: string): string => {
 };
 
 export const getUserBooksRead = (html: string): number => {
-	return parseInt(
+	return parseIntSafe(
 		extractRegex(
 			html,
 			/<dt class="bm-details-side__title">読んだ本<\/dt><dd class="bm-details-side__item">(.*?)冊/g
-		)[0],
-		10
+		)[0]
 	);
 };
 
 export const getUserPagesRead = (html: string): number => {
-	return parseInt(
+	return parseIntSafe(
 		extractRegex(
 			html,
 			/<dt class="bm-details-side__title">読んだページ<\/dt><dd class="bm-details-side__item">(.*?)ページ/g
-		)[0],
-		10
+		)[0]
+	);
+};
+
+export const getUserReviewsCount = (html: string): number => {
+	return parseIntSafe(
+		extractRegex(
+			html,
+			/<dd class="bm-details-side__item"><a href="\/users\/\d+\/reviews">(\d+)件/g
+		)[0]
 	);
 };

@@ -10,6 +10,9 @@ export interface User {
 	bookcase: string | null;
 	original_books_read: number | null;
 	original_pages_read: number | null;
+
+	// Optional fields when processing only
+	reviews_count?: number | null;
 }
 
 export interface Book {

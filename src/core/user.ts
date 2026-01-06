@@ -2,7 +2,7 @@ import postgres from 'postgres';
 import { fetchAllUserReadsV2 } from '../bookmeter-api/book';
 import { fetchAllUserReviews } from '../bookmeter-api/review';
 import { bulkUpsertBooks } from '../db/books';
-import { Read, User } from '../db/models';
+import { Read, Review, User } from '../db/models';
 import { bulkInsertReads, deleteReadsOfUser } from '../db/reads';
 import { deleteReviewsOfUser, upsertReviews } from '../db/reviews';
 import { upsertUser } from '../db/users';
@@ -24,7 +24,9 @@ export const fullImportUser = async (
 		user.bookcase,
 		user.original_books_read
 	);
-	const reviews = await fetchAllUserReviews(user.id);
+	const shouldUpsertReviews = user.reviews_count !== null && user.reviews_count > 0;
+	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
+	delete user.reviews_count;
 
 	if (user.bookcase) {
 		user.books_read = books_read;
@@ -48,7 +50,9 @@ export const fullImportUser = async (
 	await deleteReadsOfUser(sql, user.id);
 	await bulkInsertReads(sql, reads);
 	await deleteReviewsOfUser(sql, user.id);
-	await upsertReviews(sql, reviews);
+	if (shouldUpsertReviews) {
+		await upsertReviews(sql, reviews);
+	}
 	return {
 		user,
 		bookCount: books_read,

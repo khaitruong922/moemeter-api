@@ -108,6 +108,7 @@ export const selectUserByIds = async (sql: postgres.Sql<{}>, ids: number[]): Pro
 };
 
 export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<void> => {
+	delete user.reviews_count;
 	await sql`
     INSERT INTO users ${sql(user)}
     ON CONFLICT (id) DO UPDATE SET
