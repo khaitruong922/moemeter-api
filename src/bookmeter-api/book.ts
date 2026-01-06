@@ -30,7 +30,7 @@ export const fetchAllUserReadsV2 = async (
 	);
 
 	console.log(
-		'Bookmeter API読みます... ユーザーID:',
+		'Bookmeter API読み込み中... ユーザーID:',
 		id,
 		'ページ数:',
 		pageTotal,
