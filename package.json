@@ -7,6 +7,7 @@
 		"test": "jest --verbose",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
+		"bookmeter": "cd ../bookmeter-api && wrangler dev",
 		"start": "wrangler dev",
 		"format": "prettier --write \"src/**/*.{ts,js,json}\""
 	},
