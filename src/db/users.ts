@@ -17,8 +17,7 @@ export const selectAllUsersWithRank = async (
     SELECT * FROM ranked_users
     ORDER BY ${sql(rankField)};
   `;
-
-	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
+	return rows.map((r) => ({ ...r, rank: Number(r.rank), pages_rank: Number(r.pages_rank) }));
 };
 
 export const selectYearlyLeaderboard = async (
@@ -36,7 +35,8 @@ export const selectYearlyLeaderboard = async (
 
 	return rows.map((r) => ({
 		...r,
-		rank: Number(r[rankField]),
+		rank: Number(r.rank),
+		pages_rank: Number(r.pages_rank),
 		books_read: Number(r.books_read),
 		pages_read: Number(r.pages_read),
 	}));
