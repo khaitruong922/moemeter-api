@@ -8,9 +8,10 @@ import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
 import {
 	RankedUser,
+	refreshRankedUsers,
 	refreshYearlyLeaderboard,
 	selectAllUsersWithRank,
-	selectUserById,
+	selectRankedUserById,
 	selectUserByIds,
 	selectYearlyLeaderboard,
 	updateSyncStatusByUserIds,
@@ -44,7 +45,7 @@ app.get('/:userId', async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
-	const user = await selectUserById(sql, Number(userId));
+	const user = await selectRankedUserById(sql, Number(userId));
 	if (user === null) {
 		return c.json({ error: 'ユーザーが見つかりません' }, 404);
 	}
@@ -79,6 +80,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 	try {
 		const result = await fullImportUser(sql, bookmeterApiService, user);
 		await syncBookMerges(sql);
+		await refreshRankedUsers(sql);
 		await refreshYearlyLeaderboard(sql);
 		await deleteOrphanReviews(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');

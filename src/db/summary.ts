@@ -26,7 +26,7 @@ export const getRankedUserInPeriod = async (
 				books_read,
 				pages_read,
 				RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank,
-        RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS pages_rank
+				RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS pages_rank
 			FROM user_stats
 		)
 		SELECT u.id, u.name, u.avatar_url, ru.books_read, ru.pages_read, ru.rank, ru.pages_rank

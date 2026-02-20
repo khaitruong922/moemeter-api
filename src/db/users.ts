@@ -12,19 +12,10 @@ export const selectAllUsersWithRank = async (
 	sql: postgres.Sql<{}>,
 	order: RankOrder
 ): Promise<RankedUser[]> => {
-	const rankOrder =
-		order === 'pages'
-			? sql`RANK() OVER (ORDER BY pages_read DESC, books_read DESC) AS rank`
-			: sql`RANK() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank`;
-
+	const rankField = order === 'pages' ? 'pages_rank' : 'rank';
 	const rows = await sql<RankedUser[]>`
-    WITH ranked_users AS (
-      SELECT id, name, avatar_url, books_read, pages_read,
-        ${rankOrder}
-      FROM users
-    )
     SELECT * FROM ranked_users
-    ORDER BY rank;
+    ORDER BY ${sql(rankField)};
   `;
 
 	return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
@@ -57,6 +48,12 @@ export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
   `;
 };
 
+export const refreshRankedUsers = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+	REFRESH MATERIALIZED VIEW ranked_users;
+  `;
+};
+
 export type SelectAllUsersParams = {
 	syncStatus: SyncStatus | null;
 	bookCountOrder: 'ASC' | 'DESC';
@@ -85,16 +82,22 @@ export const selectAllUsersForSync = async (
 	return rows;
 };
 
-export const selectUserById = async (
+export const selectRankedUserById = async (
 	sql: postgres.Sql<{}>,
 	userId: number
-): Promise<User | null> => {
-	const rows = await sql<User[]>`
-    SELECT id, name, avatar_url, books_read, pages_read
-    FROM users
+): Promise<RankedUser | null> => {
+	const rows = await sql<RankedUser[]>`
+    SELECT id, name, avatar_url, books_read, pages_read, rank, pages_rank
+    FROM ranked_users
     WHERE id = ${userId}
   `;
-	return rows[0] ?? null;
+	const user = rows[0];
+	if (!user) return null;
+	return {
+		...user,
+		rank: Number(user.rank),
+		pages_rank: Number(user.pages_rank),
+	};
 };
 
 export const selectUserByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<User[]> => {

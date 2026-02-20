@@ -41,14 +41,18 @@ export const selectBooksWithUsersAndReviews = async (
 	limit: number,
 	searchQuery?: string,
 	field?: string,
-	period?: Period
+	period?: Period,
+	userId?: number
 ): Promise<GetBooksResponse> => {
 	let searchCondition = sql``;
 	let dateCondition = sql``;
+	let userCondition = sql``;
 	let startDate: Date | undefined;
 	let endDate: Date | undefined;
+	let hasWhereClause = false;
 
 	if (searchQuery) {
+		hasWhereClause = true;
 		if (field === 'title') {
 			searchCondition = sql`WHERE (title_cleaned &@ clean_title(${searchQuery}))`;
 		} else if (field === 'author') {
@@ -60,9 +64,16 @@ export const selectBooksWithUsersAndReviews = async (
 
 	if (period) {
 		[startDate, endDate] = getDateRangeForPeriod(period);
-		dateCondition = searchCondition
+		dateCondition = hasWhereClause
 			? sql` AND (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`
 			: sql`WHERE (reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate})`;
+		hasWhereClause = true;
+	}
+
+	if (userId) {
+		userCondition = hasWhereClause
+			? sql` AND reads.user_id = ${userId}`
+			: sql`WHERE reads.user_id = ${userId}`;
 	}
 
 	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
@@ -71,6 +82,7 @@ export const selectBooksWithUsersAndReviews = async (
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
     ${dateCondition}
+    ${userCondition}
   `;
 
 	const bookRows = await sql<BookWithReaders[]>`
@@ -81,6 +93,7 @@ export const selectBooksWithUsersAndReviews = async (
     JOIN reads ON books.id = reads.merged_book_id
     ${searchCondition}
     ${dateCondition}
+    ${userCondition}
     GROUP BY books.id
     ORDER BY read_count DESC, books.id ASC
     LIMIT ${limit}
@@ -96,6 +109,7 @@ export const selectBooksWithUsersAndReviews = async (
 		JOIN reads ON users.id = reads.user_id
 		WHERE reads.merged_book_id IN ${sql(bookIds)}
 		${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
+		${userId ? sql`AND reads.user_id = ${userId}` : sql``}
 	)
 	SELECT * 
 	FROM book_read_users

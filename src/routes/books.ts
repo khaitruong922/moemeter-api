@@ -16,6 +16,7 @@ app.get('/', async (c) => {
 	const q = c.req.query('q');
 	const field = c.req.query('field');
 	const period = c.req.query('period') as Period;
+	const userId = c.req.query('user_id') ? Number(c.req.query('user_id')) : undefined;
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
@@ -35,7 +36,8 @@ app.get('/', async (c) => {
 		perPage,
 		searchQuery,
 		field,
-		period
+		period,
+		userId
 	);
 	const pageInfo = getPageInfo(reqPage, perPage, total_count);
 
