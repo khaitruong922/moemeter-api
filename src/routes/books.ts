@@ -18,6 +18,7 @@ app.get('/', async (c) => {
 	const period = c.req.query('period') as Period;
 	const userId = c.req.query('user_id') ? Number(c.req.query('user_id')) : undefined;
 	const lonely = c.req.query('lonely') === 'true';
+	const latest = c.req.query('latest') === 'true';
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
@@ -41,6 +42,7 @@ app.get('/', async (c) => {
 			period,
 			userId,
 			lonely,
+			latest,
 		}
 	);
 	const pageInfo = getPageInfo(reqPage, perPage, total_count);

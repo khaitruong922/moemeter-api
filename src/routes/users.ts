@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
 import { syncBookMerges } from '../db/book_merges';
-import { BookReview, selectBookByIds, selectLonelyBooksOfUser } from '../db/books';
+import { BookReview, selectBookByIds } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
@@ -181,33 +181,6 @@ app.get('/:userId/summary/:year', async (c) => {
 		user,
 		peak_month,
 		best_friend,
-	});
-});
-
-app.get('/:userId/lonely_books', async (c) => {
-	const userId = c.req.param('userId');
-	if (!userId || isNaN(Number(userId))) {
-		return c.json({ error: '無効なユーザーIDです' }, 400);
-	}
-	const sql = createDbClientFromEnv(c.env);
-	const books = await selectLonelyBooksOfUser(sql, Number(userId));
-	const book_ids = books.map((b) => b.id);
-	const bookReviews = await selectReviewsByIds(sql, book_ids);
-	const bookReviewsMap: Record<string, BookReview[]> = {};
-	bookReviews.forEach((review) => {
-		if (!bookReviewsMap[review.book_id]) {
-			bookReviewsMap[review.book_id] = [];
-		}
-		bookReviewsMap[review.book_id].push(review);
-	});
-
-	const booksWithReviews = books.map((b) => ({
-		...b,
-		reviews: bookReviewsMap[b.id] || [],
-	}));
-
-	return c.json({
-		books: booksWithReviews,
 	});
 });
 

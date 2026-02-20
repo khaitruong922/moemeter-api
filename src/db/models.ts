@@ -28,10 +28,6 @@ export interface BookWithReadId extends Book {
 	read_id: number;
 }
 
-export interface LonelyBook extends Book {
-	review: Review;
-}
-
 export interface Read {
 	id: number;
 	user_id: number;

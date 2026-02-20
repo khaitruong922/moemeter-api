@@ -13,6 +13,7 @@ export type BookReview = Review & {
 export type BookWithReaders = Book & {
 	user_ids: number[];
 	reviews: BookReview[];
+	date?: Date | null;
 };
 
 type ReaderSummary = {
@@ -43,13 +44,16 @@ export type SelectBooksFilters = {
 	period?: Period;
 	userId?: number;
 	lonely?: boolean;
+	latest?: boolean;
 };
 
 export const selectBooksWithUsersAndReviews = async (
 	sql: postgres.Sql<{}>,
 	filters: SelectBooksFilters
 ): Promise<GetBooksResponse> => {
-	const { offset, limit, searchQuery, field, period, userId, lonely } = filters;
+	const { offset, limit, searchQuery, field, period, userId, lonely, latest } = filters;
+	const useReadDateSort = lonely || latest;
+	const includeDate = lonely || userId !== undefined;
 	let searchCondition = sql``;
 	let dateCondition = sql``;
 	let userCondition = sql``;
@@ -141,13 +145,16 @@ export const selectBooksWithUsersAndReviews = async (
     SELECT 
       books.*,
       COUNT(DISTINCT all_reads.user_id) as read_count
-      ${lonely ? sql`, MAX(all_reads.date) as latest_read_date` : sql``}
+      ${includeDate ? sql`, MAX(date_reads.date) as date` : sql``}
     FROM books
     JOIN filtered_books ON books.id = filtered_books.id
     LEFT JOIN reads all_reads ON books.id = all_reads.merged_book_id
     ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
+    ${includeDate ? sql`LEFT JOIN reads date_reads ON books.id = date_reads.merged_book_id` : sql``}
+    ${includeDate && period ? sql`AND date_reads.date IS NOT NULL AND date_reads.date >= ${startDate} AND date_reads.date <= ${endDate}` : sql``}
+    ${includeDate && userId ? sql`AND date_reads.user_id = ${userId}` : sql``}
     GROUP BY books.id
-    ORDER BY ${lonely ? sql`latest_read_date DESC NULLS LAST` : sql`read_count DESC, books.id ASC`}
+    ORDER BY ${useReadDateSort ? sql`date DESC NULLS LAST` : sql`read_count DESC, books.id ASC`}
     LIMIT ${limit}
     OFFSET ${offset}
   `;
@@ -206,30 +213,6 @@ export const selectBooksWithUsersAndReviews = async (
 		total_count: Number(total),
 		total_reads_count: Number(total_reads_count),
 	};
-};
-
-export const selectLonelyBooksOfUser = async (
-	sql: postgres.Sql<{}>,
-	userId: number
-): Promise<Book[]> => {
-	const rows = await sql<Book[]>`
-    SELECT b.*
-    FROM books b
-    JOIN (
-      SELECT r.merged_book_id, MAX(r.date) AS completion_date
-      FROM reads r
-      WHERE r.user_id = ${userId}
-        AND NOT EXISTS (
-          SELECT 1
-          FROM reads r2
-          WHERE r2.merged_book_id = r.merged_book_id
-            AND r2.user_id != ${userId}
-        )
-      GROUP BY r.merged_book_id
-    ) latest_reads ON latest_reads.merged_book_id = b.id
-    ORDER BY latest_reads.completion_date DESC NULLS LAST
-  `;
-	return rows;
 };
 
 export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<Book[]> => {
