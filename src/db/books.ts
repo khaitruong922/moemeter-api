@@ -111,13 +111,21 @@ export const selectBooksWithUsersAndReviews = async (
 	}
 
 	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
-    SELECT COUNT(DISTINCT reads.merged_book_id) AS total, COUNT(reads.id) AS total_reads_count
-    FROM books 
-    JOIN reads ON books.id = reads.merged_book_id
-    ${searchCondition}
-    ${dateCondition}
-    ${userCondition}
-    ${lonelyCondition}
+    WITH filtered_books AS (
+      SELECT DISTINCT reads.merged_book_id
+      FROM books 
+      JOIN reads ON books.id = reads.merged_book_id
+      ${searchCondition}
+      ${dateCondition}
+      ${userCondition}
+      ${lonelyCondition}
+    )
+    SELECT 
+      COUNT(DISTINCT filtered_books.merged_book_id) AS total,
+      COUNT(all_reads.id) AS total_reads_count
+    FROM filtered_books
+    LEFT JOIN reads all_reads ON filtered_books.merged_book_id = all_reads.merged_book_id
+    ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
   `;
 
 	const bookRows = await sql<BookWithReaders[]>`
@@ -133,12 +141,13 @@ export const selectBooksWithUsersAndReviews = async (
     SELECT 
       books.*,
       COUNT(DISTINCT all_reads.user_id) as read_count
+      ${lonely ? sql`, MAX(all_reads.date) as latest_read_date` : sql``}
     FROM books
     JOIN filtered_books ON books.id = filtered_books.id
     LEFT JOIN reads all_reads ON books.id = all_reads.merged_book_id
     ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
     GROUP BY books.id
-    ORDER BY read_count DESC, books.id ASC
+    ORDER BY ${lonely ? sql`latest_read_date DESC NULLS LAST` : sql`read_count DESC, books.id ASC`}
     LIMIT ${limit}
     OFFSET ${offset}
   `;
