@@ -154,7 +154,7 @@ export const selectBooksWithUsersAndReviews = async (
     ${includeDate && period ? sql`AND date_reads.date IS NOT NULL AND date_reads.date >= ${startDate} AND date_reads.date <= ${endDate}` : sql``}
     ${includeDate && userId ? sql`AND date_reads.user_id = ${userId}` : sql``}
     GROUP BY books.id
-    ORDER BY ${useReadDateSort ? sql`date DESC NULLS LAST` : sql`read_count DESC, books.id ASC`}
+    ORDER BY ${useReadDateSort ? sql`date DESC NULLS LAST, books.id ASC` : sql`read_count DESC, books.id ASC`}
     LIMIT ${limit}
     OFFSET ${offset}
   `;
