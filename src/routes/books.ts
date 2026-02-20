@@ -17,6 +17,7 @@ app.get('/', async (c) => {
 	const field = c.req.query('field');
 	const period = c.req.query('period') as Period;
 	const userId = c.req.query('user_id') ? Number(c.req.query('user_id')) : undefined;
+	const lonely = c.req.query('lonely') === 'true';
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
@@ -32,12 +33,15 @@ app.get('/', async (c) => {
 	const offset = (reqPage - 1) * perPage;
 	const { books, users, total_count, total_reads_count } = await selectBooksWithUsersAndReviews(
 		sql,
-		offset,
-		perPage,
-		searchQuery,
-		field,
-		period,
-		userId
+		{
+			offset,
+			limit: perPage,
+			searchQuery,
+			field,
+			period,
+			userId,
+			lonely,
+		}
 	);
 	const pageInfo = getPageInfo(reqPage, perPage, total_count);
 

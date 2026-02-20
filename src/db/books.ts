@@ -35,18 +35,25 @@ type GetBooksResponse = {
 	total_reads_count: number;
 };
 
+export type SelectBooksFilters = {
+	offset: number;
+	limit: number;
+	searchQuery?: string;
+	field?: string;
+	period?: Period;
+	userId?: number;
+	lonely?: boolean;
+};
+
 export const selectBooksWithUsersAndReviews = async (
 	sql: postgres.Sql<{}>,
-	offset: number,
-	limit: number,
-	searchQuery?: string,
-	field?: string,
-	period?: Period,
-	userId?: number
+	filters: SelectBooksFilters
 ): Promise<GetBooksResponse> => {
+	const { offset, limit, searchQuery, field, period, userId, lonely } = filters;
 	let searchCondition = sql``;
 	let dateCondition = sql``;
 	let userCondition = sql``;
+	let lonelyCondition = sql``;
 	let startDate: Date | undefined;
 	let endDate: Date | undefined;
 	let hasWhereClause = false;
@@ -76,6 +83,33 @@ export const selectBooksWithUsersAndReviews = async (
 			: sql`WHERE reads.user_id = ${userId}`;
 	}
 
+	if (lonely) {
+		if (userId) {
+			// Lonely books of specific user: books read by only that user
+			lonelyCondition = sql`
+				AND (
+					SELECT COUNT(DISTINCT r2.user_id)
+					FROM reads r2
+					WHERE r2.merged_book_id = books.id
+				) = 1
+				AND EXISTS (
+					SELECT 1 FROM reads r3
+					WHERE r3.merged_book_id = books.id
+					AND r3.user_id = ${userId}
+				)
+			`;
+		} else {
+			// All lonely books: books with exactly 1 unique reader
+			lonelyCondition = sql`
+				AND (
+					SELECT COUNT(DISTINCT r2.user_id)
+					FROM reads r2
+					WHERE r2.merged_book_id = books.id
+				) = 1
+			`;
+		}
+	}
+
 	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
     SELECT COUNT(DISTINCT reads.merged_book_id) AS total, COUNT(reads.id) AS total_reads_count
     FROM books 
@@ -83,17 +117,26 @@ export const selectBooksWithUsersAndReviews = async (
     ${searchCondition}
     ${dateCondition}
     ${userCondition}
+    ${lonelyCondition}
   `;
 
 	const bookRows = await sql<BookWithReaders[]>`
+    WITH filtered_books AS (
+      SELECT DISTINCT books.id
+      FROM books
+      JOIN reads ON books.id = reads.merged_book_id
+      ${searchCondition}
+      ${dateCondition}
+      ${userCondition}
+      ${lonelyCondition}
+    )
     SELECT 
       books.*,
-      COUNT(DISTINCT reads.user_id) as read_count
+      COUNT(DISTINCT all_reads.user_id) as read_count
     FROM books
-    JOIN reads ON books.id = reads.merged_book_id
-    ${searchCondition}
-    ${dateCondition}
-    ${userCondition}
+    JOIN filtered_books ON books.id = filtered_books.id
+    LEFT JOIN reads all_reads ON books.id = all_reads.merged_book_id
+    ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
     GROUP BY books.id
     ORDER BY read_count DESC, books.id ASC
     LIMIT ${limit}
@@ -109,7 +152,6 @@ export const selectBooksWithUsersAndReviews = async (
 		JOIN reads ON users.id = reads.user_id
 		WHERE reads.merged_book_id IN ${sql(bookIds)}
 		${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
-		${userId ? sql`AND reads.user_id = ${userId}` : sql``}
 	)
 	SELECT * 
 	FROM book_read_users
