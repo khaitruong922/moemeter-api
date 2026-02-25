@@ -12,7 +12,8 @@ export const fetchAllUserReadsV2 = async (
 	bookmeterApiService: BookmeterApiService,
 	id: number,
 	bookcase: string | null,
-	original_books_read: number
+	original_books_read: number,
+	blacklistedBookIds: Set<number>
 ): Promise<FetchAllUserReadsResult> => {
 	const reads: UserReadData[] = [];
 	let pages_read = 0;
@@ -37,7 +38,8 @@ export const fetchAllUserReadsV2 = async (
 			pageStart,
 			pageEnd,
 			PER_PAGE,
-			bookcase
+			bookcase,
+			blacklistedBookIds
 		);
 		const { reads: partitionReads } = result;
 		reads.push(...partitionReads);

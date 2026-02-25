@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import { fetchAllUserReadsV2 } from '../bookmeter-api/book';
 import { fetchAllUserReviews } from '../bookmeter-api/review';
+import { selectBlacklistedBookIds } from '../db/blacklisted_books';
 import { bulkUpsertBooks } from '../db/books';
 import { Read, Review, User } from '../db/models';
 import { bulkInsertReads, deleteReadsOfUser } from '../db/reads';
@@ -14,6 +15,8 @@ export const fullImportUser = async (
 	bookmeterApiService: BookmeterApiService,
 	user: User
 ) => {
+	const blacklistedBookIds = await selectBlacklistedBookIds(sql);
+
 	const {
 		reads: userReads,
 		books_read,
@@ -22,8 +25,10 @@ export const fullImportUser = async (
 		bookmeterApiService,
 		user.id,
 		user.bookcase,
-		user.original_books_read
+		user.original_books_read,
+		blacklistedBookIds
 	);
+
 	const shouldUpsertReviews = user.reviews_count !== null && user.reviews_count > 0;
 	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
 	delete user.reviews_count;

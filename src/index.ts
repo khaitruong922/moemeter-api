@@ -6,6 +6,7 @@ import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
+import blacklistedBooks from './routes/blacklisted_books';
 import bookMergeExceptions from './routes/book_ merge_exceptions';
 import bookMerges from './routes/book_merges';
 import books from './routes/books';
@@ -27,11 +28,6 @@ app.get('/', async (c) => {
 	});
 });
 
-app.get('/test', async (c) => {
-	const bookmeterApi = await fetchAllUserReadsV2(c.env.BOOKMETER_API, 1542943, null, 8019);
-	return c.json(bookmeterApi);
-});
-
 app.get('/health', async (c) => {
 	try {
 		const db = createDbClientFromEnv(c.env);
@@ -45,6 +41,7 @@ app.get('/health', async (c) => {
 
 app.route('/users', users);
 app.route('/books', books);
+app.route('/blacklisted_books', blacklistedBooks);
 app.route('/book_merges', bookMerges);
 app.route('/manual_book_merges', manualBookMerges);
 app.route('/book_merge_exceptions', bookMergeExceptions);

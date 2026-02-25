@@ -19,6 +19,7 @@ export interface BookmeterApiService {
 		pageStart: number,
 		pageEnd: number,
 		perPage: number,
-		bookcase: string | null
+		bookcase: string | null,
+		blacklistedBookIds: Set<number>
 	): Promise<FetchUserReadsOfPagesResponse>;
 }
