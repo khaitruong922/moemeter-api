@@ -125,6 +125,13 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
   `;
 };
 
+export const deleteUserById = async (sql: postgres.Sql<{}>, userId: number): Promise<void> => {
+	await sql`DELETE FROM reads WHERE user_id = ${userId}`;
+	await sql`DELETE FROM users WHERE id = ${userId}`;
+	await sql`REFRESH MATERIALIZED VIEW ranked_users`;
+	await sql`REFRESH MATERIALIZED VIEW yearly_leaderboard`;
+};
+
 export const updateUserNameAndAvatarUrl = async (
 	sql: postgres.Sql<{}>,
 	userId: number,

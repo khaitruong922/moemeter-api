@@ -7,6 +7,7 @@ import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
 import {
+	deleteUserById,
 	RankedUser,
 	refreshRankedUsers,
 	refreshYearlyLeaderboard,
@@ -182,6 +183,16 @@ app.get('/:userId/summary/:year', async (c) => {
 		peak_month,
 		best_friend,
 	});
+});
+
+app.delete('/:userId', validateGroupAuth, async (c) => {
+	const userId = Number(c.req.param('userId'));
+	if (!userId || isNaN(userId)) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	await deleteUserById(sql, userId);
+	return c.json({ message: 'ユーザーが正常に削除されました' });
 });
 
 export default app;

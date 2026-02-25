@@ -258,6 +258,24 @@ CREATE TABLE public.metadata (
 ALTER TABLE public.metadata OWNER TO postgres;
 
 --
+-- Name: ranked_users; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.ranked_users AS
+ SELECT id,
+    name,
+    avatar_url,
+    books_read,
+    pages_read,
+    rank() OVER (ORDER BY books_read DESC, pages_read DESC) AS rank,
+    rank() OVER (ORDER BY pages_read DESC, books_read DESC) AS pages_rank
+   FROM public.users
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.ranked_users OWNER TO postgres;
+
+--
 -- Name: reads; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -457,6 +475,27 @@ ALTER TABLE ONLY public.reads
 
 ALTER TABLE ONLY public.reviews
     ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_ranked_users_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX idx_ranked_users_id ON public.ranked_users USING btree (id);
+
+
+--
+-- Name: idx_ranked_users_pages_rank; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_ranked_users_pages_rank ON public.ranked_users USING btree (pages_rank);
+
+
+--
+-- Name: idx_ranked_users_rank; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_ranked_users_rank ON public.ranked_users USING btree (rank);
 
 
 --
