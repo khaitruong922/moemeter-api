@@ -1,5 +1,5 @@
-import { UserReadData } from '../bookmeter-api/book';
 import { Book } from '../db/models';
+import { UserReadData } from '../types/bookmeter_api_service';
 
 export const getUniqueBooks = (userReads: UserReadData[]): UserReadData[] => {
 	const ids = new Set<number>();

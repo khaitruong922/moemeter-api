@@ -5,8 +5,16 @@ export type RankedUser = User & {
 	rank: number | string;
 	pages_rank: number | string;
 };
-
 export type RankOrder = 'books' | 'pages';
+
+export type LonelyUser = User & {
+	lonely_book_count: number | string;
+	lonely_days: number | string;
+	null_read_date_count: number | string;
+	book_count_rank: number | string;
+	days_rank: number | string;
+};
+export type LonelyOrder = 'days' | 'book_count';
 
 export const selectAllUsersWithRank = async (
 	sql: postgres.Sql<{}>,
@@ -42,6 +50,26 @@ export const selectYearlyLeaderboard = async (
 	}));
 };
 
+export const selectLonelyLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: LonelyOrder
+): Promise<LonelyUser[]> => {
+	const rankField = order === 'days' ? 'days_rank' : 'book_count_rank';
+	const rows = await sql<LonelyUser[]>`
+    SELECT * FROM lonely_leaderboard
+    ORDER BY ${sql(rankField)} ASC;
+  `;
+
+	return rows.map((r) => ({
+		...r,
+		lonely_book_count: Number(r.lonely_book_count),
+		lonely_days: Number(r.lonely_days),
+		null_read_date_count: Number(r.null_read_date_count),
+		book_count_rank: Number(r.book_count_rank),
+		days_rank: Number(r.days_rank),
+	}));
+};
+
 export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW yearly_leaderboard;
@@ -51,6 +79,12 @@ export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
 export const refreshRankedUsers = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
 	REFRESH MATERIALIZED VIEW ranked_users;
+  `;
+};
+
+export const refreshLonelyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW lonely_leaderboard;
   `;
 };
 

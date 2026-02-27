@@ -33,14 +33,10 @@ export const fullImportUser = async (
 	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
 	delete user.reviews_count;
 
-	if (user.bookcase) {
-		user.books_read = books_read;
-		user.pages_read = pages_read;
-	} else {
-		// Set to null if bookcase is not set
-		user.original_books_read = null;
-		user.original_pages_read = null;
-	}
+	// Update user's books_read and pages_read based on the final results from the API,
+	// which may differ from the initial values if a bookcase is specified or if there are blacklisted books.
+	user.books_read = books_read;
+	user.pages_read = pages_read;
 
 	const uniqueBookModels = getUniqueBooks(userReads).map(mapBookDataToBookModel);
 	await upsertUser(sql, user);

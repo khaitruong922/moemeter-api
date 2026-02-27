@@ -9,9 +9,11 @@ import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } fr
 import {
 	deleteUserById,
 	RankedUser,
+	refreshLonelyLeaderboard,
 	refreshRankedUsers,
 	refreshYearlyLeaderboard,
 	selectAllUsersWithRank,
+	selectLonelyLeaderboard,
 	selectRankedUserById,
 	selectUserByIds,
 	selectYearlyLeaderboard,
@@ -38,6 +40,13 @@ app.get('/leaderboard', async (c) => {
 	}
 
 	return c.json(users);
+});
+
+app.get('/lonely-leaderboard', async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	const lonelyOrder = c.req.query('order') === 'days' ? 'days' : 'book_count';
+	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
+	return c.json(lonelyUsers);
 });
 
 app.get('/:userId', async (c) => {
@@ -83,6 +92,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 		await syncBookMerges(sql);
 		await refreshRankedUsers(sql);
 		await refreshYearlyLeaderboard(sql);
+		await refreshLonelyLeaderboard(sql);
 		await deleteOrphanReviews(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({

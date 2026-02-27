@@ -6,6 +6,7 @@ import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
 import { deleteOrphanReviews } from '../db/reviews';
 import {
+	refreshLonelyLeaderboard,
 	refreshRankedUsers,
 	refreshYearlyLeaderboard,
 	selectAllUsersForSync,
@@ -53,6 +54,7 @@ export const syncAllUsers = async (
 	await syncBookMerges(sql);
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
+	await refreshLonelyLeaderboard(sql);
 	await deleteOrphanReviews(sql);
 	await updateMetadataLastUpdated(sql, new Date());
 
@@ -102,7 +104,8 @@ const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
 	}
 
 	return (
-		currentUser.books_read === newUser.books_read && currentUser.pages_read === newUser.pages_read
+		currentUser.original_books_read === newUser.original_books_read &&
+		currentUser.original_pages_read === newUser.original_pages_read
 	);
 };
 

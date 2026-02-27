@@ -101,6 +101,17 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: blacklisted_books; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.blacklisted_books (
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.blacklisted_books OWNER TO postgres;
+
+--
 -- Name: book_merge_exceptions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -247,6 +258,76 @@ ALTER SEQUENCE public.groups_id_seq OWNED BY public.groups.id;
 
 
 --
+-- Name: reads; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.reads (
+    user_id integer NOT NULL,
+    book_id integer NOT NULL,
+    merged_book_id integer DEFAULT 334913 NOT NULL,
+    date date,
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.reads OWNER TO postgres;
+
+--
+-- Name: lonely_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.lonely_leaderboard AS
+ WITH lonely_books AS (
+         SELECT reads.merged_book_id
+           FROM public.reads
+          GROUP BY reads.merged_book_id
+         HAVING (count(DISTINCT reads.user_id) = 1)
+        ), aggregated AS (
+         SELECT r.user_id,
+            count(*) AS lonely_book_count,
+            COALESCE(sum(((((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - r.date) + 1)), (0)::bigint) AS lonely_days,
+            count(*) FILTER (WHERE (r.date IS NULL)) AS null_read_date_count
+           FROM (public.reads r
+             JOIN lonely_books lb ON ((lb.merged_book_id = r.merged_book_id)))
+          GROUP BY r.user_id
+        ), final_data AS (
+         SELECT u.id,
+            u.name,
+            u.avatar_url,
+            u.books_read,
+            u.pages_read,
+            u.sync_status,
+            u.bookcase,
+            u.original_books_read,
+            u.original_pages_read,
+            COALESCE(a.lonely_book_count, (0)::bigint) AS lonely_book_count,
+            COALESCE(a.lonely_days, (0)::bigint) AS lonely_days,
+            COALESCE(a.null_read_date_count, (0)::bigint) AS null_read_date_count
+           FROM (public.users u
+             LEFT JOIN aggregated a ON ((a.user_id = u.id)))
+          WHERE (a.lonely_book_count > 0)
+        )
+ SELECT id,
+    name,
+    avatar_url,
+    books_read,
+    pages_read,
+    sync_status,
+    bookcase,
+    original_books_read,
+    original_pages_read,
+    lonely_book_count,
+    lonely_days,
+    null_read_date_count,
+    rank() OVER (ORDER BY lonely_book_count DESC, lonely_days DESC, null_read_date_count DESC) AS book_count_rank,
+    rank() OVER (ORDER BY lonely_days DESC, lonely_book_count DESC, null_read_date_count DESC) AS days_rank
+   FROM final_data
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.lonely_leaderboard OWNER TO postgres;
+
+--
 -- Name: metadata; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -274,21 +355,6 @@ CREATE MATERIALIZED VIEW public.ranked_users AS
 
 
 ALTER MATERIALIZED VIEW public.ranked_users OWNER TO postgres;
-
---
--- Name: reads; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.reads (
-    user_id integer NOT NULL,
-    book_id integer NOT NULL,
-    merged_book_id integer DEFAULT 334913 NOT NULL,
-    date date,
-    id integer NOT NULL
-);
-
-
-ALTER TABLE public.reads OWNER TO postgres;
 
 --
 -- Name: reads_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -412,6 +478,14 @@ CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
 
 
 ALTER MATERIALIZED VIEW public.yearly_leaderboard OWNER TO postgres;
+
+--
+-- Name: blacklisted_books blacklisted_books_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.blacklisted_books
+    ADD CONSTRAINT blacklisted_books_pkey PRIMARY KEY (id);
+
 
 --
 -- Name: book_merge_exceptions book_merge_exceptions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
@@ -594,6 +668,12 @@ ALTER TABLE ONLY public.reads
 ALTER TABLE ONLY public.reads
     ADD CONSTRAINT reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
 
+
+--
+-- Name: blacklisted_books; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.blacklisted_books ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: book_merge_exceptions; Type: ROW SECURITY; Schema: public; Owner: postgres
