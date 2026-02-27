@@ -44,7 +44,7 @@ app.get('/leaderboard', async (c) => {
 
 app.get('/lonely-leaderboard', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
-	const lonelyOrder = c.req.query('order') === 'points' ? 'points' : 'book_count';
+	const lonelyOrder = c.req.query('order') === 'days' ? 'days' : 'book_count';
 	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
 	return c.json(lonelyUsers);
 });
