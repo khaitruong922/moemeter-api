@@ -1,7 +1,7 @@
 import postgres from 'postgres';
+import { getDateRangeForPeriod, Period } from '../utils/period';
 import { Book, Review } from './models';
 import { selectReviewsByIds } from './reviews';
-import { getDateRangeForPeriod, Period } from '../utils/period';
 
 export type BookReview = Review & {
 	book_id: number;
@@ -44,15 +44,21 @@ export type SelectBooksFilters = {
 	period?: Period;
 	userId?: number;
 	lonely?: boolean;
-	latest?: boolean;
+	dateOrder?: 'ASC' | 'DESC';
+};
+
+const getBookOrder = (dateOrder?: 'ASC' | 'DESC'): string => {
+	if (dateOrder === 'ASC') return 'date ASC NULLS LAST, books.id ASC';
+	if (dateOrder === 'DESC') return 'date DESC NULLS LAST, books.id ASC';
+	return 'read_count DESC, books.id ASC';
 };
 
 export const selectBooksWithUsersAndReviews = async (
 	sql: postgres.Sql<{}>,
 	filters: SelectBooksFilters
 ): Promise<GetBooksResponse> => {
-	const { offset, limit, searchQuery, field, period, userId, lonely, latest } = filters;
-	const useReadDateSort = lonely || latest;
+	const { offset, limit, searchQuery, field, period, userId, lonely, dateOrder } = filters;
+
 	const includeDate = lonely || userId !== undefined;
 	let searchCondition = sql``;
 	let dateCondition = sql``;
@@ -132,6 +138,8 @@ export const selectBooksWithUsersAndReviews = async (
     ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
   `;
 
+	const orderBy = getBookOrder(dateOrder);
+
 	const bookRows = await sql<BookWithReaders[]>`
     WITH filtered_books AS (
       SELECT DISTINCT books.id
@@ -154,7 +162,7 @@ export const selectBooksWithUsersAndReviews = async (
     ${includeDate && period ? sql`AND date_reads.date IS NOT NULL AND date_reads.date >= ${startDate} AND date_reads.date <= ${endDate}` : sql``}
     ${includeDate && userId ? sql`AND date_reads.user_id = ${userId}` : sql``}
     GROUP BY books.id
-    ORDER BY ${useReadDateSort ? sql`date DESC NULLS LAST, books.id ASC` : sql`read_count DESC, books.id ASC`}
+    ORDER BY ${sql.unsafe(orderBy)}
     LIMIT ${limit}
     OFFSET ${offset}
   `;
