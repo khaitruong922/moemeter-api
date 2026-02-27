@@ -6,6 +6,7 @@ import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
 import { deleteOrphanReviews } from '../db/reviews';
 import {
+	refreshLonelyLeaderboard,
 	refreshRankedUsers,
 	refreshYearlyLeaderboard,
 	selectAllUsersForSync,
@@ -53,6 +54,7 @@ export const syncAllUsers = async (
 	await syncBookMerges(sql);
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
+	await refreshLonelyLeaderboard(sql);
 	await deleteOrphanReviews(sql);
 	await updateMetadataLastUpdated(sql, new Date());
 
