@@ -11,6 +11,8 @@ export type LonelyUser = User & {
 	lonely_book_count: number | string;
 	lonely_points: number | string;
 	null_read_date_count: number | string;
+	book_count_rank: number | string;
+	points_rank: number | string;
 };
 export type LonelyOrder = 'points' | 'book_count';
 
@@ -52,10 +54,10 @@ export const selectLonelyLeaderboard = async (
 	sql: postgres.Sql<{}>,
 	order: LonelyOrder
 ): Promise<LonelyUser[]> => {
-	const sortField = order === 'points' ? 'lonely_points' : 'lonely_book_count';
+	const rankField = order === 'points' ? 'points_rank' : 'book_count_rank';
 	const rows = await sql<LonelyUser[]>`
     SELECT * FROM lonely_leaderboard
-    ORDER BY ${sql(sortField)} DESC, null_read_date_count DESC;
+    ORDER BY ${sql(rankField)} ASC;
   `;
 
 	return rows.map((r) => ({
@@ -63,6 +65,8 @@ export const selectLonelyLeaderboard = async (
 		lonely_book_count: Number(r.lonely_book_count),
 		lonely_points: Number(r.lonely_points),
 		null_read_date_count: Number(r.null_read_date_count),
+		book_count_rank: Number(r.book_count_rank),
+		points_rank: Number(r.points_rank),
 	}));
 };
 
