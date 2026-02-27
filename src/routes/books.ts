@@ -11,7 +11,7 @@ import { Period } from '../utils/period';
 const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
-	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 25);
+	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 50);
 	const reqPage = applyNaNVL(parseNatNum(c.req.query('page')), 1);
 	const q = c.req.query('q');
 	const field = c.req.query('field');
