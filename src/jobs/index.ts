@@ -102,7 +102,8 @@ const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
 	}
 
 	return (
-		currentUser.books_read === newUser.books_read && currentUser.pages_read === newUser.pages_read
+		currentUser.original_books_read === newUser.original_books_read &&
+		currentUser.original_pages_read === newUser.original_pages_read
 	);
 };
 

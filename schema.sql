@@ -101,6 +101,17 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: blacklisted_books; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.blacklisted_books (
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.blacklisted_books OWNER TO postgres;
+
+--
 -- Name: book_merge_exceptions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -414,6 +425,14 @@ CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
 ALTER MATERIALIZED VIEW public.yearly_leaderboard OWNER TO postgres;
 
 --
+-- Name: blacklisted_books blacklisted_books_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.blacklisted_books
+    ADD CONSTRAINT blacklisted_books_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: book_merge_exceptions book_merge_exceptions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -594,6 +613,12 @@ ALTER TABLE ONLY public.reads
 ALTER TABLE ONLY public.reads
     ADD CONSTRAINT reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
 
+
+--
+-- Name: blacklisted_books; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.blacklisted_books ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: book_merge_exceptions; Type: ROW SECURITY; Schema: public; Owner: postgres
