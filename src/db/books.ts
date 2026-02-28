@@ -121,51 +121,57 @@ export const selectBooksWithUsersAndReviews = async (
 	}
 
 	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
-    WITH filtered_books AS (
-      SELECT DISTINCT reads.merged_book_id
-      FROM books 
-      JOIN reads ON books.id = reads.merged_book_id
-      ${searchCondition}
-      ${dateCondition}
-      ${userCondition}
-      ${lonelyCondition}
-    )
-    SELECT 
-      COUNT(DISTINCT filtered_books.merged_book_id) AS total,
-      COUNT(all_reads.id) AS total_reads_count
-    FROM filtered_books
-    LEFT JOIN reads all_reads ON filtered_books.merged_book_id = all_reads.merged_book_id
-    ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
-  `;
+  WITH filtered_reads AS (
+    SELECT reads.*
+    FROM reads
+    JOIN books ON books.id = reads.merged_book_id
+    ${searchCondition}
+    ${dateCondition}
+    ${userCondition}
+    ${lonelyCondition}
+  )
+  SELECT
+    ${
+			userId ? sql`COUNT(filtered_reads.id)` : sql`COUNT(DISTINCT filtered_reads.merged_book_id)`
+		} AS total,
+    COUNT(filtered_reads.id) AS total_reads_count
+  FROM filtered_reads
+  ${
+		period
+			? sql`
+        WHERE filtered_reads.date IS NOT NULL
+        AND filtered_reads.date >= ${startDate}
+        AND filtered_reads.date <= ${endDate}
+      `
+			: sql``
+	}
+`;
 
 	const orderBy = getBookOrder(dateOrder);
 
 	const bookRows = await sql<BookWithReaders[]>`
-    WITH filtered_books AS (
-      SELECT DISTINCT books.id
-      FROM books
-      JOIN reads ON books.id = reads.merged_book_id
-      ${searchCondition}
-      ${dateCondition}
-      ${userCondition}
-      ${lonelyCondition}
-    )
-    SELECT 
-      books.*,
-      COUNT(DISTINCT all_reads.user_id) as read_count
-      ${includeDate ? sql`, MAX(date_reads.date) as date` : sql``}
-    FROM books
-    JOIN filtered_books ON books.id = filtered_books.id
-    LEFT JOIN reads all_reads ON books.id = all_reads.merged_book_id
-    ${period ? sql`AND all_reads.date IS NOT NULL AND all_reads.date >= ${startDate} AND all_reads.date <= ${endDate}` : sql``}
-    ${includeDate ? sql`LEFT JOIN reads date_reads ON books.id = date_reads.merged_book_id` : sql``}
-    ${includeDate && period ? sql`AND date_reads.date IS NOT NULL AND date_reads.date >= ${startDate} AND date_reads.date <= ${endDate}` : sql``}
-    ${includeDate && userId ? sql`AND date_reads.user_id = ${userId}` : sql``}
-    GROUP BY books.id
-    ORDER BY ${sql.unsafe(orderBy)}
-    LIMIT ${limit}
-    OFFSET ${offset}
-  `;
+  WITH filtered_reads AS (
+    SELECT reads.*
+    FROM reads
+    JOIN books ON books.id = reads.merged_book_id
+    ${searchCondition}
+    ${dateCondition}
+    ${userCondition}
+    ${lonelyCondition}
+  )
+
+  SELECT
+    books.*,
+    COUNT(DISTINCT filtered_reads.user_id) as read_count
+    ${includeDate ? sql`, MAX(filtered_reads.date) as date` : sql``}
+    ${userId ? sql`, filtered_reads.id as read_id` : sql``}
+  FROM filtered_reads
+  JOIN books ON books.id = filtered_reads.merged_book_id
+  ${userId ? sql`GROUP BY books.id, filtered_reads.id` : sql`GROUP BY books.id`}
+  ORDER BY ${sql.unsafe(orderBy)}
+  LIMIT ${limit}
+  OFFSET ${offset}
+`;
 
 	const bookIds = bookRows.map((book) => book.id);
 
