@@ -8,6 +8,7 @@ import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
 import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
 import {
 	deleteUserById,
+	LonelyOrder,
 	RankedUser,
 	refreshLonelyLeaderboard,
 	refreshRankedUsers,
@@ -44,7 +45,7 @@ app.get('/leaderboard', async (c) => {
 
 app.get('/lonely-leaderboard', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
-	const lonelyOrder = c.req.query('order') === 'days' ? 'days' : 'book_count';
+	const lonelyOrder = c.req.query('order') as LonelyOrder;
 	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
 	return c.json(lonelyUsers);
 });
