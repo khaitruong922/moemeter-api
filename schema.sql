@@ -282,6 +282,11 @@ CREATE MATERIALIZED VIEW public.lonely_leaderboard AS
            FROM public.reads
           GROUP BY reads.merged_book_id
          HAVING (count(DISTINCT reads.user_id) = 1)
+        ), user_totals AS (
+         SELECT reads.user_id,
+            count(*) AS total_book_count
+           FROM public.reads
+          GROUP BY reads.user_id
         ), aggregated AS (
          SELECT r.user_id,
             count(*) AS lonely_book_count,
@@ -302,10 +307,16 @@ CREATE MATERIALIZED VIEW public.lonely_leaderboard AS
             u.original_pages_read,
             COALESCE(a.lonely_book_count, (0)::bigint) AS lonely_book_count,
             COALESCE(a.lonely_days, (0)::bigint) AS lonely_days,
-            COALESCE(a.null_read_date_count, (0)::bigint) AS null_read_date_count
-           FROM (public.users u
+            COALESCE(a.null_read_date_count, (0)::bigint) AS null_read_date_count,
+            COALESCE(t.total_book_count, (0)::bigint) AS total_book_count,
+                CASE
+                    WHEN (t.total_book_count > 0) THEN ((COALESCE(a.lonely_book_count, (0)::bigint))::numeric / (t.total_book_count)::numeric)
+                    ELSE (0)::numeric
+                END AS lonely_ratio
+           FROM ((public.users u
              LEFT JOIN aggregated a ON ((a.user_id = u.id)))
-          WHERE (a.lonely_book_count > 0)
+             LEFT JOIN user_totals t ON ((t.user_id = u.id)))
+          WHERE (COALESCE(a.lonely_book_count, (0)::bigint) > 0)
         )
  SELECT id,
     name,
@@ -319,8 +330,11 @@ CREATE MATERIALIZED VIEW public.lonely_leaderboard AS
     lonely_book_count,
     lonely_days,
     null_read_date_count,
-    rank() OVER (ORDER BY lonely_book_count DESC, lonely_days DESC, null_read_date_count DESC) AS book_count_rank,
-    rank() OVER (ORDER BY lonely_days DESC, lonely_book_count DESC, null_read_date_count DESC) AS days_rank
+    total_book_count,
+    lonely_ratio,
+    rank() OVER (ORDER BY lonely_book_count DESC, lonely_ratio DESC, lonely_days DESC, null_read_date_count DESC) AS book_count_rank,
+    rank() OVER (ORDER BY lonely_days DESC, lonely_book_count DESC, lonely_ratio DESC, null_read_date_count DESC) AS days_rank,
+    rank() OVER (ORDER BY lonely_ratio DESC, lonely_book_count DESC, lonely_days DESC, null_read_date_count DESC) AS ratio_rank
    FROM final_data
   WITH NO DATA;
 
@@ -416,18 +430,6 @@ ALTER SEQUENCE public.reviews_id_seq OWNED BY public.reviews.id;
 
 
 --
--- Name: users_groups; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.users_groups (
-    user_id integer NOT NULL,
-    group_id integer NOT NULL
-);
-
-
-ALTER TABLE public.users_groups OWNER TO postgres;
-
---
 -- Name: groups id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -509,14 +511,6 @@ ALTER TABLE ONLY public.book_merges
 
 ALTER TABLE ONLY public.books
     ADD CONSTRAINT books_pkey PRIMARY KEY (id);
-
-
---
--- Name: users_groups group_users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.users_groups
-    ADD CONSTRAINT group_users_pkey PRIMARY KEY (user_id, group_id);
 
 
 --
@@ -630,22 +624,6 @@ ALTER TABLE ONLY public.reads
 
 
 --
--- Name: users_groups group_users_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.users_groups
-    ADD CONSTRAINT group_users_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id);
-
-
---
--- Name: users_groups group_users_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.users_groups
-    ADD CONSTRAINT group_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-
---
 -- Name: reads reads_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -728,12 +706,6 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-
---
--- Name: users_groups; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.users_groups ENABLE ROW LEVEL SECURITY;
 
 --
 -- PostgreSQL database dump complete

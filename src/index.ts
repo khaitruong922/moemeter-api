@@ -10,7 +10,6 @@ import blacklistedBooks from './routes/blacklisted_books';
 import bookMergeExceptions from './routes/book_ merge_exceptions';
 import bookMerges from './routes/book_merges';
 import books from './routes/books';
-import groups from './routes/groups';
 import manualBookMerges from './routes/manual_book_merges';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
@@ -46,7 +45,6 @@ app.route('/book_merges', bookMerges);
 app.route('/manual_book_merges', manualBookMerges);
 app.route('/book_merge_exceptions', bookMergeExceptions);
 app.route('/reads', reads);
-app.route('/groups', groups);
 app.route('/metadata', metadata);
 
 app.notFound((c) => {
