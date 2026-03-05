@@ -50,6 +50,12 @@ app.get('/lonely-leaderboard', async (c) => {
 	return c.json(lonelyUsers);
 });
 
+app.post('/lonely-leaderboard/refresh', validateGroupAuth, async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	await refreshLonelyLeaderboard(sql);
+	return c.json({ message: '孤独な読書家ランキングが正常に更新されました' });
+});
+
 app.get('/:userId', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
