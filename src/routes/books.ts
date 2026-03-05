@@ -75,7 +75,7 @@ app.get('/:bookId/reads', async (c) => {
 
 app.get('/library', async (c) => {
 	const page = applyNaNVL(parseNatNum(c.req.query('page')), 1);
-	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 50);
+	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 100000);
 	const sql = createDbClientFromEnv(c.env);
 	const offset = (page - 1) * perPage;
 	const { books, total_count } = await selectBooksWithMergeData(sql, offset, perPage);
