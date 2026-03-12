@@ -2,7 +2,7 @@ import { getBookcase } from '../bookmeter-api/bookcase';
 import { User } from '../db/models';
 import { getHTML } from '../infra/html';
 import { applyNaNVL } from '../utils/number';
-import { extractRegex, extractRegexGroup } from '../utils/string';
+import { extractRegex, extractRegexGroup, safeParseUTCDate } from '../utils/string';
 
 const parseIntSafe = (str: string): number => {
 	const num = parseInt(str, 10);
@@ -29,6 +29,8 @@ export const getUserFromBookmeterUrl = async (
 	}
 	const pagesRead = getUserPagesRead(userSectionHtml);
 	const reviewsCount = getUserReviewsCount(userSectionHtml);
+	const registrationDate = getUserRegistrationDate(userSectionHtml);
+	const firstLogDate = getUserFirstLogDate(userSectionHtml);
 	return {
 		id: userId,
 		name: getUserName(userSectionHtml),
@@ -39,6 +41,8 @@ export const getUserFromBookmeterUrl = async (
 		original_books_read: originalBooksRead,
 		original_pages_read: pagesRead,
 		reviews_count: reviewsCount,
+		registration_date: registrationDate,
+		first_log_date: firstLogDate,
 	};
 };
 
@@ -94,4 +98,20 @@ export const getUserReviewsCount = (html: string): number => {
 			/<dd class="bm-details-side__item"><a href="\/users\/\d+\/reviews">(\d+)件/g
 		)[0]
 	);
+};
+
+export const getUserRegistrationDate = (html: string): Date | null => {
+	const match = extractRegex(
+		html,
+		/<dt class="bm-details-side__title">登録日<\/dt><dd class="bm-details-side__item">(\d{4}\/\d{2}\/\d{2})/g
+	);
+	return match[0] ? safeParseUTCDate(match[0]) : null;
+};
+
+export const getUserFirstLogDate = (html: string): Date | null => {
+	const match = extractRegex(
+		html,
+		/<dt class="bm-details-side__title">記録初日<\/dt><dd class="bm-details-side__item">(\d{4}\/\d{2}\/\d{2})/g
+	);
+	return match[0] ? safeParseUTCDate(match[0]) : null;
 };

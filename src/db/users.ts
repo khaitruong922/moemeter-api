@@ -128,7 +128,7 @@ export const selectRankedUserById = async (
 	userId: number
 ): Promise<RankedUser | null> => {
 	const rows = await sql<RankedUser[]>`
-    SELECT id, name, avatar_url, books_read, pages_read, rank, pages_rank
+    SELECT *
     FROM ranked_users
     WHERE id = ${userId}
   `;
@@ -162,7 +162,9 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
       pages_read = EXCLUDED.pages_read,
       bookcase = EXCLUDED.bookcase,
       original_books_read = EXCLUDED.original_books_read,
-      original_pages_read = EXCLUDED.original_pages_read
+      original_pages_read = EXCLUDED.original_pages_read,
+      registration_date = EXCLUDED.registration_date,
+      first_log_date = EXCLUDED.first_log_date
   `;
 };
 

@@ -6,6 +6,9 @@ export interface User {
 	books_read: number | null;
 	pages_read: number | null;
 	sync_status?: SyncStatus | null;
+	registration_date: Date | null;
+	first_log_date: Date | null;
+
 	// Bookcase only fields
 	bookcase: string | null;
 	original_books_read: number | null;
