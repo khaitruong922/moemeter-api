@@ -7,6 +7,7 @@ export type UserReadData = {
 	thumbnail_url: string;
 	page: number;
 	date: Date | null;
+	index: number;
 };
 type FetchUserReadsOfPagesResponse = {
 	reads: UserReadData[];

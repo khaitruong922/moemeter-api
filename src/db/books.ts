@@ -47,10 +47,38 @@ export type SelectBooksFilters = {
 	dateOrder?: 'ASC' | 'DESC';
 };
 
-const getBookOrder = (dateOrder?: 'ASC' | 'DESC'): string => {
-	if (dateOrder === 'ASC') return 'date ASC NULLS LAST, books.id ASC';
-	if (dateOrder === 'DESC') return 'date DESC NULLS LAST, books.id ASC';
-	return 'read_count DESC, books.id ASC';
+type GetBookOrderAndGroupByResult = {
+	orderBy: string;
+	groupBy: string;
+};
+
+type GetBookOrderAndGroupByParams = {
+	userId?: number;
+	dateOrder?: 'ASC' | 'DESC';
+};
+
+const getBookOrderAndGroupBy = ({
+	userId,
+	dateOrder,
+}: GetBookOrderAndGroupByParams): GetBookOrderAndGroupByResult => {
+	if (!dateOrder) {
+		return {
+			orderBy: 'read_count DESC, books.id ASC',
+			groupBy: 'books.id',
+		};
+	}
+
+	if (userId) {
+		return {
+			orderBy: dateOrder === 'ASC' ? 'filtered_reads.index DESC' : 'filtered_reads.index ASC',
+			groupBy: 'books.id, filtered_reads.id, filtered_reads.index',
+		};
+	}
+
+	return {
+		orderBy: `date ${dateOrder} NULLS LAST, books.id ASC`,
+		groupBy: 'books.id, filtered_reads.id',
+	};
 };
 
 export const selectBooksWithUsersAndReviews = async (
@@ -147,7 +175,7 @@ export const selectBooksWithUsersAndReviews = async (
 	}
 `;
 
-	const orderBy = getBookOrder(dateOrder);
+	const { orderBy, groupBy } = getBookOrderAndGroupBy({ userId, dateOrder });
 
 	const bookRows = await sql<BookWithReaders[]>`
   WITH filtered_reads AS (
@@ -167,7 +195,7 @@ export const selectBooksWithUsersAndReviews = async (
     ${userId ? sql`, filtered_reads.id as read_id` : sql``}
   FROM filtered_reads
   JOIN books ON books.id = filtered_reads.merged_book_id
-  ${userId ? sql`GROUP BY books.id, filtered_reads.id` : sql`GROUP BY books.id`}
+  GROUP BY ${sql.unsafe(groupBy)}
   ORDER BY ${sql.unsafe(orderBy)}
   LIMIT ${limit}
   OFFSET ${offset}
@@ -248,7 +276,7 @@ export const bulkUpsertBooks = async (sql: postgres.Sql<{}>, books: Book[]): Pro
       author = EXCLUDED.author,
       author_url = EXCLUDED.author_url,
       thumbnail_url = EXCLUDED.thumbnail_url,
-	  page = EXCLUDED.page
+      page = EXCLUDED.page
   `;
 };
 

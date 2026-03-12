@@ -8,7 +8,7 @@ import { bulkInsertReads, deleteReadsOfUser } from '../db/reads';
 import { deleteReviewsOfUser, upsertReviews } from '../db/reviews';
 import { upsertUser } from '../db/users';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
-import { getUniqueBooks, mapBookDataToBookModel } from './book';
+import { getUniqueBooks, mapReadDataToBookModel } from './book';
 
 export const fullImportUser = async (
 	sql: postgres.Sql<{}>,
@@ -38,7 +38,7 @@ export const fullImportUser = async (
 	user.books_read = books_read;
 	user.pages_read = pages_read;
 
-	const uniqueBookModels = getUniqueBooks(userReads).map(mapBookDataToBookModel);
+	const uniqueBookModels = getUniqueBooks(userReads).map(mapReadDataToBookModel);
 	await upsertUser(sql, user);
 	await bulkUpsertBooks(sql, uniqueBookModels);
 	const reads: Read[] = userReads.map((reads) => ({
@@ -47,6 +47,7 @@ export const fullImportUser = async (
 		book_id: reads.book_id,
 		merged_book_id: reads.book_id,
 		date: reads.date,
+		index: reads.index,
 	}));
 	await deleteReadsOfUser(sql, user.id);
 	await bulkInsertReads(sql, reads);

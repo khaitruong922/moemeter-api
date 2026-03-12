@@ -14,13 +14,13 @@ export const getUniqueBooks = (userReads: UserReadData[]): UserReadData[] => {
 	return uniqueBooks;
 };
 
-export const mapBookDataToBookModel = (book: UserReadData): Book => {
+export const mapReadDataToBookModel = (readData: UserReadData): Book => {
 	return {
-		id: book.book_id,
-		title: book.title || '',
-		author: book.author || '',
-		author_url: book.author_url || '',
-		thumbnail_url: book.thumbnail_url || '',
-		page: book.page || 0,
+		id: readData.book_id,
+		title: readData.title || '',
+		author: readData.author || '',
+		author_url: readData.author_url || '',
+		thumbnail_url: readData.thumbnail_url || '',
+		page: readData.page || 0,
 	};
 };

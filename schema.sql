@@ -164,7 +164,9 @@ CREATE TABLE public.users (
     sync_status text,
     bookcase text,
     original_books_read integer,
-    original_pages_read integer
+    original_pages_read integer,
+    first_log_date date,
+    registration_date date
 );
 
 
@@ -266,7 +268,8 @@ CREATE TABLE public.reads (
     book_id integer NOT NULL,
     merged_book_id integer DEFAULT 334913 NOT NULL,
     date date,
-    id integer NOT NULL
+    id integer NOT NULL,
+    index integer
 );
 
 
@@ -578,6 +581,13 @@ CREATE INDEX idx_reads_book_id ON public.reads USING btree (book_id);
 --
 
 CREATE INDEX idx_reads_date ON public.reads USING btree (date);
+
+
+--
+-- Name: idx_reads_index; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reads_index ON public.reads USING btree (index);
 
 
 --
