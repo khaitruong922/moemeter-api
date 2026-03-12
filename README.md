@@ -131,8 +131,8 @@ npm run deploy
 
 The API includes automated cron jobs configured in `wrangler.jsonc`:
 
-- **Every day at 3:00 and 15:00 UTC** (`0 3,15 * * *`): Full user sync
-- **Every 3 minutes during sync hours** (`*/3 3,15 * * *`): Retry failed syncs
+- **Every 4 hours** (`0 3,7,11,15,19,23 * * *`): Full user sync
+- **Every 3 minutes during sync hours** (`*/3 3,7,11,15,19,23 * * *`): Retry failed syncs
 
 ## Project Structure
 

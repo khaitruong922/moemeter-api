@@ -72,7 +72,7 @@ export default {
 		const sql = createDbClientFromEnv(env);
 		const bookmeterApiService = env.BOOKMETER_API;
 
-		if (event.cron === '0 3,15 * * *') {
+		if (event.cron === '0 3,7,11,15,19,23 * * *') {
 			await performKeepAliveQuery(env);
 			await syncAllUsers(sql, bookmeterApiService, {
 				syncStatus: null,
@@ -81,7 +81,7 @@ export default {
 			}).catch((error) => {
 				console.error('全ユーザーの同期に失敗しました:', error);
 			});
-		} else if (event.cron === '*/3 3,15 * * *' && utcMinutes !== 0) {
+		} else if (event.cron === '*/3 3,7,11,15,19,23 * * *' && utcMinutes !== 0) {
 			await syncAllUsers(sql, bookmeterApiService, {
 				syncStatus: 'failed',
 				bookCountOrder: 'ASC',
