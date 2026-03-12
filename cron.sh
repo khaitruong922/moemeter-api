@@ -1,1 +1,1 @@
-curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=0+3,7,11,15,19,23+*+*+*"
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=0+0,3,6,9,12,15,18,21+*+*+*"
