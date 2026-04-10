@@ -485,6 +485,48 @@ CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
 ALTER MATERIALIZED VIEW public.yearly_leaderboard OWNER TO postgres;
 
 --
+-- Name: reading_affinity_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.reading_affinity_leaderboard AS
+ WITH user_books AS (
+         SELECT reads.user_id,
+            reads.merged_book_id
+           FROM public.reads
+        ), book_reader_counts AS (
+         SELECT ub.user_id,
+            ub.merged_book_id,
+            ((count(DISTINCT ub2.user_id) - 1))::bigint AS common_readers
+           FROM (user_books ub
+             JOIN user_books ub2 ON ((ub.merged_book_id = ub2.merged_book_id)))
+          GROUP BY ub.user_id, ub.merged_book_id
+        ), user_affinity AS (
+         SELECT brc.user_id,
+            count(DISTINCT brc.merged_book_id) FILTER (WHERE brc.common_readers > 0) AS books_with_common_readers,
+            sum(brc.common_readers) AS affinity_points,
+                CASE
+                    WHEN (count(DISTINCT brc.merged_book_id) FILTER (WHERE brc.common_readers > 0) > (0)::bigint) THEN ((sum(brc.common_readers))::numeric / (count(DISTINCT brc.merged_book_id) FILTER (WHERE brc.common_readers > 0))::numeric)
+                    ELSE (0)::numeric
+                END AS avg_common_readers
+           FROM book_reader_counts brc
+          GROUP BY brc.user_id
+        )
+ SELECT u.id,
+    u.name,
+    u.avatar_url,
+    ua.books_with_common_readers,
+    ua.affinity_points,
+    ua.avg_common_readers,
+    rank() OVER (ORDER BY ua.affinity_points DESC, ua.avg_common_readers DESC, ua.books_with_common_readers DESC) AS rank
+   FROM (user_affinity ua
+     JOIN public.users u ON ((ua.user_id = u.id)))
+  WHERE (ua.affinity_points > (0)::bigint)
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.reading_affinity_leaderboard OWNER TO postgres;
+
+--
 -- Name: blacklisted_books blacklisted_books_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 

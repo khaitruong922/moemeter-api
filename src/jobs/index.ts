@@ -8,6 +8,7 @@ import { deleteOrphanReviews } from '../db/reviews';
 import {
 	refreshLonelyLeaderboard,
 	refreshRankedUsers,
+	refreshReadingAffinityLeaderboard,
 	refreshYearlyLeaderboard,
 	selectAllUsersForSync,
 	SelectAllUsersParams,
@@ -55,6 +56,7 @@ export const syncAllUsers = async (
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
 	await refreshLonelyLeaderboard(sql);
+	await refreshReadingAffinityLeaderboard(sql);
 	await deleteOrphanReviews(sql);
 	await updateMetadataLastUpdated(sql, new Date());
 

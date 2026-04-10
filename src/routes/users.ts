@@ -10,12 +10,15 @@ import {
 	deleteUserById,
 	LonelyOrder,
 	RankedUser,
+	ReadingAffinityOrder,
 	refreshLonelyLeaderboard,
 	refreshRankedUsers,
+	refreshReadingAffinityLeaderboard,
 	refreshYearlyLeaderboard,
 	selectAllUsersWithRank,
 	selectLonelyLeaderboard,
 	selectRankedUserById,
+	selectReadingAffinityLeaderboard,
 	selectUserByIds,
 	selectYearlyLeaderboard,
 	updateSyncStatusByUserIds,
@@ -54,6 +57,19 @@ app.post('/lonely-leaderboard/refresh', validateGroupAuth, async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	await refreshLonelyLeaderboard(sql);
 	return c.json({ message: '孤独な読書家ランキングが正常に更新されました' });
+});
+
+app.get('/reading-affinity', async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	const order = (c.req.query('order') as ReadingAffinityOrder) || 'total_common_readers';
+	const affinityUsers = await selectReadingAffinityLeaderboard(sql, order);
+	return c.json(affinityUsers);
+});
+
+app.post('/reading-affinity/refresh', validateGroupAuth, async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	await refreshReadingAffinityLeaderboard(sql);
+	return c.json({ message: '相性ランキングが正常に更新されました' });
 });
 
 app.get('/:userId', async (c) => {
@@ -100,6 +116,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 		await refreshRankedUsers(sql);
 		await refreshYearlyLeaderboard(sql);
 		await refreshLonelyLeaderboard(sql);
+		await refreshReadingAffinityLeaderboard(sql);
 		await deleteOrphanReviews(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({

@@ -17,6 +17,17 @@ export type LonelyUser = User & {
 };
 export type LonelyOrder = 'days' | 'book_count' | 'ratio';
 
+export type ReadingAffinityUser = User & {
+	books_with_common_readers: number | string;
+	affinity_points: number | string;
+	avg_common_readers: number | string;
+	rank: number | string;
+};
+export type ReadingAffinityOrder =
+	| 'affinity_points'
+	| 'avg_common_readers'
+	| 'books_with_common_readers';
+
 export const selectAllUsersWithRank = async (
 	sql: postgres.Sql<{}>,
 	order: RankOrder
@@ -77,6 +88,32 @@ export const selectLonelyLeaderboard = async (
 	}));
 };
 
+export const selectReadingAffinityLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: ReadingAffinityOrder
+): Promise<ReadingAffinityUser[]> => {
+	const orderField = () => {
+		if (order === 'affinity_points') return 'affinity_points DESC, avg_common_readers DESC';
+		if (order === 'avg_common_readers') return 'avg_common_readers DESC, affinity_points DESC';
+		if (order === 'books_with_common_readers')
+			return 'books_with_common_readers DESC, affinity_points DESC';
+		return 'rank ASC';
+	};
+
+	const rows = await sql<ReadingAffinityUser[]>`
+    SELECT * FROM reading_affinity_leaderboard
+    ORDER BY ${sql.unsafe(orderField())};
+  `;
+
+	return rows.map((r) => ({
+		...r,
+		books_with_common_readers: Number(r.books_with_common_readers),
+		affinity_points: Number(r.affinity_points),
+		avg_common_readers: Number(r.avg_common_readers),
+		rank: Number(r.rank),
+	}));
+};
+
 export const refreshYearlyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW yearly_leaderboard;
@@ -92,6 +129,12 @@ export const refreshRankedUsers = async (sql: postgres.Sql<{}>): Promise<void> =
 export const refreshLonelyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW lonely_leaderboard;
+  `;
+};
+
+export const refreshReadingAffinityLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW reading_affinity_leaderboard;
   `;
 };
 
@@ -178,8 +221,8 @@ export const deleteUserById = async (sql: postgres.Sql<{}>, userId: number): Pro
 export const updateUserNameAndAvatarUrl = async (
 	sql: postgres.Sql<{}>,
 	userId: number,
-	name: string,
-	avatarUrl: string
+	name: string | null,
+	avatarUrl: string | null
 ): Promise<void> => {
 	await sql`
     UPDATE users
