@@ -517,7 +517,9 @@ CREATE MATERIALIZED VIEW public.reading_affinity_leaderboard AS
     ua.books_with_common_readers,
     ua.affinity_points,
     ua.avg_common_readers,
-    rank() OVER (ORDER BY ua.affinity_points DESC, ua.avg_common_readers DESC, ua.books_with_common_readers DESC) AS rank
+    rank() OVER (ORDER BY ua.affinity_points DESC, ua.avg_common_readers DESC, ua.books_with_common_readers DESC) AS rank,
+    rank() OVER (ORDER BY ua.avg_common_readers DESC, ua.affinity_points DESC, ua.books_with_common_readers DESC) AS avg_readers_rank,
+    rank() OVER (ORDER BY ua.books_with_common_readers DESC, ua.affinity_points DESC, ua.avg_common_readers DESC) AS books_rank
    FROM (user_affinity ua
      JOIN public.users u ON ((ua.user_id = u.id)))
   WHERE (ua.affinity_points > (0)::bigint)

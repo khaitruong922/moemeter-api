@@ -66,12 +66,6 @@ app.get('/reading-affinity', async (c) => {
 	return c.json(affinityUsers);
 });
 
-app.post('/reading-affinity/refresh', validateGroupAuth, async (c) => {
-	const sql = createDbClientFromEnv(c.env);
-	await refreshReadingAffinityLeaderboard(sql);
-	return c.json({ message: '相性ランキングが正常に更新されました' });
-});
-
 app.get('/:userId', async (c) => {
 	const userId = c.req.param('userId');
 	if (!userId || isNaN(Number(userId))) {
@@ -123,7 +117,7 @@ app.post('/join', validateGroupAuth, async (c) => {
 			...result,
 			message: 'ユーザーが正常に参加し、データがインポートされました',
 		});
-	} catch (e) {
+	} catch (e: any) {
 		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
 		return c.json({ message: e.message }, 500);
 	}

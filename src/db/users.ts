@@ -22,11 +22,10 @@ export type ReadingAffinityUser = User & {
 	affinity_points: number | string;
 	avg_common_readers: number | string;
 	rank: number | string;
+	avg_readers_rank: number | string;
+	books_rank: number | string;
 };
-export type ReadingAffinityOrder =
-	| 'affinity_points'
-	| 'avg_common_readers'
-	| 'books_with_common_readers';
+export type ReadingAffinityOrder = 'points' | 'avg_readers' | 'books';
 
 export const selectAllUsersWithRank = async (
 	sql: postgres.Sql<{}>,
@@ -92,17 +91,16 @@ export const selectReadingAffinityLeaderboard = async (
 	sql: postgres.Sql<{}>,
 	order: ReadingAffinityOrder
 ): Promise<ReadingAffinityUser[]> => {
-	const orderField = () => {
-		if (order === 'affinity_points') return 'affinity_points DESC, avg_common_readers DESC';
-		if (order === 'avg_common_readers') return 'avg_common_readers DESC, affinity_points DESC';
-		if (order === 'books_with_common_readers')
-			return 'books_with_common_readers DESC, affinity_points DESC';
-		return 'rank ASC';
+	const rankField = () => {
+		if (order === 'points') return 'rank';
+		if (order === 'avg_readers') return 'avg_readers_rank';
+		if (order === 'books') return 'books_rank';
+		return 'rank';
 	};
 
 	const rows = await sql<ReadingAffinityUser[]>`
     SELECT * FROM reading_affinity_leaderboard
-    ORDER BY ${sql.unsafe(orderField())};
+    ORDER BY ${sql(rankField())} ASC;
   `;
 
 	return rows.map((r) => ({
@@ -111,6 +109,8 @@ export const selectReadingAffinityLeaderboard = async (
 		affinity_points: Number(r.affinity_points),
 		avg_common_readers: Number(r.avg_common_readers),
 		rank: Number(r.rank),
+		avg_readers_rank: Number(r.avg_readers_rank),
+		books_rank: Number(r.books_rank),
 	}));
 };
 
