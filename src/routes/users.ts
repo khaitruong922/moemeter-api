@@ -15,6 +15,7 @@ import {
 	refreshRankedUsers,
 	refreshReadingAffinityLeaderboard,
 	refreshYearlyLeaderboard,
+	selectAllUsersForSync,
 	selectAllUsersWithRank,
 	selectLonelyLeaderboard,
 	selectRankedUserById,
@@ -51,6 +52,12 @@ app.get('/lonely-leaderboard', async (c) => {
 	const lonelyOrder = (c.req.query('order') as LonelyOrder) || 'book_count';
 	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
 	return c.json(lonelyUsers);
+});
+
+app.get('/failed', validateToken, async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	const users = await selectAllUsersForSync(sql, { syncStatus: 'failed', bookCountOrder: 'DESC', limit: null });
+	return c.json(users);
 });
 
 app.post('/lonely-leaderboard/refresh', validateToken, async (c) => {
