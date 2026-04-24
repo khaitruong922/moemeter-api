@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
 import { AppEnv } from '../types/app_env';
 import { applyNaNVL, parseNatNum } from '../utils/number';
-import { getPageInfo } from '../utils/paging';
+
 import { createDbClientFromEnv } from '../db';
 import { selectUserByIds } from '../db/users';
 import { selectReadsByBookId } from '../db/reads';
@@ -11,8 +11,8 @@ import { Period } from '../utils/period';
 const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
-	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 50);
-	const reqPage = applyNaNVL(parseNatNum(c.req.query('page')), 1);
+	const limit = Math.min(applyNaNVL(parseNatNum(c.req.query('limit')), 50), 500);
+	const offset = applyNaNVL(parseNatNum(c.req.query('offset')), 0);
 	const q = c.req.query('q');
 	const field = c.req.query('field');
 	const period = c.req.query('period') as Period;
@@ -31,12 +31,11 @@ app.get('/', async (c) => {
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, '') : undefined;
 
 	const sql = createDbClientFromEnv(c.env);
-	const offset = (reqPage - 1) * perPage;
 	const { books, users, total_count, total_reads_count } = await selectBooksWithUsersAndReviews(
 		sql,
 		{
 			offset,
-			limit: perPage,
+			limit,
 			searchQuery,
 			field,
 			period,
@@ -45,7 +44,6 @@ app.get('/', async (c) => {
 			dateOrder,
 		}
 	);
-	const pageInfo = getPageInfo(reqPage, perPage, total_count);
 
 	return c.json({
 		books,
@@ -53,7 +51,6 @@ app.get('/', async (c) => {
 		count: books.length,
 		total_reads_count,
 		total_count,
-		pageInfo,
 	});
 });
 
