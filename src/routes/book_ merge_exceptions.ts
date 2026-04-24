@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { createDbClientFromEnv } from '../db';
 import { addBookMergeException, deleteBookMergeException } from '../db/book_merges';
-import { validateGroupAuth } from '../middlewares/auth';
+import { validateToken } from '../middlewares/auth';
 import { AppEnv } from '../types/app_env';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
-app.post('/', validateGroupAuth, async (c) => {
+app.post('/', validateToken, async (c) => {
 	const { variant_id } = await c.req.json();
 
 	if (!variant_id || typeof variant_id !== 'number') {
@@ -18,7 +18,7 @@ app.post('/', validateGroupAuth, async (c) => {
 	return c.json({ message: '本マージ例外が正常に追加されました' }, 201);
 });
 
-app.post('/delete', validateGroupAuth, async (c) => {
+app.post('/delete', validateToken, async (c) => {
 	const { variant_id } = await c.req.json();
 	if (!variant_id || typeof variant_id !== 'number') {
 		return c.json({ error: '無効なvariant_idです' }, 400);

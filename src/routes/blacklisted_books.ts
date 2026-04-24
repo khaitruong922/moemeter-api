@@ -5,7 +5,7 @@ import {
 	removeBlacklistedBook,
 	selectBlacklistedBookIds,
 } from '../db/blacklisted_books';
-import { validateGroupAuth } from '../middlewares/auth';
+import { validateToken } from '../middlewares/auth';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
 
@@ -17,7 +17,7 @@ app.get('/', async (c) => {
 	return c.json({ book_ids: Array.from(blacklistedBookIds) });
 });
 
-app.post('/', validateGroupAuth, async (c) => {
+app.post('/', validateToken, async (c) => {
 	const { book_id } = await c.req.json();
 
 	if (!book_id || typeof book_id !== 'number') {
@@ -33,7 +33,7 @@ app.post('/', validateGroupAuth, async (c) => {
 	});
 });
 
-app.delete('/:bookId', validateGroupAuth, async (c) => {
+app.delete('/:bookId', validateToken, async (c) => {
 	const bookId = Number(c.req.param('bookId'));
 	if (!bookId || isNaN(bookId)) {
 		return c.json({ error: '無効なブックIDです' }, 400);

@@ -6,4 +6,5 @@ export type AppEnv = {
 	SUPABASE_KEY: string;
 	DEBUG?: string;
 	BOOKMETER_API: BookmeterApiService;
+	JWT_SECRET: string;
 };

@@ -6,6 +6,7 @@ import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
+import auth from './routes/auth';
 import blacklistedBooks from './routes/blacklisted_books';
 import bookMergeExceptions from './routes/book_ merge_exceptions';
 import bookMerges from './routes/book_merges';
@@ -15,7 +16,6 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import { AppEnv } from './types/app_env';
-import { fetchAllUserReadsV2 } from './bookmeter-api/book';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 app.use('*', prettyJSON());
@@ -38,6 +38,7 @@ app.get('/health', async (c) => {
 	}
 });
 
+app.route('/auth', auth);
 app.route('/users', users);
 app.route('/books', books);
 app.route('/blacklisted_books', blacklistedBooks);

@@ -1,31 +1,21 @@
-import { createMiddleware } from 'hono/factory';
-import { createDbClientFromEnv } from '../db';
-import { selectGroupByIdAndPassword } from '../db/groups';
 import { Context } from 'hono';
+import { createMiddleware } from 'hono/factory';
+import { verify } from 'hono/jwt';
 
 const unauthorizedError = (c: Context) => {
 	return c.json({ error: '無効な認証情報です' }, 401);
 };
 
-export const validateGroupAuth = createMiddleware(async (c, next) => {
-	const body = await c.req.json();
-	const { group_id, password } = body;
+export const validateToken = createMiddleware(async (c, next) => {
+	const authHeader = c.req.header('Authorization');
+	const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+	if (!token) return unauthorizedError(c);
 
-	if (!group_id || typeof group_id !== 'number') {
-		return unauthorizedError(c);
-	}
-	if (!password || typeof password !== 'string') {
-		return unauthorizedError(c);
-	}
-
-	const sql = createDbClientFromEnv(c.env);
-	const group = await selectGroupByIdAndPassword(sql, group_id, password);
-	if (group === null) {
+	try {
+		await verify(token, c.env.JWT_SECRET);
+	} catch {
 		return unauthorizedError(c);
 	}
 
-	// Store the parsed body and verified group so the route handler can access them
-	// c.set('requestBody', body);
-	// c.set('group', group);
 	return await next();
 });

@@ -24,7 +24,7 @@ import {
 	updateSyncStatusByUserIds,
 	userExists,
 } from '../db/users';
-import { validateGroupAuth } from '../middlewares/auth';
+import { validateToken } from '../middlewares/auth';
 import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
@@ -53,7 +53,7 @@ app.get('/lonely-leaderboard', async (c) => {
 	return c.json(lonelyUsers);
 });
 
-app.post('/lonely-leaderboard/refresh', validateGroupAuth, async (c) => {
+app.post('/lonely-leaderboard/refresh', validateToken, async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	await refreshLonelyLeaderboard(sql);
 	return c.json({ message: '孤独な読書家ランキングが正常に更新されました' });
@@ -79,7 +79,7 @@ app.get('/:userId', async (c) => {
 	return c.json(user);
 });
 
-app.post('/join', validateGroupAuth, async (c) => {
+app.post('/join', validateToken, async (c) => {
 	const { user_id, bookcase } = await c.req.json();
 
 	if (!user_id || typeof user_id !== 'number') {
@@ -213,7 +213,7 @@ app.get('/:userId/summary/:year', async (c) => {
 	});
 });
 
-app.delete('/:userId', validateGroupAuth, async (c) => {
+app.delete('/:userId', validateToken, async (c) => {
 	const userId = Number(c.req.param('userId'));
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
