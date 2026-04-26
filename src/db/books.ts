@@ -165,7 +165,7 @@ export const selectBooksWithUsersAndReviews = async (
     COUNT(filtered_reads.id) AS total_reads_count
   FROM filtered_reads
   ${
-		period
+		startDate && endDate
 			? sql`
         WHERE filtered_reads.date IS NOT NULL
         AND filtered_reads.date >= ${startDate}
@@ -209,7 +209,7 @@ export const selectBooksWithUsersAndReviews = async (
 		FROM users
 		JOIN reads ON users.id = reads.user_id
 		WHERE reads.merged_book_id IN ${sql(bookIds)}
-		${period ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
+		${startDate && endDate ? sql`AND reads.date IS NOT NULL AND reads.date >= ${startDate} AND reads.date <= ${endDate}` : sql``}
 	)
 	SELECT * 
 	FROM book_read_users

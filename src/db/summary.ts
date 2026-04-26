@@ -3,6 +3,66 @@ import { getMonthPeriod, getYearPeriod } from '../utils/period';
 import { BookWithReadId, User } from './models';
 import { RankedUser } from './users';
 
+export interface MonthlyStatRow {
+	year: number;
+	month: number;
+	books: number;
+	pages: number;
+}
+
+export interface AuthorStatRow {
+	author_cleaned: string;
+	books: number;
+}
+
+export interface UserStats {
+	monthly: MonthlyStatRow[];
+	authors: AuthorStatRow[];
+}
+
+export const getUserStats = async (sql: postgres.Sql<{}>, userId: number): Promise<UserStats> => {
+	const [monthlyRows, authorRows] = await Promise.all([
+		sql<MonthlyStatRow[]>`
+			SELECT
+				EXTRACT(YEAR FROM r.date)::int AS year,
+				EXTRACT(MONTH FROM r.date)::int AS month,
+				COUNT(*)::int AS books,
+				COALESCE(SUM(b.page), 0)::int AS pages
+			FROM reads r
+			JOIN books b ON r.merged_book_id = b.id
+			WHERE r.user_id = ${userId}
+				AND r.date IS NOT NULL
+			GROUP BY year, month
+			ORDER BY year, month
+		`,
+		sql<AuthorStatRow[]>`
+			SELECT
+				clean_title(b.author) AS author_cleaned,
+				COUNT(*)::int AS books
+			FROM reads r
+			JOIN books b ON r.merged_book_id = b.id
+			WHERE r.user_id = ${userId}
+				AND b.author IS NOT NULL
+				AND b.author != ''
+			GROUP BY clean_title(b.author)
+			ORDER BY books DESC
+		`,
+	]);
+
+	return {
+		monthly: monthlyRows.map((r) => ({
+			year: Number(r.year),
+			month: Number(r.month),
+			books: Number(r.books),
+			pages: Number(r.pages),
+		})),
+		authors: authorRows.map((r) => ({
+			author_cleaned: r.author_cleaned,
+			books: Number(r.books),
+		})),
+	};
+};
+
 export const getRankedUserInPeriod = async (
 	sql: postgres.Sql<{}>,
 	userId: number,

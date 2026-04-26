@@ -5,7 +5,7 @@ import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
-import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod } from '../db/summary';
+import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod, getUserStats } from '../db/summary';
 import {
 	deleteUserById,
 	LonelyOrder,
@@ -218,6 +218,16 @@ app.get('/:userId/summary/:year', async (c) => {
 		peak_month,
 		best_friend,
 	});
+});
+
+app.get('/:userId/stats', async (c) => {
+	const userId = Number(c.req.param('userId'));
+	if (!userId || isNaN(userId)) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	const stats = await getUserStats(sql, userId);
+	return c.json(stats);
 });
 
 app.delete('/:userId', validateToken, async (c) => {
