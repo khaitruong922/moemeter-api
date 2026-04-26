@@ -12,6 +12,7 @@ export interface MonthlyStatRow {
 
 export interface AuthorStatRow {
 	author_cleaned: string;
+	author_url: string | null;
 	books: number;
 }
 
@@ -38,6 +39,7 @@ export const getUserStats = async (sql: postgres.Sql<{}>, userId: number): Promi
 		sql<AuthorStatRow[]>`
 			SELECT
 				clean_title(b.author) AS author_cleaned,
+				MIN(b.author_url) AS author_url,
 				COUNT(*)::int AS books
 			FROM reads r
 			JOIN books b ON r.merged_book_id = b.id
@@ -58,6 +60,7 @@ export const getUserStats = async (sql: postgres.Sql<{}>, userId: number): Promi
 		})),
 		authors: authorRows.map((r) => ({
 			author_cleaned: r.author_cleaned,
+			author_url: r.author_url,
 			books: Number(r.books),
 		})),
 	};
