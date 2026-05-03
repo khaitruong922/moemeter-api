@@ -69,10 +69,6 @@ export const getUserAvatarUrl = (html: string): string => {
 	return groups[0]?.url;
 };
 
-export const getUserDetailsHtml = (html: string): string => {
-	return extractRegex(html, /<dl class="bm-details-side">(.*?)<\/dl>/g)[0];
-};
-
 export const getUserBooksRead = (html: string): number => {
 	return parseIntSafe(
 		extractRegex(
