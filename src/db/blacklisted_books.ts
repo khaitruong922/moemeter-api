@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { refreshAll } from './users';
 
 export const selectBlacklistedBookIds = async (sql: postgres.Sql<{}>): Promise<Set<number>> => {
 	const rows = await sql<{ id: number }[]>`
@@ -12,6 +13,7 @@ export const addBlacklistedBook = async (sql: postgres.Sql<{}>, bookId: number):
     INSERT INTO blacklisted_books (id)
     VALUES (${bookId})
   `;
+	await refreshAll(sql);
 };
 
 export const removeBlacklistedBook = async (
@@ -21,4 +23,5 @@ export const removeBlacklistedBook = async (
 	await sql`
     DELETE FROM blacklisted_books WHERE id = ${bookId}
   `;
+	await refreshAll(sql);
 };

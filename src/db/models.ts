@@ -8,11 +8,11 @@ export interface User {
 	sync_status?: SyncStatus | null;
 	registration_date: Date | null;
 	first_log_date: Date | null;
+	original_books_read: number;
+	original_pages_read: number;
 
 	// Bookcase only fields
 	bookcase: string | null;
-	original_books_read: number | null;
-	original_pages_read: number | null;
 
 	// Optional fields when processing only
 	reviews_count?: number | null;

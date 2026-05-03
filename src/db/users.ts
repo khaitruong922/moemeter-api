@@ -1,5 +1,7 @@
 import postgres from 'postgres';
+import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
+import { syncBookMerges } from './book_merges';
 
 export type RankedUser = User & {
 	rank: number | string;
@@ -136,6 +138,15 @@ export const refreshReadingAffinityLeaderboard = async (sql: postgres.Sql<{}>): 
 	await sql`
     REFRESH MATERIALIZED VIEW reading_affinity_leaderboard;
   `;
+};
+
+export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await syncBookMerges(sql);
+	await refreshRankedUsers(sql);
+	await refreshYearlyLeaderboard(sql);
+	await refreshLonelyLeaderboard(sql);
+	await refreshReadingAffinityLeaderboard(sql);
+	await deleteOrphanReviews(sql);
 };
 
 export type SelectAllUsersParams = {

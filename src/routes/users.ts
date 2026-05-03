@@ -1,20 +1,21 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { createDbClientFromEnv } from '../db';
-import { syncBookMerges } from '../db/book_merges';
 import { BookReview, selectBookByIds } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
-import { deleteOrphanReviews, selectReviewsByIds } from '../db/reviews';
-import { getBestFriendReads, getPeakMonthBooksOfUser, getRankedUserInPeriod, getUserStats } from '../db/summary';
+import { selectReviewsByIds } from '../db/reviews';
+import {
+	getBestFriendReads,
+	getPeakMonthBooksOfUser,
+	getRankedUserInPeriod,
+	getUserStats,
+} from '../db/summary';
 import {
 	deleteUserById,
 	LonelyOrder,
 	RankedUser,
 	ReadingAffinityOrder,
-	refreshLonelyLeaderboard,
-	refreshRankedUsers,
-	refreshReadingAffinityLeaderboard,
-	refreshYearlyLeaderboard,
+	refreshAll,
 	selectAllUsersForSync,
 	selectAllUsersWithRank,
 	selectLonelyLeaderboard,
@@ -56,19 +57,17 @@ app.get('/lonely-leaderboard', async (c) => {
 
 app.get('/failed', validateToken, async (c) => {
 	const sql = createDbClientFromEnv(c.env);
-	const users = await selectAllUsersForSync(sql, { syncStatus: 'failed', bookCountOrder: 'DESC', limit: null });
+	const users = await selectAllUsersForSync(sql, {
+		syncStatus: 'failed',
+		bookCountOrder: 'DESC',
+		limit: null,
+	});
 	return c.json(users);
-});
-
-app.post('/lonely-leaderboard/refresh', validateToken, async (c) => {
-	const sql = createDbClientFromEnv(c.env);
-	await refreshLonelyLeaderboard(sql);
-	return c.json({ message: '孤独な読書家ランキングが正常に更新されました' });
 });
 
 app.get('/reading-affinity', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
-	const order = (c.req.query('order') as ReadingAffinityOrder) || 'total_common_readers';
+	const order = (c.req.query('order') as ReadingAffinityOrder) || 'points';
 	const affinityUsers = await selectReadingAffinityLeaderboard(sql, order);
 	return c.json(affinityUsers);
 });
@@ -113,12 +112,7 @@ app.post('/join', validateToken, async (c) => {
 
 	try {
 		const result = await fullImportUser(sql, bookmeterApiService, user);
-		await syncBookMerges(sql);
-		await refreshRankedUsers(sql);
-		await refreshYearlyLeaderboard(sql);
-		await refreshLonelyLeaderboard(sql);
-		await refreshReadingAffinityLeaderboard(sql);
-		await deleteOrphanReviews(sql);
+		await refreshAll(sql);
 		await updateSyncStatusByUserIds(sql, [user.id], 'success');
 		return c.json({
 			...result,

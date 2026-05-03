@@ -26,7 +26,6 @@ app.post('/', validateToken, async (c) => {
 
 	const sql = createDbClientFromEnv(c.env);
 	await addBlacklistedBook(sql, book_id);
-
 	return c.json({
 		message: 'ブックリストに追加されました',
 		book_id,
@@ -41,7 +40,6 @@ app.delete('/:bookId', validateToken, async (c) => {
 
 	const sql = createDbClientFromEnv(c.env);
 	await removeBlacklistedBook(sql, bookId);
-
 	return c.json({
 		message: 'ブックリストから削除されました',
 		book_id: bookId,

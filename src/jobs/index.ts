@@ -1,15 +1,10 @@
 import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
-import { syncBookMerges } from '../db/book_merges';
 import { deleteUnreadBooks } from '../db/books';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
-import { deleteOrphanReviews } from '../db/reviews';
 import {
-	refreshLonelyLeaderboard,
-	refreshRankedUsers,
-	refreshReadingAffinityLeaderboard,
-	refreshYearlyLeaderboard,
+	refreshAll,
 	selectAllUsersForSync,
 	SelectAllUsersParams,
 	updateSyncStatusByUserIds,
@@ -52,12 +47,7 @@ export const syncAllUsers = async (
 		}
 	}
 	await deleteUnreadBooks(sql);
-	await syncBookMerges(sql);
-	await refreshRankedUsers(sql);
-	await refreshYearlyLeaderboard(sql);
-	await refreshLonelyLeaderboard(sql);
-	await refreshReadingAffinityLeaderboard(sql);
-	await deleteOrphanReviews(sql);
+	await refreshAll(sql);
 	await updateMetadataLastUpdated(sql, new Date());
 
 	await updateSyncStatusByUserIds(

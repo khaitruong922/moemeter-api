@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { Book } from './models';
+import { refreshAll } from './users';
 
 export const updateReadsMergedBookIds = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
@@ -78,7 +79,7 @@ export const addManualBookMerge = async (
     VALUES (${variantId}, ${baseId})
   `;
 
-	await updateReadsMergedBookIds(sql);
+	await refreshAll(sql);
 };
 
 export const addBookMergeException = async (
@@ -90,7 +91,7 @@ export const addBookMergeException = async (
     VALUES (${variantId})
   `;
 
-	await updateReadsMergedBookIds(sql);
+	await refreshAll(sql);
 };
 
 export const deleteManualBookMerge = async (
@@ -102,7 +103,7 @@ export const deleteManualBookMerge = async (
     WHERE variant_id = ${variantId}
   `;
 
-	await updateReadsMergedBookIds(sql);
+	await refreshAll(sql);
 };
 
 export const deleteBookMergeException = async (
@@ -114,7 +115,7 @@ export const deleteBookMergeException = async (
     WHERE variant_id = ${variantId}
   `;
 
-	await updateReadsMergedBookIds(sql);
+	await refreshAll(sql);
 };
 
 type BookMergeItem = Omit<Book, 'page' | 'author_url'>;

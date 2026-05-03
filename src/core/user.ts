@@ -29,7 +29,7 @@ export const fullImportUser = async (
 		blacklistedBookIds
 	);
 
-	const shouldUpsertReviews = user.reviews_count !== null && user.reviews_count > 0;
+	const shouldUpsertReviews = user.reviews_count !== null && (user.reviews_count ?? 0) > 0;
 	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
 	delete user.reviews_count;
 
