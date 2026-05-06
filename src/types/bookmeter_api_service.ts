@@ -14,6 +14,11 @@ type FetchUserReadsOfPagesResponse = {
 	pages_read: number;
 };
 
+export type FetchBookSeriesResult = {
+	seriesId: number;
+	seriesName: string;
+} | null;
+
 export type SeriesBook = {
 	id: number;
 	title: string;
@@ -21,13 +26,8 @@ export type SeriesBook = {
 	author_url: string;
 	thumbnail_url: string;
 	page: number | null;
+	series_number: number;
 };
-
-export type FetchBookSeriesResult = {
-	seriesId: number;
-	seriesName: string;
-	books: SeriesBook[];
-} | null;
 
 export interface BookmeterApiService {
 	fetchUserReadsOfPages(
@@ -39,4 +39,5 @@ export interface BookmeterApiService {
 		blacklistedBookIds: Set<number>
 	): Promise<FetchUserReadsOfPagesResponse>;
 	fetchBookSeries(bookId: number): Promise<FetchBookSeriesResult>;
+	fetchSeriesBooks(seriesId: number): Promise<SeriesBook[]>;
 }

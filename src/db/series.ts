@@ -17,9 +17,9 @@ export const updateSeriesIdForBookAndVariants = async (
 	sql: postgres.Sql<{}>,
 	bookIds: number[],
 	seriesId: number
-): Promise<void> => {
-	if (!Array.isArray(bookIds) || bookIds.length === 0) return;
-	await sql`
+): Promise<number[]> => {
+	if (!Array.isArray(bookIds) || bookIds.length === 0) return [];
+	const rows = await sql<{ id: number }[]>`
     WITH series_bases AS (
       SELECT COALESCE(fm.base_id, b.id) AS base_id
       FROM books b
@@ -34,6 +34,25 @@ export const updateSeriesIdForBookAndVariants = async (
     )
     UPDATE books SET series_id = ${seriesId}
     WHERE id IN (SELECT book_id FROM all_related)
+    RETURNING id
+  `;
+	return rows.map((r) => r.id);
+};
+
+export const propagateSeriesNumbers = async (
+	sql: postgres.Sql<{}>,
+	bookIds: number[]
+): Promise<void> => {
+	if (bookIds.length === 0) return;
+	await sql`
+    UPDATE books AS v
+    SET series_number = b.series_number
+    FROM books b
+    LEFT JOIN final_book_merges fm ON fm.variant_id = v.id
+    WHERE COALESCE(fm.base_id, v.id) = b.id
+      AND v.id IN ${sql(bookIds)}
+      AND b.series_number IS NOT NULL
+      AND v.series_number IS NULL
   `;
 };
 
@@ -110,6 +129,7 @@ type SeriesBookRow = {
 	thumbnail_url: string | null;
 	series_id: number | null;
 	series_name: string | null;
+	series_number: number | null;
 	read_count: number;
 };
 
@@ -157,6 +177,7 @@ export const selectBooksForSeriesPage = async (
     )
     SELECT
       b.id, b.title, b.author, b.author_url, b.page, b.thumbnail_url, b.series_id,
+      b.series_number,
       s.name AS series_name,
       COUNT(DISTINCT r.user_id)::int AS read_count
     FROM canonical c
@@ -164,7 +185,7 @@ export const selectBooksForSeriesPage = async (
     LEFT JOIN series s ON s.id = b.series_id
     LEFT JOIN reads r ON r.merged_book_id = b.id
     GROUP BY b.id, s.name
-    ORDER BY b.id ASC
+    ORDER BY b.series_number ASC NULLS LAST, b.id ASC
   `;
 
 	const bookIds = bookRows.map((b) => b.id).filter((id) => bookRows.find(b => b.id === id)?.read_count ?? 0 > 0);

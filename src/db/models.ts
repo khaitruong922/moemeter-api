@@ -27,6 +27,7 @@ export interface Book {
 	thumbnail_url: string | null;
 	series_id?: number | null;
 	series_name?: string | null;
+	series_number?: number | null;
 	last_series_fetched?: Date | null;
 }
 

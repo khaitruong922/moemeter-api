@@ -6,7 +6,6 @@ import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
-import { syncBookSeries } from './jobs/series';
 import series from './routes/series';
 import auth from './routes/auth';
 import blacklistedBooks from './routes/blacklisted_books';
@@ -18,6 +17,7 @@ import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
 import { AppEnv } from './types/app_env';
+import { syncBookSeries } from './core/series';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 app.use('*', prettyJSON());

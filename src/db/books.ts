@@ -278,7 +278,9 @@ export const bulkUpsertBooks = async (sql: postgres.Sql<{}>, books: Book[]): Pro
       author = EXCLUDED.author,
       author_url = EXCLUDED.author_url,
       thumbnail_url = EXCLUDED.thumbnail_url,
-      page = EXCLUDED.page
+      page = EXCLUDED.page,
+      series_id = COALESCE(EXCLUDED.series_id, books.series_id),
+      series_number = COALESCE(EXCLUDED.series_number, books.series_number)
   `;
 };
 

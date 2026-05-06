@@ -9,7 +9,7 @@ import {
 	selectSeriesStats,
 	type SeriesLeaderboardOrder,
 } from '../db/series';
-import { syncSeriesForBook } from '../core/series';
+import { syncBookSeries } from '../core/series';
 import { validateToken } from '../middlewares/auth';
 import { AppEnv } from '../types/app_env';
 
@@ -72,7 +72,7 @@ app.post('/refetch', validateToken, async (c) => {
 		return c.json({ error: '無効なbook_idです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
-	await syncSeriesForBook(sql, c.env.BOOKMETER_API, bookId);
+	await syncBookSeries(sql, c.env.BOOKMETER_API, [bookId]);
 	await refreshSeriesLeaderboard(sql);
 	return c.json({ ok: true });
 });

@@ -4,6 +4,7 @@ import { Book } from '../db/models';
 import {
 	applySeriesMerges,
 	markSeriesFetched,
+	propagateSeriesNumbers,
 	selectBooksNeedingSeriesFetch,
 	updateSeriesIdForBookAndVariants,
 	upsertSeries,
@@ -12,53 +13,61 @@ import { BookmeterApiService, SeriesBook } from '../types/bookmeter_api_service'
 
 const BATCH_SIZE = 50;
 
-const mapSeriesBookToBook = (b: SeriesBook): Book => ({
+const toBook = (b: SeriesBook): Book => ({
 	id: b.id,
 	title: b.title,
 	author: b.author,
 	author_url: b.author_url,
 	thumbnail_url: b.thumbnail_url,
 	page: b.page,
+	series_number: b.series_number,
 });
 
-export const syncSeriesForBook = async (
+const syncSeriesForBook = async (
 	sql: postgres.Sql<{}>,
 	bookmeterApiService: BookmeterApiService,
 	bookId: number
-): Promise<void> => {
+): Promise<number[]> => {
 	const result = await bookmeterApiService.fetchBookSeries(bookId);
 
 	if (result === null) {
 		await markSeriesFetched(sql, [bookId]);
-		return;
+		return [bookId];
 	}
 
-	await upsertSeries(sql, { id: result.seriesId, name: result.seriesName });
+	const { seriesId, seriesName } = result;
+	await upsertSeries(sql, { id: seriesId, name: seriesName });
 
-	const seriesBooks = result.books.map(mapSeriesBookToBook);
-	await bulkUpsertBooks(sql, seriesBooks);
+	const seriesBooks = await bookmeterApiService.fetchSeriesBooks(seriesId);
+	await bulkUpsertBooks(sql, seriesBooks.map(toBook));
 
-	const allBookIds = [...new Set([bookId, ...result.books.map((b) => b.id)])];
-	await updateSeriesIdForBookAndVariants(sql, allBookIds, result.seriesId);
+	const initialBookIds = [...new Set([bookId, ...seriesBooks.map((b) => b.id)])];
+	const allBookIds = await updateSeriesIdForBookAndVariants(sql, initialBookIds, seriesId);
+	await propagateSeriesNumbers(sql, allBookIds);
 	await markSeriesFetched(sql, allBookIds);
-	await applySeriesMerges(sql);
+
+	return allBookIds;
 };
 
 export const syncBookSeries = async (
 	sql: postgres.Sql<{}>,
-	bookmeterApiService: BookmeterApiService
+	bookmeterApiService: BookmeterApiService,
+	bookIds?: number[]
 ): Promise<void> => {
 	const processedBookIds = new Set<number>();
-	const books = await selectBooksNeedingSeriesFetch(sql, BATCH_SIZE);
+
+	const books = bookIds
+		? bookIds.map((id) => ({ id }))
+		: await selectBooksNeedingSeriesFetch(sql, BATCH_SIZE);
 
 	for (const book of books) {
 		console.log(`シリーズを同期中: 書籍ID ${book.id}...`);
 		if (processedBookIds.has(book.id)) continue;
 
-		await syncSeriesForBook(sql, bookmeterApiService, book.id);
-
-		processedBookIds.add(book.id);
+		const processed = await syncSeriesForBook(sql, bookmeterApiService, book.id);
+		for (const id of processed) processedBookIds.add(id);
 	}
 
+	await applySeriesMerges(sql);
 	console.log(`シリーズ同期完了: ${processedBookIds.size}冊処理済み`);
 };
