@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { bulkUpsertBooks } from '../db/books';
 import { Book } from '../db/models';
 import {
+	applySeriesMerges,
 	markSeriesFetched,
 	selectBooksNeedingSeriesFetch,
 	updateSeriesIdForBookAndVariants,
@@ -51,5 +52,6 @@ export const syncBookSeries = async (
 		for (const id of allBookIds) processedBookIds.add(id);
 	}
 
+	await applySeriesMerges(sql);
 	console.log(`シリーズ同期完了: ${processedBookIds.size}冊処理済み`);
 };

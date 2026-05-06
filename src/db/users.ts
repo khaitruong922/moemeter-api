@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
+import { applySeriesMerges } from './series';
 
 export type RankedUser = User & {
 	rank: number | string;
@@ -142,6 +143,7 @@ export const refreshReadingAffinityLeaderboard = async (sql: postgres.Sql<{}>): 
 
 export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await syncBookMerges(sql);
+	await applySeriesMerges(sql);
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
 	await refreshLonelyLeaderboard(sql);

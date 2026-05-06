@@ -65,6 +65,27 @@ export const markSeriesFetched = async (
   `;
 };
 
+export const insertSeriesMerge = async (
+	sql: postgres.Sql<{}>,
+	variantId: number,
+	baseId: number
+): Promise<void> => {
+	await sql`
+    INSERT INTO series_merges (variant_id, base_id)
+    VALUES (${variantId}, ${baseId})
+    ON CONFLICT (variant_id) DO UPDATE SET base_id = EXCLUDED.base_id
+  `;
+};
+
+export const applySeriesMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    UPDATE books
+    SET series_id = sm.base_id
+    FROM series_merges sm
+    WHERE books.series_id = sm.variant_id
+  `;
+};
+
 export type SeriesRow = { id: number; name: string };
 
 export const selectSeriesById = async (
