@@ -10,7 +10,7 @@ app.get('/leaderboard', async (c) => {
 	const orderParam = c.req.query('order');
 	const order: SeriesLeaderboardOrder =
 		orderParam === 'read_count' ? 'read_count' :
-		orderParam === 'count' ? 'count' :
+		orderParam === 'book_count' ? 'book_count' :
 		orderParam === 'pages' ? 'pages' :
 		'reads';
 	const sql = createDbClientFromEnv(c.env);

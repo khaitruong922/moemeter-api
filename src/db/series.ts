@@ -203,7 +203,7 @@ export const selectBooksForSeriesPage = async (
 	return { books, users };
 };
 
-export type SeriesLeaderboardOrder = 'reads' | 'read_count' | 'count' | 'pages';
+export type SeriesLeaderboardOrder = 'reads' | 'read_count' | 'book_count' | 'pages';
 
 export type SeriesLeaderboardEntry = {
 	id: number;
@@ -224,7 +224,7 @@ export const selectSeriesLeaderboard = async (
 ): Promise<SeriesLeaderboardEntry[]> => {
 	const rankField =
 		order === 'read_count' ? 'read_count_rank' :
-		order === 'count' ? 'count_rank' :
+		order === 'book_count' ? 'count_rank' :
 		order === 'pages' ? 'pages_rank' :
 		'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
