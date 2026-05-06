@@ -121,18 +121,6 @@ export const markSeriesFetched = async (
   `;
 };
 
-export const insertSeriesMerge = async (
-	sql: postgres.Sql<{}>,
-	variantId: number,
-	baseId: number
-): Promise<void> => {
-	await sql`
-    INSERT INTO series_merges (variant_id, base_id)
-    VALUES (${variantId}, ${baseId})
-    ON CONFLICT (variant_id) DO UPDATE SET base_id = EXCLUDED.base_id
-  `;
-};
-
 export const selectBlacklistedSeriesIds = async (sql: postgres.Sql<{}>): Promise<Set<number>> => {
 	const rows = await sql<{ id: number }[]>`SELECT id FROM blacklisted_series`;
 	return new Set(rows.map((r) => r.id));
@@ -153,16 +141,6 @@ export const blacklistSeriesIds = async (
   `;
 	await sql`DELETE FROM series WHERE id IN ${sql(seriesIds)}`;
 	await refreshAll(sql);
-};
-
-export const applySeriesMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
-	// Note: may cause conflicts related to series_number
-	await sql`
-    UPDATE books
-    SET series_id = sm.base_id
-    FROM series_merges sm
-    WHERE books.series_id = sm.variant_id
-  `;
 };
 
 export type SeriesWithMultipleAuthors = {

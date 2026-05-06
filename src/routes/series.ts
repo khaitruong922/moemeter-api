@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { createDbClientFromEnv } from '../db';
 import {
 	blacklistSeriesIds,
-	insertSeriesMerge,
 	refreshSeriesLeaderboard,
 	selectBooksForSeriesPage,
 	selectSeriesById,
@@ -75,13 +74,13 @@ app.get('/:seriesId', async (c) => {
 });
 
 app.post('/refetch', validateToken, async (c) => {
-	const body = await c.req.json<{ book_id: number }>();
-	const bookId = Number(body?.book_id);
-	if (!bookId || isNaN(bookId)) {
+	const body = await c.req.json<{ book_ids: number[] }>();
+	const bookIds = body?.book_ids;
+	if (!Array.isArray(bookIds) || bookIds.some((id) => isNaN(id))) {
 		return c.json({ error: '無効なbook_idです' }, 400);
 	}
 	const sql = createDbClientFromEnv(c.env);
-	await syncBookSeries(sql, c.env.BOOKMETER_API, [bookId]);
+	await syncBookSeries(sql, c.env.BOOKMETER_API, bookIds);
 	await refreshSeriesLeaderboard(sql);
 	await refreshAll(sql);
 	return c.json({ ok: true });
@@ -98,16 +97,5 @@ app.post('/blacklist', validateToken, async (c) => {
 	return c.json({ ok: true, blacklisted: series_ids.length });
 });
 
-app.post('/merges', validateToken, async (c) => {
-	const body = await c.req.json<{ variant_id: number; base_id: number }>();
-	const { variant_id, base_id } = body;
-	if (!variant_id || !base_id || isNaN(variant_id) || isNaN(base_id)) {
-		return c.json({ error: '無効なIDです' }, 400);
-	}
-	const sql = createDbClientFromEnv(c.env);
-	await insertSeriesMerge(sql, variant_id, base_id);
-	await refreshAll(sql);
-	return c.json({ ok: true });
-});
 
 export default app;

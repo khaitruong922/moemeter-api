@@ -3,7 +3,6 @@ import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
 import {
-	applySeriesMerges,
 	deleteOrphanSeriesAndBooks,
 	fixOrphanSeriesNumbers,
 	refreshSeriesLeaderboard,
@@ -155,7 +154,6 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 
 	// Sync merges
 	await syncBookMerges(sql);
-	await applySeriesMerges(sql);
 
 	// Leaderboards
 	await refreshRankedUsers(sql);
