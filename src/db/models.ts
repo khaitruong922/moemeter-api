@@ -25,6 +25,9 @@ export interface Book {
 	author_url: string | null;
 	page: number | null;
 	thumbnail_url: string | null;
+	series_id?: number | null;
+	series_name?: string | null;
+	last_series_fetched?: Date | null;
 }
 
 export interface BookWithReadId extends Book {

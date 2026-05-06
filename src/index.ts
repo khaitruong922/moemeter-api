@@ -6,6 +6,8 @@ import { createDbClientFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
+import { syncBookSeries } from './jobs/series';
+import series from './routes/series';
 import auth from './routes/auth';
 import blacklistedBooks from './routes/blacklisted_books';
 import bookMergeExceptions from './routes/book_ merge_exceptions';
@@ -47,6 +49,7 @@ app.route('/manual_book_merges', manualBookMerges);
 app.route('/book_merge_exceptions', bookMergeExceptions);
 app.route('/reads', reads);
 app.route('/metadata', metadata);
+app.route('/series', series);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('見つかりません'), 404);
@@ -89,6 +92,10 @@ export default {
 				limit: null,
 			}).catch((error) => {
 				console.error('失敗したユーザーの同期に失敗しました:', error);
+			});
+		} else if (event.cron === '*/10 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *') {
+			await syncBookSeries(sql, bookmeterApiService).catch((error) => {
+				console.error('シリーズ同期に失敗しました:', error);
 			});
 		}
 	},

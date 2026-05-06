@@ -190,11 +190,13 @@ export const selectBooksWithUsersAndReviews = async (
 
   SELECT
     books.*,
+    MAX(series.name) as series_name,
     COUNT(DISTINCT filtered_reads.user_id) as read_count
     ${includeDate ? sql`, MAX(filtered_reads.date) as date` : sql``}
     ${userId ? sql`, filtered_reads.id as read_id` : sql``}
   FROM filtered_reads
   JOIN books ON books.id = filtered_reads.merged_book_id
+  LEFT JOIN series ON series.id = books.series_id
   GROUP BY ${sql.unsafe(groupBy)}
   ORDER BY ${sql.unsafe(orderBy)}
   LIMIT ${limit}
@@ -287,7 +289,7 @@ export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> =>
       SELECT book_id FROM reads
     ) AND books.id NOT IN (
       SELECT merged_book_id FROM reads
-    )
+    ) AND books.series_id IS NULL
   `;
 };
 
