@@ -548,10 +548,10 @@ CREATE MATERIALIZED VIEW public.series_leaderboard AS
     sr.read_count,
     sa.total_reads_count,
     sa.total_pages,
-    (rank() OVER (ORDER BY sa.total_reads_count DESC, sr.read_count DESC))::integer AS reads_rank,
-    (rank() OVER (ORDER BY sr.read_count DESC, sa.total_reads_count DESC))::integer AS read_count_rank,
-    (rank() OVER (ORDER BY sa.total_book_count DESC, sr.read_count DESC))::integer AS count_rank,
-    (rank() OVER (ORDER BY sa.total_pages DESC, sa.total_reads_count DESC))::integer AS pages_rank
+    (rank() OVER (ORDER BY sa.total_reads_count DESC))::integer AS reads_rank,
+    (rank() OVER (ORDER BY sr.read_count DESC))::integer AS read_count_rank,
+    (rank() OVER (ORDER BY sa.total_book_count DESC))::integer AS book_count_rank,
+    (rank() OVER (ORDER BY sa.total_pages DESC))::integer AS pages_rank
    FROM ((public.series s
      JOIN series_agg sa ON ((sa.series_id = s.id)))
      JOIN series_readers sr ON ((sr.series_id = s.id)))

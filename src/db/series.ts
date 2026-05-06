@@ -333,8 +333,9 @@ export type SeriesLeaderboardEntry = {
 	total_pages: number;
 	reads_rank: number;
 	read_count_rank: number;
-	count_rank: number;
+	book_count_rank: number;
 	pages_rank: number;
+	cover_url: string | null;
 };
 
 export const selectSeriesLeaderboard = async (
@@ -345,12 +346,19 @@ export const selectSeriesLeaderboard = async (
 		order === 'read_count'
 			? 'read_count_rank'
 			: order === 'book_count'
-				? 'count_rank'
+				? 'book_count_rank'
 				: order === 'pages'
 					? 'pages_rank'
 					: 'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
-    SELECT * FROM series_leaderboard
+    SELECT sl.*,
+      (
+        SELECT b.thumbnail_url FROM books b
+        WHERE b.series_id = sl.id
+        ORDER BY b.series_number ASC NULLS LAST, b.id ASC
+        LIMIT 1
+      ) AS cover_url
+    FROM series_leaderboard sl
     ORDER BY ${sql(rankField)} ASC;
   `;
 	return rows.map((r) => ({
@@ -361,7 +369,7 @@ export const selectSeriesLeaderboard = async (
 		total_pages: Number(r.total_pages),
 		reads_rank: Number(r.reads_rank),
 		read_count_rank: Number(r.read_count_rank),
-		count_rank: Number(r.count_rank),
+		book_count_rank: Number(r.book_count_rank),
 		pages_rank: Number(r.pages_rank),
 	}));
 };
