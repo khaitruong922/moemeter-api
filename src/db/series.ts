@@ -49,8 +49,9 @@ export const selectBooksNeedingSeriesFetch = async (
 ): Promise<BookForSeriesFetch[]> => {
 	return await sql<BookForSeriesFetch[]>`
     SELECT id, series_id, last_series_fetched FROM books
-    WHERE last_series_fetched IS NULL
-       OR last_series_fetched < now() - interval '2 weeks'
+    WHERE (last_series_fetched IS NULL
+       OR last_series_fetched < now() - interval '2 weeks')
+      AND id NOT IN (SELECT id FROM blacklisted_books)
     ORDER BY last_series_fetched ASC NULLS FIRST
     LIMIT ${limit}
   `;
