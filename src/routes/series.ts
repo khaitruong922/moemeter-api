@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { createDbClientFromEnv } from '../db';
 import {
+	blacklistSeriesIds,
 	insertSeriesMerge,
 	refreshSeriesLeaderboard,
 	selectBooksForSeriesPage,
@@ -12,6 +13,7 @@ import {
 import { syncBookSeries } from '../core/series';
 import { validateToken } from '../middlewares/auth';
 import { AppEnv } from '../types/app_env';
+import { refreshAll } from '../db/users';
 
 const app = new Hono<{ Bindings: AppEnv }>();
 
@@ -75,6 +77,17 @@ app.post('/refetch', validateToken, async (c) => {
 	await syncBookSeries(sql, c.env.BOOKMETER_API, [bookId]);
 	await refreshSeriesLeaderboard(sql);
 	return c.json({ ok: true });
+});
+
+app.post('/blacklist', validateToken, async (c) => {
+	const body = await c.req.json<{ series_ids: number[] }>();
+	const { series_ids } = body;
+	if (!Array.isArray(series_ids) || series_ids.some((id) => isNaN(id))) {
+		return c.json({ error: '無効なシリーズIDです' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	await blacklistSeriesIds(sql, series_ids);
+	return c.json({ ok: true, blacklisted: series_ids.length });
 });
 
 app.post('/merges', validateToken, async (c) => {

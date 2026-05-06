@@ -4,6 +4,7 @@ import { Book } from '../db/models';
 import {
 	markSeriesFetched,
 	propagateSeriesNumbers,
+	selectBlacklistedSeriesIds,
 	selectBooksNeedingSeriesFetch,
 	updateSeriesIdForBookAndVariants,
 	upsertSeries,
@@ -26,11 +27,12 @@ const toBook = (b: SeriesBook): Book => ({
 const syncSeriesForBook = async (
 	sql: postgres.Sql<{}>,
 	bookmeterApiService: BookmeterApiService,
-	bookId: number
+	bookId: number,
+	blacklistedSeriesIds: Set<number>
 ): Promise<number[]> => {
 	const result = await bookmeterApiService.fetchBookSeries(bookId);
 
-	if (result === null) {
+	if (result === null || blacklistedSeriesIds.has(result.seriesId)) {
 		await markSeriesFetched(sql, [bookId]);
 		return [bookId];
 	}
@@ -55,6 +57,7 @@ export const syncBookSeries = async (
 	bookIds?: number[]
 ): Promise<void> => {
 	const processedBookIds = new Set<number>();
+	const blacklistedSeriesIds = await selectBlacklistedSeriesIds(sql);
 
 	const books = bookIds
 		? bookIds.map((id) => ({ id }))
@@ -71,7 +74,7 @@ export const syncBookSeries = async (
 		}
 		console.log('Iteration #', ++iteration, 'Skipped:', skippedCount);
 
-		const processed = await syncSeriesForBook(sql, bookmeterApiService, book.id);
+		const processed = await syncSeriesForBook(sql, bookmeterApiService, book.id, blacklistedSeriesIds);
 		for (const id of processed) processedBookIds.add(id);
 	}
 

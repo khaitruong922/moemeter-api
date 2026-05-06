@@ -1,6 +1,7 @@
 import postgres from 'postgres';
-import { BookReview } from './books';
+import { BookReview, deleteUnreadBooks } from './books';
 import { selectReviewsByIds } from './reviews';
+import { refreshAll } from './users';
 
 export const upsertSeries = async (
 	sql: postgres.Sql<{}>,
@@ -107,6 +108,29 @@ export const insertSeriesMerge = async (
     VALUES (${variantId}, ${baseId})
     ON CONFLICT (variant_id) DO UPDATE SET base_id = EXCLUDED.base_id
   `;
+};
+
+export const selectBlacklistedSeriesIds = async (sql: postgres.Sql<{}>): Promise<Set<number>> => {
+	const rows = await sql<{ id: number }[]>`SELECT id FROM blacklisted_series`;
+	return new Set(rows.map((r) => r.id));
+};
+
+export const blacklistSeriesIds = async (
+	sql: postgres.Sql<{}>,
+	seriesIds: number[]
+): Promise<void> => {
+	if (seriesIds.length === 0) return;
+	await sql`
+    INSERT INTO blacklisted_series ${sql(seriesIds.map((id) => ({ id })))}
+    ON CONFLICT DO NOTHING
+  `;
+	await sql`
+    UPDATE books SET series_id = NULL, series_number = NULL
+    WHERE series_id IN ${sql(seriesIds)}
+  `;
+	await sql`DELETE FROM series WHERE id IN ${sql(seriesIds)}`;
+	await deleteUnreadBooks(sql);
+	await refreshAll(sql);
 };
 
 export const applySeriesMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
@@ -300,7 +324,7 @@ export const refreshSeriesLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
   `;
 };
 
-export const deleteOrphanSeries = async (sql: postgres.Sql<{}>): Promise<void> => {
+export const deleteOrphanSeriesAndBooks = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     WITH orphan_series AS (
       SELECT s.id FROM series s

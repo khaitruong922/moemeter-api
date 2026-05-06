@@ -1,7 +1,7 @@
 import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
 import { deleteUnreadBooks } from '../db/books';
-import { deleteOrphanSeries } from '../db/series';
+import { deleteOrphanSeriesAndBooks } from '../db/series';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
 import {
@@ -48,7 +48,7 @@ export const syncAllUsers = async (
 		}
 	}
 	await deleteUnreadBooks(sql);
-	await deleteOrphanSeries(sql);
+	await deleteOrphanSeriesAndBooks(sql);
 	await refreshAll(sql);
 	await updateMetadataLastUpdated(sql, new Date());
 
