@@ -1,6 +1,15 @@
 import { Hono } from 'hono';
 import { createDbClientFromEnv } from '../db';
-import { insertSeriesMerge, selectBooksForSeriesPage, selectSeriesById, selectSeriesLeaderboard, selectSeriesStats, type SeriesLeaderboardOrder } from '../db/series';
+import {
+	insertSeriesMerge,
+	refreshSeriesLeaderboard,
+	selectBooksForSeriesPage,
+	selectSeriesById,
+	selectSeriesLeaderboard,
+	selectSeriesStats,
+	type SeriesLeaderboardOrder,
+} from '../db/series';
+import { syncSeriesForBook } from '../core/series';
 import { validateToken } from '../middlewares/auth';
 import { AppEnv } from '../types/app_env';
 
@@ -9,10 +18,13 @@ const app = new Hono<{ Bindings: AppEnv }>();
 app.get('/leaderboard', async (c) => {
 	const orderParam = c.req.query('order');
 	const order: SeriesLeaderboardOrder =
-		orderParam === 'read_count' ? 'read_count' :
-		orderParam === 'book_count' ? 'book_count' :
-		orderParam === 'pages' ? 'pages' :
-		'reads';
+		orderParam === 'read_count'
+			? 'read_count'
+			: orderParam === 'book_count'
+				? 'book_count'
+				: orderParam === 'pages'
+					? 'pages'
+					: 'reads';
 	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesLeaderboard(sql, order);
 	return c.json(series);
@@ -35,9 +47,34 @@ app.get('/:seriesId', async (c) => {
 		selectSeriesStats(sql, seriesId),
 	]);
 
-	const { total_book_count = books.length, read_count = 0, total_reads_count = 0, total_pages = 0 } = stats ?? {};
+	const {
+		total_book_count = books.length,
+		read_count = 0,
+		total_reads_count = 0,
+		total_pages = 0,
+	} = stats ?? {};
 
-	return c.json({ series, books, users, total_book_count, read_count, total_reads_count, total_pages });
+	return c.json({
+		series,
+		books,
+		users,
+		total_book_count,
+		read_count,
+		total_reads_count,
+		total_pages,
+	});
+});
+
+app.post('/refetch', validateToken, async (c) => {
+	const body = await c.req.json<{ book_id: number }>();
+	const bookId = Number(body?.book_id);
+	if (!bookId || isNaN(bookId)) {
+		return c.json({ error: '無効なbook_idです' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	await syncSeriesForBook(sql, c.env.BOOKMETER_API, bookId);
+	await refreshSeriesLeaderboard(sql);
+	return c.json({ ok: true });
 });
 
 app.post('/merges', validateToken, async (c) => {
