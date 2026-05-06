@@ -9,7 +9,8 @@
 		"dev": "wrangler dev",
 		"bookmeter": "cd ../bookmeter-api && wrangler dev",
 		"start": "wrangler dev",
-		"format": "prettier --write \"src/**/*.{ts,js,json}\""
+		"format": "prettier --write \"src/**/*.{ts,js,json}\"",
+		"prepare": "git config core.hooksPath .githooks"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20240222.0",
