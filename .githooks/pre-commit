@@ -1,5 +1,0 @@
-#!/bin/sh
-echo "Pulling schema..."
-if ! ./schema-pull.sh; then
-  echo "Warning: schema-pull.sh failed — continuing anyway"
-fi
