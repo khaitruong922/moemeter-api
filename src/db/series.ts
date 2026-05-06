@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { BookReview, deleteUnreadBooks } from './books';
+import { BookReview } from './books';
 import { selectReviewsByIds } from './reviews';
 import { refreshAll } from './users';
 
@@ -67,6 +67,29 @@ export const propagateSeriesNumbers = async (
   `;
 };
 
+export const fixOrphanSeriesNumbers = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    UPDATE books
+    SET series_number = base.series_number
+    FROM books base
+    JOIN final_book_merges fm ON fm.base_id = base.id
+    WHERE books.id = fm.variant_id
+      AND books.series_id IS NOT NULL
+      AND base.series_number IS NOT NULL
+      AND books.series_number IS NULL
+  `;
+	await sql`
+    UPDATE books
+    SET series_number = v.series_number
+    FROM books v
+    JOIN final_book_merges fm ON fm.variant_id = v.id
+    WHERE books.id = fm.base_id
+      AND books.series_id IS NOT NULL
+      AND v.series_number IS NOT NULL
+      AND books.series_number IS NULL
+  `;
+};
+
 export type BookForSeriesFetch = {
 	id: number;
 	series_id: number | null;
@@ -129,7 +152,6 @@ export const blacklistSeriesIds = async (
     WHERE series_id IN ${sql(seriesIds)}
   `;
 	await sql`DELETE FROM series WHERE id IN ${sql(seriesIds)}`;
-	await deleteUnreadBooks(sql);
 	await refreshAll(sql);
 };
 
@@ -141,6 +163,54 @@ export const applySeriesMerges = async (sql: postgres.Sql<{}>): Promise<void> =>
     FROM series_merges sm
     WHERE books.series_id = sm.variant_id
   `;
+};
+
+export type SeriesWithMultipleAuthors = {
+	id: number;
+	name: string;
+	author_count: number;
+	author_distribution: { author: string; count: number }[];
+};
+
+export const selectSeriesWithMultipleAuthors = async (
+	sql: postgres.Sql<{}>
+): Promise<SeriesWithMultipleAuthors[]> => {
+	const rows = await sql<
+		{ id: number; name: string; author_count: number; author_distribution: string }[]
+	>`
+    WITH author_counts AS (
+      SELECT
+        series_id,
+        remove_spaces(author) AS author,
+        COUNT(*)::int AS book_count
+      FROM books
+      WHERE author IS NOT NULL AND series_id IS NOT NULL
+      GROUP BY series_id, remove_spaces(author)
+    ),
+    series_multi AS (
+      SELECT series_id, COUNT(*)::int AS author_count
+      FROM author_counts
+      GROUP BY series_id
+      HAVING COUNT(*) > 1
+    )
+    SELECT
+      s.id,
+      s.name,
+      sm.author_count,
+      jsonb_agg(jsonb_build_object('author', ac.author, 'count', ac.book_count) ORDER BY ac.book_count DESC) AS author_distribution
+    FROM series s
+    JOIN series_multi sm ON sm.series_id = s.id
+    JOIN author_counts ac ON ac.series_id = s.id
+    GROUP BY s.id, s.name, sm.author_count
+    ORDER BY sm.author_count DESC, s.name
+  `;
+	return rows.map((r) => ({
+		...r,
+		author_distribution:
+			typeof r.author_distribution === 'string'
+				? JSON.parse(r.author_distribution)
+				: r.author_distribution,
+	}));
 };
 
 export type SeriesRow = { id: number; name: string };

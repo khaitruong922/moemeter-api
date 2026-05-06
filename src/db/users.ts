@@ -2,7 +2,13 @@ import postgres from 'postgres';
 import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
-import { applySeriesMerges, refreshSeriesLeaderboard } from './series';
+import {
+	applySeriesMerges,
+	deleteOrphanSeriesAndBooks,
+	fixOrphanSeriesNumbers,
+	refreshSeriesLeaderboard,
+} from './series';
+import { deleteUnreadBooks } from './books';
 
 export type RankedUser = User & {
 	rank: number | string;
@@ -142,14 +148,24 @@ export const refreshReadingAffinityLeaderboard = async (sql: postgres.Sql<{}>): 
 };
 
 export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
+	// Delete and sync data
+	await deleteUnreadBooks(sql);
+	await deleteOrphanSeriesAndBooks(sql);
+	await deleteOrphanReviews(sql);
+
+	// Sync merges
 	await syncBookMerges(sql);
 	await applySeriesMerges(sql);
+
+	// Leaderboards
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
 	await refreshLonelyLeaderboard(sql);
 	await refreshReadingAffinityLeaderboard(sql);
 	await refreshSeriesLeaderboard(sql);
-	await deleteOrphanReviews(sql);
+
+	// Fix orphan series numbers after all merges and deletions
+	await fixOrphanSeriesNumbers(sql);
 };
 
 export type SelectAllUsersParams = {

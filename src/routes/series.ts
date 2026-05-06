@@ -8,6 +8,7 @@ import {
 	selectSeriesById,
 	selectSeriesLeaderboard,
 	selectSeriesStats,
+	selectSeriesWithMultipleAuthors,
 	type SeriesLeaderboardOrder,
 } from '../db/series';
 import { syncBookSeries } from '../core/series';
@@ -29,6 +30,12 @@ app.get('/leaderboard', async (c) => {
 					: 'reads';
 	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesLeaderboard(sql, order);
+	return c.json(series);
+});
+
+app.get('/multi-author', async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	const series = await selectSeriesWithMultipleAuthors(sql);
 	return c.json(series);
 });
 
@@ -76,6 +83,7 @@ app.post('/refetch', validateToken, async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	await syncBookSeries(sql, c.env.BOOKMETER_API, [bookId]);
 	await refreshSeriesLeaderboard(sql);
+	await refreshAll(sql);
 	return c.json({ ok: true });
 });
 
@@ -98,6 +106,7 @@ app.post('/merges', validateToken, async (c) => {
 	}
 	const sql = createDbClientFromEnv(c.env);
 	await insertSeriesMerge(sql, variant_id, base_id);
+	await refreshAll(sql);
 	return c.json({ ok: true });
 });
 

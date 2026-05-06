@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { bulkUpsertBooks } from '../db/books';
 import { Book } from '../db/models';
 import {
+	fixOrphanSeriesNumbers,
 	markSeriesFetched,
 	propagateSeriesNumbers,
 	selectBlacklistedSeriesIds,
@@ -74,7 +75,12 @@ export const syncBookSeries = async (
 		}
 		console.log('Iteration #', ++iteration, 'Skipped:', skippedCount);
 
-		const processed = await syncSeriesForBook(sql, bookmeterApiService, book.id, blacklistedSeriesIds);
+		const processed = await syncSeriesForBook(
+			sql,
+			bookmeterApiService,
+			book.id,
+			blacklistedSeriesIds
+		);
 		for (const id of processed) processedBookIds.add(id);
 	}
 
