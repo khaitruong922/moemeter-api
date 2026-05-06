@@ -145,7 +145,9 @@ CREATE TABLE public.books (
     author_url text,
     thumbnail_url text,
     page integer,
-    title_cleaned text GENERATED ALWAYS AS (public.clean_title(title)) STORED
+    title_cleaned text GENERATED ALWAYS AS (public.clean_title(title)) STORED,
+    series_id integer,
+    last_series_fetched timestamp without time zone
 );
 
 
@@ -479,6 +481,86 @@ ALTER SEQUENCE public.reviews_id_seq OWNED BY public.reviews.id;
 
 
 --
+-- Name: series; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series (
+    id integer NOT NULL,
+    name text
+);
+
+
+ALTER TABLE public.series OWNER TO postgres;
+
+--
+-- Name: series_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.series_leaderboard AS
+ WITH canonical_books AS (
+         SELECT b.series_id,
+            COALESCE(fm.base_id, b.id) AS book_id
+           FROM (public.books b
+             LEFT JOIN public.final_book_merges fm ON ((fm.variant_id = b.id)))
+          WHERE (b.series_id IS NOT NULL)
+        ), deduped AS (
+         SELECT DISTINCT canonical_books.series_id,
+            canonical_books.book_id
+           FROM canonical_books
+        ), book_stats AS (
+         SELECT d.series_id,
+            d.book_id,
+            b.page,
+            (count(DISTINCT r.user_id))::integer AS reader_count
+           FROM ((deduped d
+             JOIN public.books b ON ((b.id = d.book_id)))
+             LEFT JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
+          GROUP BY d.series_id, d.book_id, b.page
+        ), series_agg AS (
+         SELECT bs.series_id,
+            (count(bs.book_id))::integer AS total_book_count,
+            (sum(bs.reader_count))::integer AS total_reads_count,
+            COALESCE(sum((bs.reader_count * COALESCE(bs.page, 0))), (0)::bigint) AS total_pages
+           FROM book_stats bs
+          GROUP BY bs.series_id
+        ), series_readers AS (
+         SELECT d.series_id,
+            (count(DISTINCT r.user_id))::integer AS read_count
+           FROM (deduped d
+             LEFT JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
+          GROUP BY d.series_id
+        )
+ SELECT s.id,
+    s.name,
+    sa.total_book_count,
+    sr.read_count,
+    sa.total_reads_count,
+    sa.total_pages,
+    (rank() OVER (ORDER BY sa.total_reads_count DESC, sr.read_count DESC))::integer AS reads_rank,
+    (rank() OVER (ORDER BY sr.read_count DESC, sa.total_reads_count DESC))::integer AS read_count_rank,
+    (rank() OVER (ORDER BY sa.total_book_count DESC, sr.read_count DESC))::integer AS count_rank,
+    (rank() OVER (ORDER BY sa.total_pages DESC, sa.total_reads_count DESC))::integer AS pages_rank
+   FROM ((public.series s
+     JOIN series_agg sa ON ((sa.series_id = s.id)))
+     JOIN series_readers sr ON ((sr.series_id = s.id)))
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.series_leaderboard OWNER TO postgres;
+
+--
+-- Name: series_merges; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series_merges (
+    variant_id integer NOT NULL,
+    base_id integer NOT NULL
+);
+
+
+ALTER TABLE public.series_merges OWNER TO postgres;
+
+--
 -- Name: groups id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -592,6 +674,36 @@ ALTER TABLE ONLY public.reads
 
 ALTER TABLE ONLY public.reviews
     ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: series_merges series_merges_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_merges
+    ADD CONSTRAINT series_merges_pkey PRIMARY KEY (variant_id);
+
+
+--
+-- Name: series series_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series
+    ADD CONSTRAINT series_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_books_last_series_fetched; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_books_last_series_fetched ON public.books USING btree (last_series_fetched NULLS FIRST);
+
+
+--
+-- Name: idx_books_series_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_books_series_id ON public.books USING btree (series_id);
 
 
 --
@@ -732,6 +844,18 @@ ALTER TABLE public.reads ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: series; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.series ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: series_merges; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.series_merges ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: users; Type: ROW SECURITY; Schema: public; Owner: postgres

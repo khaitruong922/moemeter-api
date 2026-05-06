@@ -2,7 +2,7 @@ import postgres from 'postgres';
 import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
-import { applySeriesMerges } from './series';
+import { applySeriesMerges, refreshSeriesLeaderboard } from './series';
 
 export type RankedUser = User & {
 	rank: number | string;
@@ -148,6 +148,7 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await refreshYearlyLeaderboard(sql);
 	await refreshLonelyLeaderboard(sql);
 	await refreshReadingAffinityLeaderboard(sql);
+	await refreshSeriesLeaderboard(sql);
 	await deleteOrphanReviews(sql);
 };
 

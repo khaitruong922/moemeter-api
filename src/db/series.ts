@@ -112,19 +112,41 @@ type SeriesBookRow = {
 	read_count: number;
 };
 
+export type SeriesStats = {
+	total_book_count: number;
+	read_count: number;
+	total_reads_count: number;
+	total_pages: number;
+};
+
 export type SeriesPageResponse = {
 	series: SeriesRow;
 	books: SeriesBookRow[];
 	users: Record<string, { id: number; name: string | null; avatar_url: string | null }>;
-	total_count: number;
-	read_count: number;
-	total_reads_count: number;
+} & SeriesStats;
+
+export const selectSeriesStats = async (
+	sql: postgres.Sql<{}>,
+	seriesId: number
+): Promise<SeriesStats | null> => {
+	const rows = await sql<SeriesStats[]>`
+    SELECT total_book_count, read_count, total_reads_count, total_pages
+    FROM series_leaderboard WHERE id = ${seriesId}
+  `;
+	if (!rows[0]) return null;
+	const r = rows[0];
+	return {
+		total_book_count: Number(r.total_book_count),
+		read_count: Number(r.read_count),
+		total_reads_count: Number(r.total_reads_count),
+		total_pages: Number(r.total_pages),
+	};
 };
 
 export const selectBooksForSeriesPage = async (
 	sql: postgres.Sql<{}>,
 	seriesId: number
-): Promise<Omit<SeriesPageResponse, 'series'>> => {
+): Promise<{ books: (SeriesBookRow & { user_ids: number[]; reviews: BookReview[] })[]; users: SeriesPageResponse['users'] }> => {
 	const bookRows = await sql<(SeriesBookRow & { user_ids: number[] | null })[]>`
     WITH canonical AS (
       SELECT DISTINCT COALESCE(fm.base_id, b.id) AS id
@@ -178,10 +200,54 @@ export const selectBooksForSeriesPage = async (
 		reviews: bookReviewsMap[b.id] ?? [],
 	}));
 
-	const read_count = books.filter((b) => b.read_count > 0).length;
-	const total_reads_count = books.reduce((sum, b) => sum + b.read_count, 0);
+	return { books, users };
+};
 
-	return { books, users, total_count: books.length, read_count, total_reads_count };
+export type SeriesLeaderboardOrder = 'reads' | 'read_count' | 'count' | 'pages';
+
+export type SeriesLeaderboardEntry = {
+	id: number;
+	name: string;
+	total_book_count: number;
+	read_count: number;
+	total_reads_count: number;
+	total_pages: number;
+	reads_rank: number;
+	read_count_rank: number;
+	count_rank: number;
+	pages_rank: number;
+};
+
+export const selectSeriesLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: SeriesLeaderboardOrder
+): Promise<SeriesLeaderboardEntry[]> => {
+	const rankField =
+		order === 'read_count' ? 'read_count_rank' :
+		order === 'count' ? 'count_rank' :
+		order === 'pages' ? 'pages_rank' :
+		'reads_rank';
+	const rows = await sql<SeriesLeaderboardEntry[]>`
+    SELECT * FROM series_leaderboard
+    ORDER BY ${sql(rankField)} ASC;
+  `;
+	return rows.map((r) => ({
+		...r,
+		total_book_count: Number(r.total_book_count),
+		read_count: Number(r.read_count),
+		total_reads_count: Number(r.total_reads_count),
+		total_pages: Number(r.total_pages),
+		reads_rank: Number(r.reads_rank),
+		read_count_rank: Number(r.read_count_rank),
+		count_rank: Number(r.count_rank),
+		pages_rank: Number(r.pages_rank),
+	}));
+};
+
+export const refreshSeriesLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW series_leaderboard;
+  `;
 };
 
 export const deleteOrphanSeries = async (sql: postgres.Sql<{}>): Promise<void> => {
