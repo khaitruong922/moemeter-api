@@ -2,13 +2,13 @@ import postgres from 'postgres';
 import { bulkUpsertBooks } from '../db/books';
 import { Book } from '../db/models';
 import {
-	applySeriesMerges,
 	markSeriesFetched,
 	propagateSeriesNumbers,
 	selectBooksNeedingSeriesFetch,
 	updateSeriesIdForBookAndVariants,
 	upsertSeries,
 } from '../db/series';
+import { refreshAll } from '../db/users';
 import { BookmeterApiService, SeriesBook } from '../types/bookmeter_api_service';
 
 const BATCH_SIZE = 50;
@@ -60,14 +60,21 @@ export const syncBookSeries = async (
 		? bookIds.map((id) => ({ id }))
 		: await selectBooksNeedingSeriesFetch(sql, BATCH_SIZE);
 
+	console.log(`シリーズを同期する書籍を${books.length}件取得しました`);
+
+	let iteration = 0;
+	let skippedCount = 0;
 	for (const book of books) {
-		console.log(`シリーズを同期中: 書籍ID ${book.id}...`);
-		if (processedBookIds.has(book.id)) continue;
+		if (processedBookIds.has(book.id)) {
+			skippedCount++;
+			continue;
+		}
+		console.log('Iteration #', ++iteration, 'Skipped:', skippedCount);
 
 		const processed = await syncSeriesForBook(sql, bookmeterApiService, book.id);
 		for (const id of processed) processedBookIds.add(id);
 	}
 
-	await applySeriesMerges(sql);
+	await refreshAll(sql);
 	console.log(`シリーズ同期完了: ${processedBookIds.size}冊処理済み`);
 };

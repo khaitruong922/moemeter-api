@@ -45,14 +45,24 @@ export const propagateSeriesNumbers = async (
 ): Promise<void> => {
 	if (bookIds.length === 0) return;
 	await sql`
-    UPDATE books AS v
-    SET series_number = b.series_number
-    FROM books b
-    LEFT JOIN final_book_merges fm ON fm.variant_id = v.id
-    WHERE COALESCE(fm.base_id, v.id) = b.id
-      AND v.id IN ${sql(bookIds)}
-      AND b.series_number IS NOT NULL
-      AND v.series_number IS NULL
+    UPDATE books
+    SET series_number = base.series_number
+    FROM books base
+    JOIN final_book_merges fm ON fm.base_id = base.id
+    WHERE books.id = fm.variant_id
+      AND books.id IN ${sql(bookIds)}
+      AND base.series_number IS NOT NULL
+      AND books.series_number IS NULL
+  `;
+	await sql`
+    UPDATE books
+    SET series_number = v.series_number
+    FROM books v
+    JOIN final_book_merges fm ON fm.variant_id = v.id
+    WHERE books.id = fm.base_id
+      AND books.id IN ${sql(bookIds)}
+      AND v.series_number IS NOT NULL
+      AND books.series_number IS NULL
   `;
 };
 
@@ -100,6 +110,7 @@ export const insertSeriesMerge = async (
 };
 
 export const applySeriesMerges = async (sql: postgres.Sql<{}>): Promise<void> => {
+	// Note: may cause conflicts related to series_number
 	await sql`
     UPDATE books
     SET series_id = sm.base_id
@@ -167,7 +178,10 @@ export const selectSeriesStats = async (
 export const selectBooksForSeriesPage = async (
 	sql: postgres.Sql<{}>,
 	seriesId: number
-): Promise<{ books: (SeriesBookRow & { user_ids: number[]; reviews: BookReview[] })[]; users: SeriesPageResponse['users'] }> => {
+): Promise<{
+	books: (SeriesBookRow & { user_ids: number[]; reviews: BookReview[] })[];
+	users: SeriesPageResponse['users'];
+}> => {
 	const bookRows = await sql<(SeriesBookRow & { user_ids: number[] | null })[]>`
     WITH canonical AS (
       SELECT DISTINCT COALESCE(fm.base_id, b.id) AS id
@@ -188,16 +202,27 @@ export const selectBooksForSeriesPage = async (
     ORDER BY b.series_number ASC NULLS LAST, b.id ASC
   `;
 
-	const bookIds = bookRows.map((b) => b.id).filter((id) => bookRows.find(b => b.id === id)?.read_count ?? 0 > 0);
+	const bookIds = bookRows
+		.map((b) => b.id)
+		.filter((id) => bookRows.find((b) => b.id === id)?.read_count ?? 0 > 0);
 
-	const userRows = bookIds.length > 0
-		? await sql<{ id: number; name: string | null; avatar_url: string | null; book_id: number; read_id: number }[]>`
+	const userRows =
+		bookIds.length > 0
+			? await sql<
+					{
+						id: number;
+						name: string | null;
+						avatar_url: string | null;
+						book_id: number;
+						read_id: number;
+					}[]
+				>`
         SELECT users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id, reads.id AS read_id
         FROM users
         JOIN reads ON reads.user_id = users.id
         WHERE reads.merged_book_id IN ${sql(bookIds)}
       `
-		: [];
+			: [];
 
 	const users: SeriesPageResponse['users'] = {};
 	const bookUserIds: Record<number, number[]> = {};
@@ -245,10 +270,13 @@ export const selectSeriesLeaderboard = async (
 	order: SeriesLeaderboardOrder
 ): Promise<SeriesLeaderboardEntry[]> => {
 	const rankField =
-		order === 'read_count' ? 'read_count_rank' :
-		order === 'book_count' ? 'count_rank' :
-		order === 'pages' ? 'pages_rank' :
-		'reads_rank';
+		order === 'read_count'
+			? 'read_count_rank'
+			: order === 'book_count'
+				? 'count_rank'
+				: order === 'pages'
+					? 'pages_rank'
+					: 'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
     SELECT * FROM series_leaderboard
     ORDER BY ${sql(rankField)} ASC;
