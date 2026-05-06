@@ -1,4 +1,6 @@
 import postgres from 'postgres';
+import { BookReview } from './books';
+import { selectReviewsByIds } from './reviews';
 
 export const upsertSeries = async (
 	sql: postgres.Sql<{}>,
@@ -145,8 +147,8 @@ export const selectBooksForSeriesPage = async (
 	const bookIds = bookRows.map((b) => b.id).filter((id) => bookRows.find(b => b.id === id)?.read_count ?? 0 > 0);
 
 	const userRows = bookIds.length > 0
-		? await sql<{ id: number; name: string | null; avatar_url: string | null; book_id: number }[]>`
-        SELECT users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id
+		? await sql<{ id: number; name: string | null; avatar_url: string | null; book_id: number; read_id: number }[]>`
+        SELECT users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id, reads.id AS read_id
         FROM users
         JOIN reads ON reads.user_id = users.id
         WHERE reads.merged_book_id IN ${sql(bookIds)}
@@ -155,13 +157,26 @@ export const selectBooksForSeriesPage = async (
 
 	const users: SeriesPageResponse['users'] = {};
 	const bookUserIds: Record<number, number[]> = {};
+	const readIds: number[] = [];
 	userRows.forEach((u) => {
 		users[u.id] = { id: u.id, name: u.name, avatar_url: u.avatar_url };
 		if (!bookUserIds[u.book_id]) bookUserIds[u.book_id] = [];
 		bookUserIds[u.book_id].push(u.id);
+		readIds.push(u.read_id);
 	});
 
-	const books = bookRows.map((b) => ({ ...b, user_ids: [...new Set(bookUserIds[b.id] ?? [])] }));
+	const bookReviews = await selectReviewsByIds(sql, readIds);
+	const bookReviewsMap: Record<number, BookReview[]> = {};
+	bookReviews.forEach((r) => {
+		if (!bookReviewsMap[r.book_id]) bookReviewsMap[r.book_id] = [];
+		bookReviewsMap[r.book_id].push(r);
+	});
+
+	const books = bookRows.map((b) => ({
+		...b,
+		user_ids: [...new Set(bookUserIds[b.id] ?? [])],
+		reviews: bookReviewsMap[b.id] ?? [],
+	}));
 
 	const read_count = books.filter((b) => b.read_count > 0).length;
 	const total_reads_count = books.reduce((sum, b) => sum + b.read_count, 0);
