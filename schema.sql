@@ -561,18 +561,6 @@ CREATE MATERIALIZED VIEW public.series_leaderboard AS
 ALTER MATERIALIZED VIEW public.series_leaderboard OWNER TO postgres;
 
 --
--- Name: series_merges; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.series_merges (
-    variant_id integer NOT NULL,
-    base_id integer NOT NULL
-);
-
-
-ALTER TABLE public.series_merges OWNER TO postgres;
-
---
 -- Name: groups id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -694,14 +682,6 @@ ALTER TABLE ONLY public.reads
 
 ALTER TABLE ONLY public.reviews
     ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
-
-
---
--- Name: series_merges series_merges_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.series_merges
-    ADD CONSTRAINT series_merges_pkey PRIMARY KEY (variant_id);
 
 
 --
@@ -876,12 +856,6 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.series ENABLE ROW LEVEL SECURITY;
-
---
--- Name: series_merges; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.series_merges ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: users; Type: ROW SECURITY; Schema: public; Owner: postgres
