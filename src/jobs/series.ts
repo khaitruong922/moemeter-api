@@ -10,7 +10,7 @@ import {
 } from '../db/series';
 import { BookmeterApiService, SeriesBook } from '../types/bookmeter_api_service';
 
-const BATCH_SIZE = 5000;
+const BATCH_SIZE = 50;
 
 const mapSeriesBookToBook = (b: SeriesBook): Book => ({
 	id: b.id,
