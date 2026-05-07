@@ -393,6 +393,7 @@ export type UserSeriesEntryRow = {
 	series_name: string;
 	total_book_count: number;
 	read_book_count: number;
+	finished_at: string | null;
 	books: UserSeriesBookRow[];
 };
 
@@ -411,6 +412,7 @@ export const selectUserSeriesProgress = async (
 			series_name: string;
 			total_book_count: number;
 			read_book_count: number;
+			finished_at: string | null;
 			book_id: number;
 			title: string | null;
 			thumbnail_url: string | null;
@@ -419,7 +421,7 @@ export const selectUserSeriesProgress = async (
 		}[]
 	>`
     WITH user_reads AS (
-      SELECT merged_book_id FROM reads WHERE user_id = ${userId}
+      SELECT merged_book_id, date FROM reads WHERE user_id = ${userId}
     ),
     canonical_books AS (
       SELECT
@@ -439,15 +441,18 @@ export const selectUserSeriesProgress = async (
         b.title,
         b.thumbnail_url,
         b.series_number,
-        EXISTS(SELECT 1 FROM user_reads ur WHERE ur.merged_book_id = d.book_id) AS user_read
+        (ur.merged_book_id IS NOT NULL) AS user_read,
+        ur.date AS read_date
       FROM deduped d
       JOIN books b ON b.id = d.book_id
+      LEFT JOIN user_reads ur ON ur.merged_book_id = d.book_id
     ),
     series_stats AS (
       SELECT
         series_id,
         COUNT(*)::int AS total_book_count,
-        (COUNT(*) FILTER (WHERE user_read))::int AS read_book_count
+        (COUNT(*) FILTER (WHERE user_read))::int AS read_book_count,
+        MAX(read_date) AS finished_at
       FROM series_books
       GROUP BY series_id
       HAVING (COUNT(*) FILTER (WHERE user_read)) > 0
@@ -457,6 +462,7 @@ export const selectUserSeriesProgress = async (
       s.name AS series_name,
       ss.total_book_count,
       ss.read_book_count,
+      ss.finished_at::text,
       sb.book_id,
       sb.title,
       sb.thumbnail_url,
@@ -476,6 +482,7 @@ export const selectUserSeriesProgress = async (
 				series_name: row.series_name,
 				total_book_count: Number(row.total_book_count),
 				read_book_count: Number(row.read_book_count),
+				finished_at: row.finished_at ?? null,
 				books: [],
 			});
 		}
