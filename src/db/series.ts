@@ -380,6 +380,121 @@ export const refreshSeriesLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
   `;
 };
 
+export type UserSeriesBookRow = {
+	book_id: number;
+	title: string | null;
+	thumbnail_url: string | null;
+	series_number: number | null;
+	user_read: boolean;
+};
+
+export type UserSeriesEntryRow = {
+	series_id: number;
+	series_name: string;
+	total_book_count: number;
+	read_book_count: number;
+	books: UserSeriesBookRow[];
+};
+
+export type UserSeriesProgressResponse = {
+	finished: UserSeriesEntryRow[];
+	in_progress: UserSeriesEntryRow[];
+};
+
+export const selectUserSeriesProgress = async (
+	sql: postgres.Sql<{}>,
+	userId: number
+): Promise<UserSeriesProgressResponse> => {
+	const rows = await sql<
+		{
+			series_id: number;
+			series_name: string;
+			total_book_count: number;
+			read_book_count: number;
+			book_id: number;
+			title: string | null;
+			thumbnail_url: string | null;
+			series_number: number | null;
+			user_read: boolean;
+		}[]
+	>`
+    WITH user_reads AS (
+      SELECT merged_book_id FROM reads WHERE user_id = ${userId}
+    ),
+    canonical_books AS (
+      SELECT
+        b.series_id,
+        COALESCE(fm.base_id, b.id) AS book_id
+      FROM books b
+      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
+      WHERE b.series_id IS NOT NULL
+    ),
+    deduped AS (
+      SELECT DISTINCT series_id, book_id FROM canonical_books
+    ),
+    series_books AS (
+      SELECT
+        d.series_id,
+        d.book_id,
+        b.title,
+        b.thumbnail_url,
+        b.series_number,
+        EXISTS(SELECT 1 FROM user_reads ur WHERE ur.merged_book_id = d.book_id) AS user_read
+      FROM deduped d
+      JOIN books b ON b.id = d.book_id
+    ),
+    series_stats AS (
+      SELECT
+        series_id,
+        COUNT(*)::int AS total_book_count,
+        (COUNT(*) FILTER (WHERE user_read))::int AS read_book_count
+      FROM series_books
+      GROUP BY series_id
+      HAVING (COUNT(*) FILTER (WHERE user_read)) > 0
+    )
+    SELECT
+      s.id AS series_id,
+      s.name AS series_name,
+      ss.total_book_count,
+      ss.read_book_count,
+      sb.book_id,
+      sb.title,
+      sb.thumbnail_url,
+      sb.series_number,
+      sb.user_read
+    FROM series_stats ss
+    JOIN series s ON s.id = ss.series_id
+    JOIN series_books sb ON sb.series_id = ss.series_id
+    ORDER BY ss.series_id, sb.series_number ASC NULLS LAST, sb.book_id ASC
+  `;
+
+	const seriesMap = new Map<number, UserSeriesEntryRow>();
+	for (const row of rows) {
+		if (!seriesMap.has(row.series_id)) {
+			seriesMap.set(row.series_id, {
+				series_id: row.series_id,
+				series_name: row.series_name,
+				total_book_count: Number(row.total_book_count),
+				read_book_count: Number(row.read_book_count),
+				books: [],
+			});
+		}
+		seriesMap.get(row.series_id)!.books.push({
+			book_id: row.book_id,
+			title: row.title,
+			thumbnail_url: row.thumbnail_url,
+			series_number: row.series_number,
+			user_read: row.user_read,
+		});
+	}
+
+	const all = Array.from(seriesMap.values());
+	return {
+		finished: all.filter((s) => s.read_book_count === s.total_book_count),
+		in_progress: all.filter((s) => s.read_book_count < s.total_book_count),
+	};
+};
+
 export const deleteOrphanSeriesAndBooks = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     WITH orphan_series AS (

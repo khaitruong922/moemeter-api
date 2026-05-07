@@ -8,6 +8,7 @@ import {
 	selectSeriesLeaderboard,
 	selectSeriesStats,
 	selectSeriesWithMultipleAuthors,
+	selectUserSeriesProgress,
 	type SeriesLeaderboardOrder,
 } from '../db/series';
 import { syncBookSeries } from '../core/series';
@@ -36,6 +37,16 @@ app.get('/multi-author', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesWithMultipleAuthors(sql);
 	return c.json(series);
+});
+
+app.get('/user/:userId', async (c) => {
+	const userId = Number(c.req.param('userId'));
+	if (isNaN(userId)) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	const sql = createDbClientFromEnv(c.env);
+	const result = await selectUserSeriesProgress(sql, userId);
+	return c.json(result);
 });
 
 app.get('/:seriesId', async (c) => {
