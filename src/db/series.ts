@@ -421,7 +421,8 @@ export const selectUserSeriesProgress = async (
 		}[]
 	>`
     WITH user_reads AS (
-      SELECT merged_book_id, date FROM reads WHERE user_id = ${userId}
+      SELECT merged_book_id, MAX(date) AS date FROM reads WHERE user_id = ${userId}
+      GROUP BY merged_book_id
     ),
     canonical_books AS (
       SELECT
