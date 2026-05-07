@@ -285,22 +285,23 @@ export const selectBooksForSeriesPage = async (
 						id: number;
 						name: string | null;
 						avatar_url: string | null;
+						books_read: number;
 						book_id: number;
 						read_id: number;
 					}[]
 				>`
-        SELECT users.id, users.name, users.avatar_url, reads.merged_book_id AS book_id, reads.id AS read_id
+        SELECT users.id, users.name, users.avatar_url, users.books_read, reads.merged_book_id AS book_id, reads.id AS read_id
         FROM users
         JOIN reads ON reads.user_id = users.id
         WHERE reads.merged_book_id IN ${sql(bookIds)}
       `
 			: [];
 
-	const users: SeriesPageResponse['users'] = {};
+	const users: SeriesPageResponse['users'] & Record<number, { id: number; name: string | null; avatar_url: string | null; books_read: number }> = {};
 	const bookUserIds: Record<number, number[]> = {};
 	const readIds: number[] = [];
 	userRows.forEach((u) => {
-		users[u.id] = { id: u.id, name: u.name, avatar_url: u.avatar_url };
+		users[u.id] = { id: u.id, name: u.name, avatar_url: u.avatar_url, books_read: u.books_read };
 		if (!bookUserIds[u.book_id]) bookUserIds[u.book_id] = [];
 		bookUserIds[u.book_id].push(u.id);
 		readIds.push(u.read_id);
@@ -318,6 +319,16 @@ export const selectBooksForSeriesPage = async (
 		user_ids: [...new Set(bookUserIds[b.id] ?? [])],
 		reviews: bookReviewsMap[b.id] ?? [],
 	}));
+
+	// Sort user_ids by books_read descending, consistent with /common_reads endpoint
+	for (const book of books) {
+		book.user_ids.sort((a, b) => {
+			const userA = users[a];
+			const userB = users[b];
+			if (!userA || !userB) return 0;
+			return Number(userB.books_read) - Number(userA.books_read);
+		});
+	}
 
 	return { books, users };
 };
