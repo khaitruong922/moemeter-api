@@ -53,3 +53,11 @@ Protected routes use the `validateGroupAuth` middleware (`src/middlewares/auth.t
 ### Bookcase
 
 Some users have a `bookcase` field — a secondary Bookmeter list that supplements their main read count. When present, `original_books_read` tracks the main count and `books_read` reflects the bookcase total.
+
+## Skills
+
+### merge-books (`.claude/merge-books.md`)
+
+Finds and merges duplicate book entries. Trigger phrases: "find duplicate books", "check books that need merging", "merge duplicate books", "run book merge check".
+
+Runs in 5 steps: load exceptions from `book_merge_exceptions` table → exact-dupe SQL query → visual comparison via Explore agent on exported book list → approval → merge via `POST /manual_book_merges`. Never auto-merges. Requires local dev server (`npm run dev`) for merge API calls.
