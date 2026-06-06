@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { deleteReadsOfBook } from './reads';
 import { refreshAll } from './users';
 
 export const selectBlacklistedBookIds = async (sql: postgres.Sql<{}>): Promise<Set<number>> => {
@@ -12,7 +13,11 @@ export const addBlacklistedBook = async (sql: postgres.Sql<{}>, bookId: number):
 	await sql`
     INSERT INTO blacklisted_books (id)
     VALUES (${bookId})
+    ON CONFLICT (id) DO NOTHING
   `;
+	// Remove reads that were already imported before the book was blacklisted, so the
+	// book is excluded immediately rather than only after each user's next full sync.
+	await deleteReadsOfBook(sql, bookId);
 	await refreshAll(sql);
 };
 
