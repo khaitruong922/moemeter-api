@@ -104,6 +104,7 @@ npm run deploy
   - Query params: `order` (days/book_count)
 - `GET /users/:id` - Get user details
 - `POST /users/sync` - Sync user data from Bookmeter
+- `POST /users/:id/refetch` - Re-import a user's data from Bookmeter (auth required)
 - And more user-related endpoints...
 
 ### Books

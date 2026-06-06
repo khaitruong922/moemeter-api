@@ -212,6 +212,18 @@ export const selectRankedUserById = async (
 	};
 };
 
+export const selectUserById = async (
+	sql: postgres.Sql<{}>,
+	id: number
+): Promise<User | null> => {
+	const rows = await sql<User[]>`
+    SELECT *
+    FROM users
+    WHERE id = ${id}
+  `;
+	return rows[0] ?? null;
+};
+
 export const selectUserByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<User[]> => {
 	if (ids.length === 0) return [];
 	const rows = await sql<User[]>`

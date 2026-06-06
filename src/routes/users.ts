@@ -21,6 +21,7 @@ import {
 	selectLonelyLeaderboard,
 	selectRankedUserById,
 	selectReadingAffinityLeaderboard,
+	selectUserById,
 	selectUserByIds,
 	selectYearlyLeaderboard,
 	updateSyncStatusByUserIds,
@@ -117,6 +118,36 @@ app.post('/join', validateToken, async (c) => {
 		return c.json({
 			...result,
 			message: 'ユーザーが正常に参加し、データがインポートされました',
+		});
+	} catch (e: any) {
+		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
+		return c.json({ message: e.message }, 500);
+	}
+});
+
+app.post('/:userId/refetch', validateToken, async (c) => {
+	const userId = Number(c.req.param('userId'));
+	if (!userId || isNaN(userId)) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+
+	const sql = createDbClientFromEnv(c.env);
+	const existingUser = await selectUserById(sql, userId);
+	if (existingUser === null) {
+		return c.json({ error: 'ユーザーが見つかりません' }, 404);
+	}
+
+	const bookmeterApiService = c.env.BOOKMETER_API;
+	const bookmeterUrl = getBookmeterUrlFromUserId(userId);
+	const user = await getUserFromBookmeterUrl(bookmeterUrl, existingUser.bookcase);
+
+	try {
+		const result = await fullImportUser(sql, bookmeterApiService, user);
+		await refreshAll(sql);
+		await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		return c.json({
+			...result,
+			message: 'ユーザーデータが正常に再取得されました',
 		});
 	} catch (e: any) {
 		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
