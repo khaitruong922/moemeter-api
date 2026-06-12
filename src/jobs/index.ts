@@ -30,7 +30,8 @@ export const syncAllUsers = async (
 	const failedUserIds: number[] = [];
 	const skippedUserIds: number[] = [];
 
-	for (const user of users) {
+	for (let i = 0; i < users.length; i++) {
+		const user = users[i];
 		try {
 			const { skipped, user: syncedUser } = await syncUser(sql, bookmeterApiService, user);
 			if (skipped) {
@@ -43,6 +44,13 @@ export const syncAllUsers = async (
 		} catch (error) {
 			failedUserIds.push(user.id);
 			console.error('失敗:', user.id, error);
+			if (error instanceof Error && error.message.includes('Too many subrequests')) {
+				for (let j = i + 1; j < users.length; j++) {
+					failedUserIds.push(users[j].id);
+				}
+				console.error('サブリクエスト上限に達しました。残りのユーザーを失敗としてマークし終了します。');
+				break;
+			}
 		}
 	}
 	await refreshAll(sql);

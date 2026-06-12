@@ -103,7 +103,7 @@ export const selectBooksNeedingSeriesFetch = async (
 	return await sql<BookForSeriesFetch[]>`
     SELECT id, series_id, last_series_fetched FROM books
     WHERE (last_series_fetched IS NULL
-       OR last_series_fetched < now() - interval '2 weeks')
+       OR last_series_fetched < now() - interval '1 month')
       AND id NOT IN (SELECT id FROM blacklisted_books)
     ORDER BY last_series_fetched ASC NULLS FIRST
     LIMIT ${limit}
@@ -297,7 +297,11 @@ export const selectBooksForSeriesPage = async (
       `
 			: [];
 
-	const users: SeriesPageResponse['users'] & Record<number, { id: number; name: string | null; avatar_url: string | null; books_read: number }> = {};
+	const users: SeriesPageResponse['users'] &
+		Record<
+			number,
+			{ id: number; name: string | null; avatar_url: string | null; books_read: number }
+		> = {};
 	const bookUserIds: Record<number, number[]> = {};
 	const readIds: number[] = [];
 	userRows.forEach((u) => {

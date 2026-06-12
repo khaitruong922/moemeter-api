@@ -13,7 +13,7 @@ import {
 import { refreshAll } from '../db/users';
 import { BookmeterApiService, SeriesBook } from '../types/bookmeter_api_service';
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 25;
 
 const toBook = (b: SeriesBook): Book => ({
 	id: b.id,
@@ -82,6 +82,11 @@ export const syncBookSeries = async (
 			blacklistedSeriesIds
 		);
 		for (const id of processed) processedBookIds.add(id);
+	}
+
+	if (processedBookIds.size === 0) {
+		console.log('シリーズ同期: 処理する書籍なし、スキップします');
+		return;
 	}
 
 	await refreshAll(sql);
