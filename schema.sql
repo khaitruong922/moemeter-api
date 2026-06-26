@@ -541,6 +541,25 @@ CREATE MATERIALIZED VIEW public.series_leaderboard AS
            FROM (deduped d
              LEFT JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
           GROUP BY d.series_id
+        ), series_book_count AS (
+         SELECT deduped.series_id,
+            count(DISTINCT deduped.book_id) AS total_books
+           FROM deduped
+          GROUP BY deduped.series_id
+        ), user_series_reads AS (
+         SELECT d.series_id,
+            r.user_id,
+            count(DISTINCT d.book_id) AS books_read
+           FROM (deduped d
+             JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
+          GROUP BY d.series_id, r.user_id
+        ), completed_agg AS (
+         SELECT usr.series_id,
+            (count(*))::integer AS completed_count
+           FROM (user_series_reads usr
+             JOIN series_book_count sbc ON ((sbc.series_id = usr.series_id)))
+          WHERE (usr.books_read >= sbc.total_books)
+          GROUP BY usr.series_id
         )
  SELECT s.id,
     s.name,
@@ -548,13 +567,16 @@ CREATE MATERIALIZED VIEW public.series_leaderboard AS
     sr.read_count,
     sa.total_reads_count,
     sa.total_pages,
+    COALESCE(ca.completed_count, 0) AS completed_count,
     (rank() OVER (ORDER BY sa.total_reads_count DESC))::integer AS reads_rank,
     (rank() OVER (ORDER BY sr.read_count DESC))::integer AS read_count_rank,
     (rank() OVER (ORDER BY sa.total_book_count DESC))::integer AS book_count_rank,
-    (rank() OVER (ORDER BY sa.total_pages DESC))::integer AS pages_rank
-   FROM ((public.series s
+    (rank() OVER (ORDER BY sa.total_pages DESC))::integer AS pages_rank,
+    (rank() OVER (ORDER BY COALESCE(ca.completed_count, 0) DESC))::integer AS completed_rank
+   FROM (((public.series s
      JOIN series_agg sa ON ((sa.series_id = s.id)))
      JOIN series_readers sr ON ((sr.series_id = s.id)))
+     LEFT JOIN completed_agg ca ON ((ca.series_id = s.id)))
   WITH NO DATA;
 
 

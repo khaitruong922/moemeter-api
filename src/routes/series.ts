@@ -27,7 +27,9 @@ app.get('/leaderboard', async (c) => {
 				? 'book_count'
 				: orderParam === 'pages'
 					? 'pages'
-					: 'reads';
+					: orderParam === 'completed'
+						? 'completed'
+						: 'reads';
 	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesLeaderboard(sql, order);
 	return c.json(series);

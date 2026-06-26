@@ -136,8 +136,7 @@ app.post('/:userId/refetch', validateToken, async (c) => {
 	}
 
 	const bookmeterApiService = c.env.BOOKMETER_API;
-	const bookmeterUrl = getBookmeterUrlFromUserId(userId);
-	const user = await getUserFromBookmeterUrl(bookmeterUrl, existingUser.bookcase);
+	const user = await bookmeterApiService.fetchUserProfile(userId, existingUser.bookcase);
 
 	try {
 		const result = await fullImportUser(sql, bookmeterApiService, user);

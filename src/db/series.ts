@@ -337,7 +337,7 @@ export const selectBooksForSeriesPage = async (
 	return { books, users };
 };
 
-export type SeriesLeaderboardOrder = 'reads' | 'read_count' | 'book_count' | 'pages';
+export type SeriesLeaderboardOrder = 'reads' | 'read_count' | 'book_count' | 'pages' | 'completed';
 
 export type SeriesLeaderboardEntry = {
 	id: number;
@@ -350,6 +350,8 @@ export type SeriesLeaderboardEntry = {
 	read_count_rank: number;
 	book_count_rank: number;
 	pages_rank: number;
+	completed_count: number;
+	completed_rank: number;
 	cover_url: string | null;
 };
 
@@ -364,7 +366,9 @@ export const selectSeriesLeaderboard = async (
 				? 'book_count_rank'
 				: order === 'pages'
 					? 'pages_rank'
-					: 'reads_rank';
+					: order === 'completed'
+						? 'completed_rank'
+						: 'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
     SELECT sl.*,
       (
@@ -386,6 +390,8 @@ export const selectSeriesLeaderboard = async (
 		read_count_rank: Number(r.read_count_rank),
 		book_count_rank: Number(r.book_count_rank),
 		pages_rank: Number(r.pages_rank),
+		completed_count: Number(r.completed_count),
+		completed_rank: Number(r.completed_rank),
 	}));
 };
 
