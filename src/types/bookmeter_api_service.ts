@@ -29,6 +29,20 @@ export type SeriesBook = {
 	series_number: number;
 };
 
+export type ScrapedUser = {
+	id: number;
+	name: string | null;
+	avatar_url: string | null;
+	books_read: number | null;
+	pages_read: number | null;
+	bookcase: string | null;
+	original_books_read: number;
+	original_pages_read: number;
+	reviews_count: number | null;
+	registration_date: Date | null;
+	first_log_date: Date | null;
+};
+
 export interface BookmeterApiService {
 	fetchUserReadsOfPages(
 		id: number,
@@ -40,4 +54,5 @@ export interface BookmeterApiService {
 	): Promise<FetchUserReadsOfPagesResponse>;
 	fetchBookSeries(bookId: number): Promise<FetchBookSeriesResult>;
 	fetchSeriesBooks(seriesId: number): Promise<SeriesBook[]>;
+	fetchUserProfile(userId: number, bookcase: string | null): Promise<ScrapedUser>;
 }

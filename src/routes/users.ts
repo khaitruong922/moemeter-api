@@ -28,7 +28,6 @@ import {
 	userExists,
 } from '../db/users';
 import { validateToken } from '../middlewares/auth';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
 import { getYearPeriod } from '../utils/period';
@@ -99,8 +98,7 @@ app.post('/join', validateToken, async (c) => {
 
 	const sql = createDbClientFromEnv(c.env);
 	const bookmeterApiService = c.env.BOOKMETER_API;
-	const bookmeterUrl = getBookmeterUrlFromUserId(user_id);
-	const user = await getUserFromBookmeterUrl(bookmeterUrl, bookcase || null);
+	const user = await bookmeterApiService.fetchUserProfile(user_id, bookcase || null);
 	const exists = await userExists(sql, user.id);
 
 	// Skip importing data if the user already exists

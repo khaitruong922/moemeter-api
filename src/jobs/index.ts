@@ -9,7 +9,6 @@ import {
 	updateSyncStatusByUserIds,
 	updateUserNameAndAvatarUrl,
 } from '../db/users';
-import { getBookmeterUrlFromUserId, getUserFromBookmeterUrl } from '../scraping/user';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
 
 export const syncAllUsers = async (
@@ -79,8 +78,7 @@ const syncUser = async (
 	bookmeterApiService: BookmeterApiService,
 	currentUser: User
 ): Promise<SyncResult> => {
-	const bookmeterUrl = getBookmeterUrlFromUserId(currentUser.id);
-	const newUser = await getUserFromBookmeterUrl(bookmeterUrl, currentUser.bookcase);
+	const newUser = await bookmeterApiService.fetchUserProfile(currentUser.id, currentUser.bookcase);
 
 	if (shouldSkipUser(currentUser, newUser)) {
 		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
