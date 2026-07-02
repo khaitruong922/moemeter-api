@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
+import { selectDuplicateBookCandidates } from '../db/book_merges';
 import { AppEnv } from '../types/app_env';
 import { applyNaNVL, parseNatNum } from '../utils/number';
 
@@ -68,6 +69,12 @@ app.get('/:bookId/reads', async (c) => {
 		reads,
 		users: userMap,
 	});
+});
+
+app.get('/duplicate', async (c) => {
+	const sql = createDbClientFromEnv(c.env);
+	const potentialMerges = await selectDuplicateBookCandidates(sql);
+	return c.json(potentialMerges);
 });
 
 app.get('/library', async (c) => {

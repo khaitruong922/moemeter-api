@@ -4,6 +4,7 @@ import {
 	blacklistSeriesIds,
 	refreshSeriesLeaderboard,
 	selectBooksForSeriesPage,
+	selectDuplicateSeriesCandidates,
 	selectSeriesById,
 	selectSeriesLeaderboard,
 	selectSeriesStats,
@@ -49,6 +50,15 @@ app.get('/user/:userId', async (c) => {
 	const sql = createDbClientFromEnv(c.env);
 	const result = await selectUserSeriesProgress(sql, userId);
 	return c.json(result);
+});
+
+app.get('/duplicate', async (c) => {
+	const thresholdParam = Number(c.req.query('threshold'));
+	const threshold =
+		!isNaN(thresholdParam) && thresholdParam > 0 && thresholdParam <= 1 ? thresholdParam : 0.85;
+	const sql = createDbClientFromEnv(c.env);
+	const candidates = await selectDuplicateSeriesCandidates(sql, threshold);
+	return c.json({ candidates, count: candidates.length });
 });
 
 app.get('/:seriesId', async (c) => {
@@ -109,6 +119,5 @@ app.post('/blacklist', validateToken, async (c) => {
 	await blacklistSeriesIds(sql, series_ids);
 	return c.json({ ok: true, blacklisted: series_ids.length });
 });
-
 
 export default app;

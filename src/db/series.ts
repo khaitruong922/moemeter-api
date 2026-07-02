@@ -143,6 +143,79 @@ export const blacklistSeriesIds = async (
 	await refreshAll(sql);
 };
 
+const SERIES_NAME_PUNCTUATION_REGEX =
+	/[\s　\-・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\]/g;
+
+// "シリーズ" (lit. "series") is a near-universal suffix on series names and adds no
+// distinguishing signal — strip it before comparing so it doesn't inflate similarity scores
+const normalizeSeriesName = (name: string): string =>
+	name
+		.normalize('NFKC')
+		.replace(/シリーズ$/, '')
+		.replace(SERIES_NAME_PUNCTUATION_REGEX, '')
+		.toLowerCase();
+
+const levenshteinDistance = (a: string, b: string): number => {
+	if (a === b) return 0;
+	if (a.length === 0) return b.length;
+	if (b.length === 0) return a.length;
+
+	let prevRow = Array.from({ length: b.length + 1 }, (_, i) => i);
+	for (let i = 1; i <= a.length; i++) {
+		const currentRow = [i];
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+			currentRow.push(Math.min(currentRow[j - 1] + 1, prevRow[j] + 1, prevRow[j - 1] + cost));
+		}
+		prevRow = currentRow;
+	}
+	return prevRow[b.length];
+};
+
+const similarityRatio = (a: string, b: string): number => {
+	const maxLen = Math.max(a.length, b.length);
+	if (maxLen === 0) return 1;
+	return 1 - levenshteinDistance(a, b) / maxLen;
+};
+
+export type DuplicateSeriesCandidate = {
+	series1: { id: number; name: string; book_count: number };
+	series2: { id: number; name: string; book_count: number };
+	similarity: number;
+};
+
+export const selectDuplicateSeriesCandidates = async (
+	sql: postgres.Sql<{}>,
+	threshold: number
+): Promise<DuplicateSeriesCandidate[]> => {
+	const allSeries = await sql<{ id: number; name: string; book_count: number }[]>`
+    SELECT s.id, s.name, COUNT(b.id)::int AS book_count
+    FROM series s
+    LEFT JOIN books b ON b.series_id = s.id
+    GROUP BY s.id, s.name
+  `;
+
+	const normalized = allSeries.map((series) => ({
+		series,
+		normalizedName: normalizeSeriesName(series.name ?? ''),
+	}));
+
+	const candidates: DuplicateSeriesCandidate[] = [];
+	for (let i = 0; i < normalized.length; i++) {
+		for (let j = i + 1; j < normalized.length; j++) {
+			const a = normalized[i];
+			const b = normalized[j];
+			if (!a.normalizedName || !b.normalizedName) continue;
+			const similarity = similarityRatio(a.normalizedName, b.normalizedName);
+			if (similarity >= threshold) {
+				candidates.push({ series1: a.series, series2: b.series, similarity });
+			}
+		}
+	}
+
+	return candidates.sort((x, y) => y.similarity - x.similarity);
+};
+
 export type SeriesWithMultipleAuthors = {
 	id: number;
 	name: string;
