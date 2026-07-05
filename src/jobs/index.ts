@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
+import { selectUniqueBookCountByUserId } from '../db/reads';
 import {
 	refreshAll,
 	selectAllUsersForSync,
@@ -80,7 +81,11 @@ const syncUser = async (
 ): Promise<SyncResult> => {
 	const newUser = await bookmeterApiService.fetchUserProfile(currentUser.id, currentUser.bookcase);
 
-	if (shouldSkipUser(currentUser, newUser)) {
+	const skip = newUser.bookcase
+		? await shouldSkipBookcaseUser(sql, currentUser, newUser)
+		: shouldSkipUser(currentUser, newUser);
+
+	if (skip) {
 		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
 			await updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url);
 		}
@@ -91,18 +96,25 @@ const syncUser = async (
 };
 
 const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
-	if (newUser.bookcase) {
-		return (
-			currentUser.original_books_read === newUser.original_books_read &&
-			currentUser.original_pages_read === newUser.original_pages_read &&
-			currentUser.books_read === newUser.books_read
-		);
-	}
-
 	return (
 		currentUser.original_books_read === newUser.original_books_read &&
 		currentUser.original_pages_read === newUser.original_pages_read
 	);
+};
+
+// Bookcase users: currentUser.books_read counts stored read events (rereads included),
+// while newUser.books_read is Bookmeter's unique book count for the shelf, so they're
+// not directly comparable. Compare against the unique book count actually stored instead.
+const shouldSkipBookcaseUser = async (
+	sql: postgres.Sql<{}>,
+	currentUser: User,
+	newUser: User
+): Promise<boolean> => {
+	if (!shouldSkipUser(currentUser, newUser)) {
+		return false;
+	}
+	const currentUniqueBooksRead = await selectUniqueBookCountByUserId(sql, currentUser.id);
+	return currentUniqueBooksRead === newUser.books_read;
 };
 
 const shouldUpdateNameAndAvatarUrl = (currentUser: User, newUser: User): boolean => {

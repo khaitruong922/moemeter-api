@@ -21,6 +21,18 @@ export const selectCommonReadsOfUser = async (
 	return rows;
 };
 
+export const selectUniqueBookCountByUserId = async (
+	sql: postgres.Sql<{}>,
+	userId: number
+): Promise<number> => {
+	const rows = await sql<{ count: number }[]>`
+    SELECT COUNT(DISTINCT book_id) AS count
+    FROM reads
+    WHERE user_id = ${userId}
+  `;
+	return Number(rows[0]?.count ?? 0);
+};
+
 export const deleteReadsOfUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> => {
 	await sql`
     DELETE FROM reads WHERE user_id = ${userId}
