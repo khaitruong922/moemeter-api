@@ -244,6 +244,7 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
       books_read = EXCLUDED.books_read,
       pages_read = EXCLUDED.pages_read,
       bookcase = EXCLUDED.bookcase,
+      bookcase_book_count = EXCLUDED.bookcase_book_count,
       original_books_read = EXCLUDED.original_books_read,
       original_pages_read = EXCLUDED.original_pages_read,
       registration_date = EXCLUDED.registration_date,

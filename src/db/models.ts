@@ -13,6 +13,7 @@ export interface User {
 
 	// Bookcase only fields
 	bookcase: string | null;
+	bookcase_book_count?: number | null;
 
 	// Optional fields when processing only
 	reviews_count?: number | null;

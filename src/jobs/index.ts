@@ -2,7 +2,6 @@ import postgres from 'postgres';
 import { fullImportUser } from '../core/user';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
-import { selectUniqueBookCountByUserId } from '../db/reads';
 import {
 	refreshAll,
 	selectAllUsersForSync,
@@ -48,7 +47,9 @@ export const syncAllUsers = async (
 				for (let j = i + 1; j < users.length; j++) {
 					failedUserIds.push(users[j].id);
 				}
-				console.error('サブリクエスト上限に達しました。残りのユーザーを失敗としてマークし終了します。');
+				console.error(
+					'サブリクエスト上限に達しました。残りのユーザーを失敗としてマークし終了します。'
+				);
 				break;
 			}
 		}
@@ -82,7 +83,7 @@ const syncUser = async (
 	const newUser = await bookmeterApiService.fetchUserProfile(currentUser.id, currentUser.bookcase);
 
 	const skip = newUser.bookcase
-		? await shouldSkipBookcaseUser(sql, currentUser, newUser)
+		? shouldSkipBookcaseUser(currentUser, newUser)
 		: shouldSkipUser(currentUser, newUser);
 
 	if (skip) {
@@ -102,19 +103,23 @@ const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
 	);
 };
 
-// Bookcase users: currentUser.books_read counts stored read events (rereads included),
-// while newUser.books_read is Bookmeter's unique book count for the shelf, so they're
-// not directly comparable. Compare against the unique book count actually stored instead.
-const shouldSkipBookcaseUser = async (
-	sql: postgres.Sql<{}>,
-	currentUser: User,
-	newUser: User
-): Promise<boolean> => {
-	if (!shouldSkipUser(currentUser, newUser)) {
-		return false;
-	}
-	const currentUniqueBooksRead = await selectUniqueBookCountByUserId(sql, currentUser.id);
-	return currentUniqueBooksRead === newUser.books_read;
+// Bookcase users: compare Bookmeter's raw shelf book_count against the value stored from
+// the last full sync. Comparing raw-vs-raw (instead of raw vs. our internally filtered/deduped
+// count) avoids false mismatches from rereads, blacklisted books, or unread books sitting on
+// the shelf - none of which change the shelf's own book_count unless membership actually changes.
+const shouldSkipBookcaseUser = (currentUser: User, newUser: User): boolean => {
+	const skip =
+		shouldSkipUser(currentUser, newUser) && currentUser.bookcase_book_count === newUser.books_read;
+
+	console.log(
+		`本棚比較 ユーザーID: ${currentUser.id}, 本棚: ${currentUser.bookcase},`,
+		`original_books_read: ${currentUser.original_books_read} -> ${newUser.original_books_read},`,
+		`original_pages_read: ${currentUser.original_pages_read} -> ${newUser.original_pages_read},`,
+		`bookcase_book_count: ${currentUser.bookcase_book_count} -> ${newUser.books_read},`,
+		`スキップ: ${skip}`
+	);
+
+	return skip;
 };
 
 const shouldUpdateNameAndAvatarUrl = (currentUser: User, newUser: User): boolean => {

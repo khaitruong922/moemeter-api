@@ -33,6 +33,10 @@ export const fullImportUser = async (
 	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
 	delete user.reviews_count;
 
+	// user.books_read is still the raw scrape here (shelf book_count for bookcase users) -
+	// keep it as the baseline for the next sync's skip check, before it gets overwritten below.
+	user.bookcase_book_count = user.bookcase ? user.books_read : null;
+
 	// Update user's books_read and pages_read based on the final results from the API,
 	// which may differ from the initial values if a bookcase is specified or if there are blacklisted books.
 	user.books_read = books_read;
