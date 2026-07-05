@@ -73,11 +73,18 @@ export default {
 		const utcHour = now.getUTCHours();
 		const utcMinutes = now.getUTCMinutes();
 		console.log('時刻: ', utcHour, '分: ', utcMinutes);
+
+		if (event.cron === '0 0 * * *') {
+			await performKeepAliveQuery(env).catch((error) => {
+				console.error('キープアライブクエリに失敗しました:', error);
+			});
+			return;
+		}
+
 		const sql = createDbClientFromEnv(env);
 		const bookmeterApiService = env.BOOKMETER_API;
 
 		if (event.cron === '0 0,3,6,9,12,15,18,21 * * *') {
-			await performKeepAliveQuery(env);
 			await syncAllUsers(sql, bookmeterApiService, {
 				syncStatus: null,
 				bookCountOrder: 'DESC',
@@ -93,7 +100,7 @@ export default {
 			}).catch((error) => {
 				console.error('失敗したユーザーの同期に失敗しました:', error);
 			});
-		} else if (event.cron === '*/10 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *') {
+		} else if (event.cron === '0 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *') {
 			await syncBookSeries(sql, bookmeterApiService).catch((error) => {
 				console.error('シリーズ同期に失敗しました:', error);
 			});

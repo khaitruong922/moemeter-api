@@ -34,11 +34,11 @@ This is a **Cloudflare Workers** API (runs on the edge, no Node.js runtime) buil
 
 ### Scheduled jobs
 
-Two cron triggers in `wrangler.jsonc`:
-- `0 0,3,6,9,12,15,18,21 * * *` — full sync of all users (descending book count)
-- `*/3 0,3,6,9,12,15,18,21 * * *` — retry-only sync for users with `sync_status = 'failed'`
-
-Both are handled in the `scheduled()` export in `src/index.ts` which calls `syncAllUsers` from `src/jobs/index.ts`.
+Four cron triggers in `wrangler.jsonc`, all handled in the `scheduled()` export in `src/index.ts`:
+- `0 0,3,6,9,12,15,18,21 * * *` — full sync of all users (descending book count), via `syncAllUsers` from `src/jobs/index.ts`
+- `*/3 0,3,6,9,12,15,18,21 * * *` — retry-only sync for users with `sync_status = 'failed'`, via `syncAllUsers`
+- `0 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *` — book series sync, via `syncBookSeries` from `src/core/series.ts` (runs hourly, skipping the full-sync hours)
+- `0 0 * * *` — Supabase keep-alive query, via `performKeepAliveQuery` from `src/db/supabase.ts` (runs once daily)
 
 ### Auth
 
