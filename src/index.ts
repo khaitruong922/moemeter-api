@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { prettyJSON } from 'hono/pretty-json';
-import { createDbClientFromEnv } from './db';
+import { withDbFromEnv } from './db';
 import { performKeepAliveQuery } from './db/supabase';
 import { createErrorMessage } from './error';
 import { syncAllUsers } from './jobs';
@@ -31,8 +31,7 @@ app.get('/', async (c) => {
 
 app.get('/health', async (c) => {
 	try {
-		const db = createDbClientFromEnv(c.env);
-		await db`SELECT 1`;
+		await withDbFromEnv(c.env, (db) => db`SELECT 1`);
 		return c.json({ status: 'ok' });
 	} catch (error) {
 		console.error('Database connection failed:', error);
@@ -81,29 +80,30 @@ export default {
 			return;
 		}
 
-		const sql = createDbClientFromEnv(env);
 		const bookmeterApiService = env.BOOKMETER_API;
 
-		if (event.cron === '0 0,3,6,9,12,15,18,21 * * *') {
-			await syncAllUsers(sql, bookmeterApiService, {
-				syncStatus: null,
-				bookCountOrder: 'DESC',
-				limit: null,
-			}).catch((error) => {
-				console.error('全ユーザーの同期に失敗しました:', error);
-			});
-		} else if (event.cron === '*/3 0,3,6,9,12,15,18,21 * * *' && utcMinutes !== 0) {
-			await syncAllUsers(sql, bookmeterApiService, {
-				syncStatus: 'failed',
-				bookCountOrder: 'ASC',
-				limit: null,
-			}).catch((error) => {
-				console.error('失敗したユーザーの同期に失敗しました:', error);
-			});
-		} else if (event.cron === '0 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *') {
-			await syncBookSeries(sql, bookmeterApiService).catch((error) => {
-				console.error('シリーズ同期に失敗しました:', error);
-			});
-		}
+		await withDbFromEnv(env, async (sql) => {
+			if (event.cron === '0 0,3,6,9,12,15,18,21 * * *') {
+				await syncAllUsers(sql, bookmeterApiService, {
+					syncStatus: null,
+					bookCountOrder: 'DESC',
+					limit: null,
+				}).catch((error) => {
+					console.error('全ユーザーの同期に失敗しました:', error);
+				});
+			} else if (event.cron === '*/3 0,3,6,9,12,15,18,21 * * *' && utcMinutes !== 0) {
+				await syncAllUsers(sql, bookmeterApiService, {
+					syncStatus: 'failed',
+					bookCountOrder: 'ASC',
+					limit: null,
+				}).catch((error) => {
+					console.error('失敗したユーザーの同期に失敗しました:', error);
+				});
+			} else if (event.cron === '0 1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23 * * *') {
+				await syncBookSeries(sql, bookmeterApiService).catch((error) => {
+					console.error('シリーズ同期に失敗しました:', error);
+				});
+			}
+		});
 	},
 };

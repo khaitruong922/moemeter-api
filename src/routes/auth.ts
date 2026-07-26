@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
-import { createDbClientFromEnv } from '../db';
 import { selectGroupByIdAndPassword } from '../db/groups';
+import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
+import { Variables } from '../types/variables';
 
-const app = new Hono<{ Bindings: AppEnv }>();
+const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
+app.use('*', withDb);
 
 app.post('/login', async (c) => {
 	const { group_id, password } = await c.req.json();
@@ -16,7 +18,7 @@ app.post('/login', async (c) => {
 		return c.json({ error: 'passwordは必須で、文字列である必要があります' }, 400);
 	}
 
-	const sql = createDbClientFromEnv(c.env);
+	const sql = c.get('db');
 	const group = await selectGroupByIdAndPassword(sql, group_id, password);
 	if (group === null) {
 		return c.json({ error: '無効な認証情報です' }, 401);
