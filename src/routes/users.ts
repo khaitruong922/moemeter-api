@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
+import { createDbClientFromEnv } from '../db';
 import { BookReview, selectBookByIds } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
@@ -27,16 +28,14 @@ import {
 	userExists,
 } from '../db/users';
 import { validateToken } from '../middlewares/auth';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
 import { getYearPeriod } from '../utils/period';
 
 const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
 
 app.get('/leaderboard', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const period = c.req.query('period');
 	const rankOrder = c.req.query('order') === 'pages' ? 'pages' : 'books';
 	let users: RankedUser[];
@@ -50,14 +49,14 @@ app.get('/leaderboard', async (c) => {
 });
 
 app.get('/lonely-leaderboard', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const lonelyOrder = (c.req.query('order') as LonelyOrder) || 'book_count';
 	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
 	return c.json(lonelyUsers);
 });
 
 app.get('/failed', validateToken, async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const users = await selectAllUsersForSync(sql, {
 		syncStatus: 'failed',
 		bookCountOrder: 'DESC',
@@ -67,7 +66,7 @@ app.get('/failed', validateToken, async (c) => {
 });
 
 app.get('/reading-affinity', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const order = (c.req.query('order') as ReadingAffinityOrder) || 'points';
 	const affinityUsers = await selectReadingAffinityLeaderboard(sql, order);
 	return c.json(affinityUsers);
@@ -78,7 +77,7 @@ app.get('/:userId', async (c) => {
 	if (!userId || isNaN(Number(userId))) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const user = await selectRankedUserById(sql, Number(userId));
 	if (user === null) {
 		return c.json({ error: 'ユーザーが見つかりません' }, 404);
@@ -97,7 +96,7 @@ app.post('/join', validateToken, async (c) => {
 		return c.json({ error: 'bookcaseは文字列である必要があります' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const bookmeterApiService = c.env.BOOKMETER_API;
 	const user = await bookmeterApiService.fetchUserProfile(user_id, bookcase || null);
 	const exists = await userExists(sql, user.id);
@@ -130,7 +129,7 @@ app.post('/:userId/refetch', validateToken, async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const existingUser = await selectUserById(sql, userId);
 	if (existingUser === null) {
 		return c.json({ error: 'ユーザーが見つかりません' }, 404);
@@ -158,7 +157,7 @@ app.get('/:userId/common_reads', async (c) => {
 	if (!userId || isNaN(Number(userId))) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
 	const userBooks: Record<string, number[]> = {};
 	const bookUsers: Record<string, number[]> = {};
@@ -226,7 +225,7 @@ app.get('/:userId/summary/:year', async (c) => {
 	if (!year || isNaN(year)) {
 		return c.json({ error: '無効な年です' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 
 	const [startDate, endDate] = getYearPeriod(year);
 
@@ -248,7 +247,7 @@ app.get('/:userId/stats', async (c) => {
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const stats = await getUserStats(sql, userId);
 	return c.json(stats);
 });
@@ -258,7 +257,7 @@ app.delete('/:userId', validateToken, async (c) => {
 	if (!userId || isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await deleteUserById(sql, userId);
 	return c.json({ message: 'ユーザーが正常に削除されました' });
 });

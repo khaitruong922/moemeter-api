@@ -1,19 +1,18 @@
 import { Hono } from 'hono';
+import { createDbClientFromEnv } from '../db';
 import {
 	addBlacklistedBook,
 	removeBlacklistedBook,
 	selectBlacklistedBookIds,
 } from '../db/blacklisted_books';
 import { validateToken } from '../middlewares/auth';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
 import { Variables } from '../types/variables';
 
 const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
 
 app.get('/', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const blacklistedBookIds = await selectBlacklistedBookIds(sql);
 	return c.json({ book_ids: Array.from(blacklistedBookIds) });
 });
@@ -25,7 +24,7 @@ app.post('/', validateToken, async (c) => {
 		return c.json({ error: 'book_idは必須で、数値である必要があります' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await addBlacklistedBook(sql, book_id);
 	return c.json({
 		message: 'ブックリストに追加されました',
@@ -39,7 +38,7 @@ app.delete('/:bookId', validateToken, async (c) => {
 		return c.json({ error: '無効なブックIDです' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await removeBlacklistedBook(sql, bookId);
 	return c.json({
 		message: 'ブックリストから削除されました',

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createDbClientFromEnv } from '../db';
 import {
 	blacklistSeriesIds,
 	refreshSeriesLeaderboard,
@@ -13,13 +14,10 @@ import {
 } from '../db/series';
 import { syncBookSeries } from '../core/series';
 import { validateToken } from '../middlewares/auth';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
-import { Variables } from '../types/variables';
 import { refreshAll } from '../db/users';
 
-const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/leaderboard', async (c) => {
 	const orderParam = c.req.query('order');
@@ -33,13 +31,13 @@ app.get('/leaderboard', async (c) => {
 					: orderParam === 'completed'
 						? 'completed'
 						: 'reads';
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesLeaderboard(sql, order);
 	return c.json(series);
 });
 
 app.get('/multi-author', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesWithMultipleAuthors(sql);
 	return c.json(series);
 });
@@ -49,7 +47,7 @@ app.get('/user/:userId', async (c) => {
 	if (isNaN(userId)) {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const result = await selectUserSeriesProgress(sql, userId);
 	return c.json(result);
 });
@@ -58,7 +56,7 @@ app.get('/duplicate', async (c) => {
 	const thresholdParam = Number(c.req.query('threshold'));
 	const threshold =
 		!isNaN(thresholdParam) && thresholdParam > 0 && thresholdParam <= 1 ? thresholdParam : 0.85;
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const candidates = await selectDuplicateSeriesCandidates(sql, threshold);
 	return c.json({ candidates, count: candidates.length });
 });
@@ -69,7 +67,7 @@ app.get('/:seriesId', async (c) => {
 		return c.json({ error: '無効なシリーズIDです' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const series = await selectSeriesById(sql, seriesId);
 	if (!series) {
 		return c.json({ error: 'シリーズが見つかりません' }, 404);
@@ -104,7 +102,7 @@ app.post('/refetch', validateToken, async (c) => {
 	if (!Array.isArray(bookIds) || bookIds.some((id) => isNaN(id))) {
 		return c.json({ error: '無効なbook_idです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await syncBookSeries(sql, c.env.BOOKMETER_API, bookIds);
 	await refreshSeriesLeaderboard(sql);
 	await refreshAll(sql);
@@ -117,7 +115,7 @@ app.post('/blacklist', validateToken, async (c) => {
 	if (!Array.isArray(series_ids) || series_ids.some((id) => isNaN(id))) {
 		return c.json({ error: '無効なシリーズIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await blacklistSeriesIds(sql, series_ids);
 	return c.json({ ok: true, blacklisted: series_ids.length });
 });

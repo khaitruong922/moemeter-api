@@ -1,12 +1,10 @@
 import { Hono } from 'hono';
+import { createDbClientFromEnv } from '../db';
 import { addManualBookMerge, deleteManualBookMerge } from '../db/book_merges';
 import { validateToken } from '../middlewares/auth';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
-import { Variables } from '../types/variables';
 
-const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.post('/', validateToken, async (c) => {
 	const { base_id, variant_id } = await c.req.json();
@@ -18,7 +16,7 @@ app.post('/', validateToken, async (c) => {
 		return c.json({ error: 'variant_idは必須で、数値である必要があります' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await addManualBookMerge(sql, base_id, variant_id);
 	return c.json({ message: '手動本マージが正常に追加されました' }, 201);
 });
@@ -29,7 +27,7 @@ app.post('/delete', validateToken, async (c) => {
 		return c.json({ error: '無効なvariant_idです' }, 400);
 	}
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	await deleteManualBookMerge(sql, Number(variant_id));
 	return c.json({ message: '手動本マージが正常に削除されました' });
 });

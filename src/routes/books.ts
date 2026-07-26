@@ -1,17 +1,15 @@
 import { Hono } from 'hono';
 import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
 import { selectDuplicateBookCandidates } from '../db/book_merges';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
-import { Variables } from '../types/variables';
 import { applyNaNVL, parseNatNum } from '../utils/number';
 
+import { createDbClientFromEnv } from '../db';
 import { selectUserByIds } from '../db/users';
 import { selectReadsByBookId } from '../db/reads';
 import { Period } from '../utils/period';
 
-const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
 	const limit = Math.min(applyNaNVL(parseNatNum(c.req.query('limit')), 50), 500);
@@ -33,7 +31,7 @@ app.get('/', async (c) => {
 
 	const searchQuery = q && typeof q === 'string' ? q.trim().replace(/\s+/g, '') : undefined;
 
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const { books, users, total_count, total_reads_count } = await selectBooksWithUsersAndReviews(
 		sql,
 		{
@@ -62,7 +60,7 @@ app.get('/:bookId/reads', async (c) => {
 	if (!bookId || isNaN(Number(bookId))) {
 		return c.json({ error: '無効な本のIDです' }, 400);
 	}
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const reads = await selectReadsByBookId(sql, Number(bookId));
 	const userIds = reads.map((read) => read.user_id);
 	const users = await selectUserByIds(sql, userIds);
@@ -74,7 +72,7 @@ app.get('/:bookId/reads', async (c) => {
 });
 
 app.get('/duplicate', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const potentialMerges = await selectDuplicateBookCandidates(sql);
 	return c.json(potentialMerges);
 });
@@ -82,7 +80,7 @@ app.get('/duplicate', async (c) => {
 app.get('/library', async (c) => {
 	const page = applyNaNVL(parseNatNum(c.req.query('page')), 1);
 	const perPage = applyNaNVL(parseNatNum(c.req.query('per_page')), 100000);
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const offset = (page - 1) * perPage;
 	const { books, total_count } = await selectBooksWithMergeData(sql, offset, perPage);
 	const max_page = Math.ceil(total_count / perPage);

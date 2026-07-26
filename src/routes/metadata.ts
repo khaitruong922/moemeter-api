@@ -1,15 +1,13 @@
 import { Hono } from 'hono';
 import { selectMetadata } from '../db/metadata';
 import { selectFailedAndTotalUsers } from '../db/users';
-import { withDb } from '../middlewares/db';
+import { createDbClientFromEnv } from '../db';
 import { AppEnv } from '../types/app_env';
-import { Variables } from '../types/variables';
 
-const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const metadata = await selectMetadata(sql);
 	const { failed_users, total_users } = await selectFailedAndTotalUsers(sql);
 	return c.json({

@@ -1,20 +1,18 @@
 import { Hono } from 'hono';
+import { createDbClientFromEnv } from '../db';
 import { getFinalBookMerges, selectBookMergeChains } from '../db/book_merges';
-import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
-import { Variables } from '../types/variables';
 
-const app = new Hono<{ Bindings: AppEnv; Variables: Variables }>();
-app.use('*', withDb);
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const bookMerges = await getFinalBookMerges(sql);
 	return c.json(bookMerges);
 });
 
 app.get('/chains', async (c) => {
-	const sql = c.get('db');
+	const sql = createDbClientFromEnv(c.env);
 	const chains = await selectBookMergeChains(sql);
 	return c.json({ chains, count: chains.length });
 });
