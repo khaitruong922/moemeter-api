@@ -10,6 +10,18 @@ export const createDbClientFromEnv = (env: AppEnv): postgres.Sql<{}> => {
 	return createPostgres(hyperdrive.connectionString, env.DEBUG === 'true');
 };
 
+export const withDbFromEnv = async <T>(
+	env: AppEnv,
+	fn: (sql: postgres.Sql<{}>) => Promise<T>
+): Promise<T> => {
+	const sql = createDbClientFromEnv(env);
+	try {
+		return await fn(sql);
+	} finally {
+		await sql.end();
+	}
+};
+
 const createPostgres = (url: string, debug: boolean) => {
 	return postgres(url, {
 		prepare: false,
