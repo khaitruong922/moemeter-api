@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import { withDbFromEnv } from '../db';
 import { fullImportUser } from '../core/user';
 import { updateMetadataLastUpdated } from '../db/metadata';
 import { User } from '../db/models';
@@ -9,14 +9,15 @@ import {
 	updateSyncStatusByUserIds,
 	updateUserNameAndAvatarUrl,
 } from '../db/users';
+import { AppEnv } from '../types/app_env';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
 
 export const syncAllUsers = async (
-	sql: postgres.Sql<{}>,
+	env: AppEnv,
 	bookmeterApiService: BookmeterApiService,
 	params: SelectAllUsersParams
 ): Promise<User[]> => {
-	const users = await selectAllUsersForSync(sql, params);
+	const users = await withDbFromEnv(env, (sql) => selectAllUsersForSync(sql, params));
 	const { syncStatus } = params;
 	if (users.length === 0) {
 		if (syncStatus === 'failed') {
@@ -32,7 +33,7 @@ export const syncAllUsers = async (
 	for (let i = 0; i < users.length; i++) {
 		const user = users[i];
 		try {
-			const { skipped, user: syncedUser } = await syncUser(sql, bookmeterApiService, user);
+			const { skipped, user: syncedUser } = await syncUser(env, bookmeterApiService, user);
 			if (skipped) {
 				skippedUserIds.push(syncedUser.id);
 				console.log('スキップ:', syncedUser.id);
@@ -54,16 +55,19 @@ export const syncAllUsers = async (
 			}
 		}
 	}
-	await refreshAll(sql);
-	await updateMetadataLastUpdated(sql, new Date());
 
-	await updateSyncStatusByUserIds(
-		sql,
-		successUsers.map((u) => u.id),
-		'success'
-	);
-	await updateSyncStatusByUserIds(sql, failedUserIds, 'failed');
-	await updateSyncStatusByUserIds(sql, skippedUserIds, 'skipped');
+	await withDbFromEnv(env, async (sql) => {
+		await refreshAll(sql);
+		await updateMetadataLastUpdated(sql, new Date());
+
+		await updateSyncStatusByUserIds(
+			sql,
+			successUsers.map((u) => u.id),
+			'success'
+		);
+		await updateSyncStatusByUserIds(sql, failedUserIds, 'failed');
+		await updateSyncStatusByUserIds(sql, skippedUserIds, 'skipped');
+	});
 	console.log(
 		`Total: ${users.length}, Success: ${successUsers.length}, Failed: ${failedUserIds.length}, Skipped: ${skippedUserIds.length}`
 	);
@@ -76,7 +80,7 @@ type SyncResult = {
 };
 
 const syncUser = async (
-	sql: postgres.Sql<{}>,
+	env: AppEnv,
 	bookmeterApiService: BookmeterApiService,
 	currentUser: User
 ): Promise<SyncResult> => {
@@ -88,11 +92,13 @@ const syncUser = async (
 
 	if (skip) {
 		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
-			await updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url);
+			await withDbFromEnv(env, (sql) =>
+				updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url)
+			);
 		}
 		return { skipped: true, user: currentUser };
 	}
-	const { user } = await fullImportUser(sql, bookmeterApiService, newUser);
+	const { user } = await fullImportUser(env, bookmeterApiService, newUser);
 	return { skipped: false, user };
 };
 

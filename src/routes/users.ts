@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
+import { withDbFromEnv } from '../db';
 import { BookReview, selectBookByIds } from '../db/books';
 import { selectCommonReadsOfUser } from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
@@ -97,10 +98,9 @@ app.post('/join', validateToken, async (c) => {
 		return c.json({ error: 'bookcaseは文字列である必要があります' }, 400);
 	}
 
-	const sql = c.get('db');
 	const bookmeterApiService = c.env.BOOKMETER_API;
 	const user = await bookmeterApiService.fetchUserProfile(user_id, bookcase || null);
-	const exists = await userExists(sql, user.id);
+	const exists = await withDbFromEnv(c.env, (sql) => userExists(sql, user.id));
 
 	// Skip importing data if the user already exists
 	if (exists) {
@@ -111,15 +111,17 @@ app.post('/join', validateToken, async (c) => {
 	}
 
 	try {
-		const result = await fullImportUser(sql, bookmeterApiService, user);
-		await refreshAll(sql);
-		await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		const result = await fullImportUser(c.env, bookmeterApiService, user);
+		await withDbFromEnv(c.env, async (sql) => {
+			await refreshAll(sql);
+			await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		});
 		return c.json({
 			...result,
 			message: 'ユーザーが正常に参加し、データがインポートされました',
 		});
 	} catch (e: any) {
-		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
+		await withDbFromEnv(c.env, (sql) => updateSyncStatusByUserIds(sql, [user.id], 'failed'));
 		return c.json({ message: e.message }, 500);
 	}
 });
@@ -130,8 +132,7 @@ app.post('/:userId/refetch', validateToken, async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 
-	const sql = c.get('db');
-	const existingUser = await selectUserById(sql, userId);
+	const existingUser = await withDbFromEnv(c.env, (sql) => selectUserById(sql, userId));
 	if (existingUser === null) {
 		return c.json({ error: 'ユーザーが見つかりません' }, 404);
 	}
@@ -140,15 +141,17 @@ app.post('/:userId/refetch', validateToken, async (c) => {
 	const user = await bookmeterApiService.fetchUserProfile(userId, existingUser.bookcase);
 
 	try {
-		const result = await fullImportUser(sql, bookmeterApiService, user);
-		await refreshAll(sql);
-		await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		const result = await fullImportUser(c.env, bookmeterApiService, user);
+		await withDbFromEnv(c.env, async (sql) => {
+			await refreshAll(sql);
+			await updateSyncStatusByUserIds(sql, [user.id], 'success');
+		});
 		return c.json({
 			...result,
 			message: 'ユーザーデータが正常に再取得されました',
 		});
 	} catch (e: any) {
-		await updateSyncStatusByUserIds(sql, [user.id], 'failed');
+		await withDbFromEnv(c.env, (sql) => updateSyncStatusByUserIds(sql, [user.id], 'failed'));
 		return c.json({ message: e.message }, 500);
 	}
 });

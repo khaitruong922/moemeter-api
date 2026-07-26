@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import { withDbFromEnv } from '../db';
 import { fetchAllUserReadsV2 } from '../bookmeter-api/book';
 import { fetchAllUserReviews } from '../bookmeter-api/review';
 import { selectBlacklistedBookIds } from '../db/blacklisted_books';
@@ -7,15 +7,19 @@ import { Read, Review, User } from '../db/models';
 import { bulkInsertReads, deleteReadsOfUser } from '../db/reads';
 import { deleteReviewsOfUser, upsertReviews } from '../db/reviews';
 import { upsertUser } from '../db/users';
+import { AppEnv } from '../types/app_env';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
 import { getUniqueBooks, mapReadDataToBookModel } from './book';
 
+// Reads/writes are done on fresh, short-lived connections rather than one held for the
+// whole call, since fetchAllUserReadsV2/fetchAllUserReviews can take a long time (paginated
+// scraping) and Supabase's pooler closes connections left idle across that wait.
 export const fullImportUser = async (
-	sql: postgres.Sql<{}>,
+	env: AppEnv,
 	bookmeterApiService: BookmeterApiService,
 	user: User
 ) => {
-	const blacklistedBookIds = await selectBlacklistedBookIds(sql);
+	const blacklistedBookIds = await withDbFromEnv(env, (sql) => selectBlacklistedBookIds(sql));
 
 	const {
 		reads: userReads,
@@ -43,8 +47,6 @@ export const fullImportUser = async (
 	user.pages_read = pages_read;
 
 	const uniqueBookModels = getUniqueBooks(userReads).map(mapReadDataToBookModel);
-	await upsertUser(sql, user);
-	await bulkUpsertBooks(sql, uniqueBookModels);
 	const reads: Read[] = userReads.map((reads) => ({
 		id: reads.id,
 		user_id: user.id,
@@ -53,12 +55,18 @@ export const fullImportUser = async (
 		date: reads.date,
 		index: reads.index,
 	}));
-	await deleteReadsOfUser(sql, user.id);
-	await bulkInsertReads(sql, reads);
-	await deleteReviewsOfUser(sql, user.id);
-	if (shouldUpsertReviews) {
-		await upsertReviews(sql, reviews);
-	}
+
+	await withDbFromEnv(env, async (sql) => {
+		await upsertUser(sql, user);
+		await bulkUpsertBooks(sql, uniqueBookModels);
+		await deleteReadsOfUser(sql, user.id);
+		await bulkInsertReads(sql, reads);
+		await deleteReviewsOfUser(sql, user.id);
+		if (shouldUpsertReviews) {
+			await upsertReviews(sql, reviews);
+		}
+	});
+
 	return {
 		user,
 		bookCount: books_read,
