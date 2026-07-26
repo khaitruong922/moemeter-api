@@ -6,14 +6,14 @@ export const createDbClientFromEnv = (env: AppEnv): postgres.Sql<{}> => {
 	if (!databaseUrl) {
 		throw new Error('環境変数にDATABASE_URLが定義されていません。');
 	}
-	console.log('データベースに接続中:', databaseUrl);
+	console.log('データベースに接続中');
 	return createPostgres(databaseUrl, env.DEBUG === 'true');
 };
 
 const createPostgres = (url: string, debug: boolean) => {
 	return postgres(url, {
 		prepare: false,
-		max: 5,
+		max: 20,
 		ssl: false,
 		fetch_types: false,
 		debug: debug ? logQuery : undefined,
