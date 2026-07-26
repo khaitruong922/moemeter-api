@@ -6,9 +6,9 @@
 	"scripts": {
 		"test": "jest --verbose",
 		"deploy": "wrangler deploy",
-		"dev": "bash -c 'export WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=$(grep \"^DATABASE_URL=\" .dev.vars | cut -d= -f2-); wrangler dev'",
+		"dev": "wrangler dev",
 		"bookmeter": "cd ../bookmeter-api && wrangler dev",
-		"start": "bash -c 'export WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=$(grep \"^DATABASE_URL=\" .dev.vars | cut -d= -f2-); wrangler dev'",
+		"start": "wrangler dev",
 		"format": "prettier --write \"src/**/*.{ts,js,json}\"",
 		"prepare": "git config core.hooksPath .githooks"
 	},
