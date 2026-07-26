@@ -2,12 +2,12 @@ import postgres from 'postgres';
 import { AppEnv } from '../types/app_env';
 
 export const createDbClientFromEnv = (env: AppEnv): postgres.Sql<{}> => {
-	const databaseUrl = env.DATABASE_URL;
-	if (!databaseUrl) {
-		throw new Error('環境変数にDATABASE_URLが定義されていません。');
+	const hyperdrive = env.HYPERDRIVE;
+	if (!hyperdrive) {
+		throw new Error('環境変数にHYPERDRIVEが定義されていません。');
 	}
 	console.log('データベースに接続中');
-	return createPostgres(databaseUrl, env.DEBUG === 'true');
+	return createPostgres(hyperdrive.connectionString, env.DEBUG === 'true');
 };
 
 export const withDbFromEnv = async <T>(
@@ -28,7 +28,7 @@ export const withDbFromEnv = async <T>(
 const createPostgres = (url: string, debug: boolean) => {
 	return postgres(url, {
 		prepare: false,
-		max: 20,
+		max: 5,
 		ssl: false,
 		fetch_types: false,
 		debug: debug ? logQuery : undefined,
