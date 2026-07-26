@@ -1,7 +1,7 @@
 import { BookmeterApiService } from './bookmeter_api_service';
 
 export type AppEnv = {
-	DATABASE_URL: string;
+	HYPERDRIVE: Hyperdrive;
 	SUPABASE_URL: string;
 	SUPABASE_KEY: string;
 	DEBUG?: string;

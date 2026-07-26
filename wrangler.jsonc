@@ -16,5 +16,11 @@
       "binding": "BOOKMETER_API",
       "service": "bookmeter-api"
     }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "7f371051cd964018a5688fadb30bbace"
+    }
   ]
 }
