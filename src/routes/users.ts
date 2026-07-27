@@ -288,7 +288,9 @@ app.get('/:userId/futaribocchi_reads', async (c) => {
 			const userA = relatedUsersMap[a];
 			const userB = relatedUsersMap[b];
 			if (!userA || !userB) return 0;
-			return Number(userB.books_read) - Number(userA.books_read);
+			const booksDiff = Number(userB.books_read) - Number(userA.books_read);
+			if (booksDiff !== 0) return booksDiff;
+			return Number(userB.pages_read) - Number(userA.pages_read);
 		});
 	}
 	for (const userId of Object.keys(relatedUsersMap)) {
