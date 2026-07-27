@@ -52,14 +52,6 @@ app.get('/leaderboard', async (c) => {
 	return c.json(users);
 });
 
-app.get('/hitoribocchi-leaderboard', async (c) => {
-	const sql = c.get('db');
-	const order = (c.req.query('order') as HitoribocchiOrder) || 'book_count';
-	const users = await selectHitoribocchiLeaderboard(sql, order);
-	return c.json(users);
-});
-
-// Backward-compatible alias
 app.get('/lonely-leaderboard', async (c) => {
 	const sql = c.get('db');
 	const order = (c.req.query('order') as HitoribocchiOrder) || 'book_count';
