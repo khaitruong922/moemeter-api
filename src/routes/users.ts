@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { withDbFromEnv } from '../db';
 import { BookReview, selectBookByIds } from '../db/books';
-import { selectCommonReadsOfUser } from '../db/reads';
+import { selectCommonReadsOfUser, selectFutaribocchiReadsOfUser } from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
 import {
 	getBestFriendReads,
@@ -163,6 +163,70 @@ app.get('/:userId/common_reads', async (c) => {
 	}
 	const sql = c.get('db');
 	const reads = await selectCommonReadsOfUser(sql, Number(userId));
+	const userBooks: Record<string, number[]> = {};
+	const bookUsers: Record<string, number[]> = {};
+	for (const read of reads) {
+		if (!userBooks[read.user_id]) userBooks[read.user_id] = [];
+		if (!bookUsers[read.book_id]) bookUsers[read.book_id] = [];
+		userBooks[read.user_id].push(read.book_id);
+		bookUsers[read.book_id].push(read.user_id);
+	}
+
+	const relatedUsers = await selectUserByIds(sql, Object.keys(userBooks).map(Number));
+	const relatedUsersMap = Object.fromEntries(
+		relatedUsers.map((user) => [
+			user.id,
+			{
+				...user,
+				book_ids: userBooks[user.id],
+			},
+		])
+	);
+
+	const book_ids = Object.keys(bookUsers).map(Number);
+	const bookReviews = await selectReviewsByIds(sql, book_ids);
+
+	const bookReviewsMap: Record<string, BookReview[]> = {};
+	bookReviews.forEach((review) => {
+		if (!bookReviewsMap[review.book_id]) {
+			bookReviewsMap[review.book_id] = [];
+		}
+		bookReviewsMap[review.book_id].push(review);
+	});
+
+	const relatedBooks = await selectBookByIds(sql, Object.keys(bookUsers).map(Number));
+	const relatedBooksMap = Object.fromEntries(
+		relatedBooks.map((book) => [
+			book.id,
+			{ ...book, user_ids: bookUsers[book.id], reviews: bookReviewsMap[book.id] || [] },
+		])
+	);
+
+	for (const bookId of Object.keys(relatedBooksMap)) {
+		relatedBooksMap[bookId].user_ids.sort((a, b) => {
+			const userA = relatedUsersMap[a];
+			const userB = relatedUsersMap[b];
+			if (!userA || !userB) return 0;
+			return Number(userB.books_read) - Number(userA.books_read);
+		});
+	}
+	for (const userId of Object.keys(relatedUsersMap)) {
+		relatedUsersMap[userId].book_ids.sort((a, b) => b - a);
+	}
+
+	return c.json({
+		books: relatedBooksMap,
+		users: relatedUsersMap,
+	});
+});
+
+app.get('/:userId/futaribocchi_reads', async (c) => {
+	const userId = c.req.param('userId');
+	if (!userId || isNaN(Number(userId))) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	const sql = c.get('db');
+	const reads = await selectFutaribocchiReadsOfUser(sql, Number(userId));
 	const userBooks: Record<string, number[]> = {};
 	const bookUsers: Record<string, number[]> = {};
 	for (const read of reads) {

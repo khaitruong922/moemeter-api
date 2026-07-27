@@ -21,6 +21,26 @@ export const selectCommonReadsOfUser = async (
 	return rows;
 };
 
+export const selectFutaribocchiReadsOfUser = async (
+	sql: postgres.Sql<{}>,
+	userId: number
+): Promise<Read[]> => {
+	const rows = await sql<Read[]>`
+    SELECT DISTINCT r.user_id, r.merged_book_id AS book_id
+    FROM reads r
+    JOIN (
+      SELECT merged_book_id
+      FROM reads
+      WHERE user_id = ${userId}
+      AND merged_book_id IN (
+        SELECT merged_book_id FROM reads GROUP BY merged_book_id HAVING COUNT(DISTINCT user_id) = 2
+      )
+    ) AS user_reads ON r.merged_book_id = user_reads.merged_book_id
+    WHERE r.user_id != ${userId}
+  `;
+	return rows;
+};
+
 export const deleteReadsOfUser = async (sql: postgres.Sql<{}>, userId: number): Promise<void> => {
 	await sql`
     DELETE FROM reads WHERE user_id = ${userId}

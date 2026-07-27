@@ -8,6 +8,5 @@ export const withDb = createMiddleware<{ Bindings: AppEnv; Variables: Variables 
 		const sql = createDbClientFromEnv(c.env);
 		c.set('db', sql);
 		await next();
-		c.executionCtx.waitUntil(sql.end({ timeout: 5 }));
 	}
 );

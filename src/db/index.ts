@@ -15,14 +15,7 @@ export const withDbFromEnv = async <T>(
 	fn: (sql: postgres.Sql<{}>) => Promise<T>
 ): Promise<T> => {
 	const sql = createDbClientFromEnv(env);
-	try {
-		return await fn(sql);
-	} finally {
-		// sql.end() with no timeout waits indefinitely for the connection to go idle,
-		// which never happens if the connection was already killed by the server (e.g.
-		// Supabase's pooler closing it mid-request) - bound it so cleanup can't hang the response.
-		await sql.end({ timeout: 5 });
-	}
+	return await fn(sql);
 };
 
 const createPostgres = (url: string, debug: boolean) => {
