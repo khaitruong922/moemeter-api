@@ -12,13 +12,15 @@ import {
 } from '../db/summary';
 import {
 	deleteUserById,
-	LonelyOrder,
+	FutaribocchiOrder,
+	HitoribocchiOrder,
 	RankedUser,
 	ReadingAffinityOrder,
 	refreshAll,
 	selectAllUsersForSync,
 	selectAllUsersWithRank,
-	selectLonelyLeaderboard,
+	selectFutaribocchiLeaderboard,
+	selectHitoribocchiLeaderboard,
 	selectRankedUserById,
 	selectReadingAffinityLeaderboard,
 	selectUserById,
@@ -50,11 +52,26 @@ app.get('/leaderboard', async (c) => {
 	return c.json(users);
 });
 
+app.get('/hitoribocchi-leaderboard', async (c) => {
+	const sql = c.get('db');
+	const order = (c.req.query('order') as HitoribocchiOrder) || 'book_count';
+	const users = await selectHitoribocchiLeaderboard(sql, order);
+	return c.json(users);
+});
+
+// Backward-compatible alias
 app.get('/lonely-leaderboard', async (c) => {
 	const sql = c.get('db');
-	const lonelyOrder = (c.req.query('order') as LonelyOrder) || 'book_count';
-	const lonelyUsers = await selectLonelyLeaderboard(sql, lonelyOrder);
-	return c.json(lonelyUsers);
+	const order = (c.req.query('order') as HitoribocchiOrder) || 'book_count';
+	const users = await selectHitoribocchiLeaderboard(sql, order);
+	return c.json(users);
+});
+
+app.get('/futaribocchi-leaderboard', async (c) => {
+	const sql = c.get('db');
+	const order = (c.req.query('order') as FutaribocchiOrder) || 'book_count';
+	const pairs = await selectFutaribocchiLeaderboard(sql, order);
+	return c.json(pairs);
 });
 
 app.get('/failed', validateToken, async (c) => {

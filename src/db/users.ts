@@ -15,7 +15,7 @@ export type RankedUser = User & {
 };
 export type RankOrder = 'books' | 'pages';
 
-export type LonelyUser = User & {
+export type HitoribocchiUser = User & {
 	lonely_book_count: number | string;
 	lonely_days: number | string;
 	lonely_ratio: number | string;
@@ -23,7 +23,21 @@ export type LonelyUser = User & {
 	book_count_rank: number | string;
 	days_rank: number | string;
 };
-export type LonelyOrder = 'days' | 'book_count' | 'ratio';
+export type HitoribocchiOrder = 'days' | 'book_count' | 'ratio';
+
+export type FutaribocchiPair = {
+	user1_id: number | string;
+	user2_id: number | string;
+	user1_name: string | null;
+	user1_avatar_url: string | null;
+	user2_name: string | null;
+	user2_avatar_url: string | null;
+	book_count: number | string;
+	pages: number | string;
+	book_count_rank: number | string;
+	pages_rank: number | string;
+};
+export type FutaribocchiOrder = 'book_count' | 'pages';
 
 export type ReadingAffinityUser = User & {
 	books_with_common_readers: number | string;
@@ -69,17 +83,17 @@ export const selectYearlyLeaderboard = async (
 	}));
 };
 
-export const selectLonelyLeaderboard = async (
+export const selectHitoribocchiLeaderboard = async (
 	sql: postgres.Sql<{}>,
-	order: LonelyOrder
-): Promise<LonelyUser[]> => {
+	order: HitoribocchiOrder
+): Promise<HitoribocchiUser[]> => {
 	const rankField = () => {
 		if (order === 'days') return 'days_rank';
 		if (order === 'book_count') return 'book_count_rank';
 		if (order === 'ratio') return 'ratio_rank';
 		return '';
 	};
-	const rows = await sql<LonelyUser[]>`
+	const rows = await sql<HitoribocchiUser[]>`
     SELECT * FROM lonely_leaderboard
     ORDER BY ${sql(rankField())} ASC;
   `;
@@ -92,6 +106,27 @@ export const selectLonelyLeaderboard = async (
 		null_read_date_count: Number(r.null_read_date_count),
 		book_count_rank: Number(r.book_count_rank),
 		days_rank: Number(r.days_rank),
+	}));
+};
+
+export const selectFutaribocchiLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: FutaribocchiOrder
+): Promise<FutaribocchiPair[]> => {
+	const rankField = order === 'pages' ? 'pages_rank' : 'book_count_rank';
+	const rows = await sql<FutaribocchiPair[]>`
+    SELECT * FROM futaribocchi_leaderboard
+    ORDER BY ${sql(rankField)} ASC;
+  `;
+
+	return rows.map((r) => ({
+		...r,
+		user1_id: Number(r.user1_id),
+		user2_id: Number(r.user2_id),
+		book_count: Number(r.book_count),
+		pages: Number(r.pages),
+		book_count_rank: Number(r.book_count_rank),
+		pages_rank: Number(r.pages_rank),
 	}));
 };
 
@@ -134,7 +169,7 @@ export const refreshRankedUsers = async (sql: postgres.Sql<{}>): Promise<void> =
   `;
 };
 
-export const refreshLonelyLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+export const refreshHitoribocchiLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW lonely_leaderboard;
   `;
@@ -143,6 +178,12 @@ export const refreshLonelyLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
 export const refreshReadingAffinityLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
     REFRESH MATERIALIZED VIEW reading_affinity_leaderboard;
+  `;
+};
+
+export const refreshFutaribocchiLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW futaribocchi_leaderboard;
   `;
 };
 
@@ -158,7 +199,8 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	// Leaderboards
 	await refreshRankedUsers(sql);
 	await refreshYearlyLeaderboard(sql);
-	await refreshLonelyLeaderboard(sql);
+	await refreshHitoribocchiLeaderboard(sql);
+	await refreshFutaribocchiLeaderboard(sql);
 	await refreshReadingAffinityLeaderboard(sql);
 	await refreshSeriesLeaderboard(sql);
 
