@@ -82,6 +82,26 @@ export const addManualBookMerge = async (
 	await refreshAll(sql);
 };
 
+export const applyAllPotentialBookMerges = async (
+	sql: postgres.Sql<{}>
+): Promise<{ merged_pairs: number }> => {
+	const potentialMerges = await selectDuplicateBookCandidates(sql);
+
+	const pairs = potentialMerges.flatMap((merge) =>
+		merge.variants.map((variant) => ({ base_id: merge.base.id, variant_id: variant.id }))
+	);
+
+	if (pairs.length > 0) {
+		await sql`
+      INSERT INTO manual_book_merges ${sql(pairs, 'variant_id', 'base_id')}
+      ON CONFLICT (variant_id) DO NOTHING
+    `;
+		await refreshAll(sql);
+	}
+
+	return { merged_pairs: pairs.length };
+};
+
 export const addBookMergeException = async (
 	sql: postgres.Sql<{}>,
 	variantId: number
@@ -153,6 +173,9 @@ const isVolumeMarker = (s: string): boolean => {
 	// "2回目", "第3巻", "第4章" — suffixed/prefixed Japanese volume counters
 	if (/^[0-9]+(\.[0-9]+)?\s*回目$/.test(trimmed)) return true;
 	if (/^第[0-9]+(\.[0-9]+)?\s*(巻|話|章|部)$/.test(trimmed)) return true;
+	// Kanji numerals (一, 二, 十一, 二十...) and "第◯巻/話/章/部" with a kanji numeral
+	if (/^[一二三四五六七八九十百千]+$/.test(trimmed)) return true;
+	if (/^第[一二三四五六七八九十百千]+\s*(巻|話|章|部)$/.test(trimmed)) return true;
 	return ['上', '中', '下', '前', '後', '完', '黒', '白'].includes(trimmed);
 };
 

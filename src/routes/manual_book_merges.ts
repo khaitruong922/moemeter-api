@@ -1,5 +1,9 @@
 import { Hono } from 'hono';
-import { addManualBookMerge, deleteManualBookMerge } from '../db/book_merges';
+import {
+	addManualBookMerge,
+	applyAllPotentialBookMerges,
+	deleteManualBookMerge,
+} from '../db/book_merges';
 import { validateToken } from '../middlewares/auth';
 import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
@@ -21,6 +25,12 @@ app.post('/', validateToken, async (c) => {
 	const sql = c.get('db');
 	await addManualBookMerge(sql, base_id, variant_id);
 	return c.json({ message: '手動本マージが正常に追加されました' }, 201);
+});
+
+app.post('/apply_all', validateToken, async (c) => {
+	const sql = c.get('db');
+	const result = await applyAllPotentialBookMerges(sql);
+	return c.json({ message: '全ての候補マージが正常に適用されました', ...result });
 });
 
 app.post('/delete', validateToken, async (c) => {
