@@ -2,8 +2,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict iRG6zUcOdlfLW9kRbvW5vSNVWKBnEjcjUPkRXiPVwEs9k00mdRacz1a1skp81fO
+
 -- Dumped from database version 17.4
--- Dumped by pg_dump version 17.5 (Homebrew)
+-- Dumped by pg_dump version 17.10 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -240,6 +242,86 @@ CREATE VIEW public.final_book_merges AS
 ALTER VIEW public.final_book_merges OWNER TO postgres;
 
 --
+-- Name: reads; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.reads (
+    user_id integer NOT NULL,
+    book_id integer NOT NULL,
+    merged_book_id integer DEFAULT 334913 NOT NULL,
+    date date,
+    id integer NOT NULL,
+    index integer
+);
+
+
+ALTER TABLE public.reads OWNER TO postgres;
+
+--
+-- Name: futaribocchi_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.futaribocchi_leaderboard AS
+ WITH futaribocchi_books AS (
+         SELECT reads.merged_book_id
+           FROM public.reads
+          GROUP BY reads.merged_book_id
+         HAVING (count(DISTINCT reads.user_id) = 2)
+        ), pair_books AS (
+         SELECT r1.user_id AS uid_a,
+            r2.user_id AS uid_b,
+            r1.merged_book_id,
+            b.page
+           FROM (((public.reads r1
+             JOIN public.reads r2 ON (((r1.merged_book_id = r2.merged_book_id) AND (r1.user_id < r2.user_id))))
+             JOIN futaribocchi_books fb ON ((fb.merged_book_id = r1.merged_book_id)))
+             JOIN public.books b ON ((b.id = r1.merged_book_id)))
+        ), pair_stats AS (
+         SELECT pair_books.uid_a,
+            pair_books.uid_b,
+            count(*) AS book_count,
+            COALESCE(sum(pair_books.page), (0)::bigint) AS pages
+           FROM pair_books
+          GROUP BY pair_books.uid_a, pair_books.uid_b
+        ), ordered_pairs AS (
+         SELECT
+                CASE
+                    WHEN (COALESCE(u1_1.books_read, 0) > COALESCE(u2_1.books_read, 0)) THEN ps.uid_a
+                    WHEN (COALESCE(u1_1.books_read, 0) < COALESCE(u2_1.books_read, 0)) THEN ps.uid_b
+                    WHEN (COALESCE(u1_1.pages_read, 0) >= COALESCE(u2_1.pages_read, 0)) THEN ps.uid_a
+                    ELSE ps.uid_b
+                END AS user1_id,
+                CASE
+                    WHEN (COALESCE(u1_1.books_read, 0) > COALESCE(u2_1.books_read, 0)) THEN ps.uid_b
+                    WHEN (COALESCE(u1_1.books_read, 0) < COALESCE(u2_1.books_read, 0)) THEN ps.uid_a
+                    WHEN (COALESCE(u1_1.pages_read, 0) >= COALESCE(u2_1.pages_read, 0)) THEN ps.uid_b
+                    ELSE ps.uid_a
+                END AS user2_id,
+            ps.book_count,
+            ps.pages
+           FROM ((pair_stats ps
+             JOIN public.users u1_1 ON ((u1_1.id = ps.uid_a)))
+             JOIN public.users u2_1 ON ((u2_1.id = ps.uid_b)))
+        )
+ SELECT op.user1_id,
+    op.user2_id,
+    u1.name AS user1_name,
+    u1.avatar_url AS user1_avatar_url,
+    u2.name AS user2_name,
+    u2.avatar_url AS user2_avatar_url,
+    op.book_count,
+    op.pages,
+    rank() OVER (ORDER BY op.book_count DESC, op.pages DESC) AS book_count_rank,
+    rank() OVER (ORDER BY op.pages DESC, op.book_count DESC) AS pages_rank
+   FROM ((ordered_pairs op
+     JOIN public.users u1 ON ((u1.id = op.user1_id)))
+     JOIN public.users u2 ON ((u2.id = op.user2_id)))
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.futaribocchi_leaderboard OWNER TO postgres;
+
+--
 -- Name: groups; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -273,22 +355,6 @@ ALTER SEQUENCE public.groups_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.groups_id_seq OWNED BY public.groups.id;
 
-
---
--- Name: reads; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.reads (
-    user_id integer NOT NULL,
-    book_id integer NOT NULL,
-    merged_book_id integer DEFAULT 334913 NOT NULL,
-    date date,
-    id integer NOT NULL,
-    index integer
-);
-
-
-ALTER TABLE public.reads OWNER TO postgres;
 
 --
 -- Name: lonely_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
@@ -889,4 +955,6 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict iRG6zUcOdlfLW9kRbvW5vSNVWKBnEjcjUPkRXiPVwEs9k00mdRacz1a1skp81fO
 
