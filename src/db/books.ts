@@ -262,7 +262,7 @@ export const selectBooksWithUsersAndReviews = async (
 export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<Book[]> => {
 	if (ids.length === 0) return [];
 	const rows = await sql<Book[]>`
-    SELECT id, title, author, author_url, thumbnail_url
+    SELECT id, title, author, author_url, thumbnail_url, page
     FROM books
     WHERE id IN ${sql(ids)}
   `;
