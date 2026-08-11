@@ -157,7 +157,7 @@ export type PotentialBookMerge = {
 // Quotes, ※ and the non-ASCII dashes are here because NFKC does NOT unify them, and users
 // register the same book with either form (e.g. "“文学少女”" vs "“文学少女“", "※灼眼のシャナ").
 const PUNCTUATION_REGEX =
-	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\※'"“”‘’‟〝〟＂`]/g;
+	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\※'"“”‘’‟〝〟＂`:：;；]/g;
 
 const normalize = (s: string): string =>
 	s.normalize('NFKC').replace(PUNCTUATION_REGEX, '').toLowerCase();
@@ -188,18 +188,35 @@ const isVolumeMarker = (s: string): boolean => {
 // Children's imprints are a rewritten-for-young-readers edition, not a reprint. They must never
 // collapse into the adult edition, even though both suffixes end in "文庫" and strip identically
 // (e.g. "すずめの戸締まり (角川つばさ文庫)" vs "小説 すずめの戸締まり (角川文庫)").
+// "TOジュニア文庫" is listed here for the same reason, even though it does not end in "文庫" —
+// it is the young-readers retelling of 本好きの下剋上, not the light novel.
 const JUVENILE_IMPRINT_REGEX =
-	/(つばさ文庫|青い鳥文庫|みらい文庫|フォア文庫|岩波少年文庫|講談社KK)/;
+	/(つばさ文庫|青い鳥文庫|みらい文庫|フォア文庫|岩波少年文庫|講談社KK|ジュニア文庫)/;
 
 // Digital/bonus purchase tags wrap the same text, so they are dropped — unlike EDITION_MARKERS
 // above, which mark a genuinely reissued book (e.g. "【電子版限定特典付き】陰キャの僕に…").
+// "電子特別版" needs its own alternative: it is 電子+特別+版, so it never contains "電子版".
 const BONUS_TAG_REGEX =
-	/[【[(（][^】\])）]{0,16}?(電子版|電子限定|電子特典|特典付|限定特典|購入特典)[^】\])）]{0,16}?[】\])）]/g;
-const stripBonusTags = (s: string): string => s.replace(BONUS_TAG_REGEX, '');
+	/[【[(（][^】\])）]{0,16}?(電子版|電子限定|電子特典|電子特別版|特典付|限定特典|購入特典)[^】\])）]{0,16}?[】\])）]/g;
+
+// Special editions bundle merchandise (goods, an SS booklet, a drama CD) with an unchanged text,
+// and unlike the tags above they are usually written bare rather than bracketed, e.g.
+// "無職転生 ~蛇足編~2 グッズ付き特装版" / "お隣の天使様…5.5 SS冊子付き特装版".
+const SPECIAL_EDITION_REGEX = /\s*(?:[^\s]{0,8}付き?)?特装版/g;
+const stripBonusTags = (s: string): string =>
+	s.replace(BONUS_TAG_REGEX, '').replace(SPECIAL_EDITION_REGEX, '');
+
+// A leading "[2巻]" / "【小説1巻】" tag is a store-listing artifact on an otherwise normal title.
+// Deliberately narrow: it must be a bracketed volume count, so imprint tags such as
+// "【TOジュニア文庫】" are left alone (those mark a different book — see JUVENILE_IMPRINT_REGEX).
+const LEADING_VOLUME_TAG_REGEX = /^[【[]\s*(?:小説)?\s*[0-9]+\s*巻(?:\s*・\s*[上中下])?\s*[】\]]\s*/;
+const stripLeadingVolumeTag = (s: string): string => s.replace(LEADING_VOLUME_TAG_REGEX, '');
 
 // Reprint/edition markers that don't change the underlying book — stripped wherever they occur,
-// not just trailing (e.g. "新装版 限りなく透明に近いブルー" vs "限りなく透明に近いブルー")
-const EDITION_MARKERS = ['新装改訂版', '新装版', '完全版', '愛蔵版', '図書館版'];
+// not just trailing (e.g. "新装版 限りなく透明に近いブルー" vs "限りなく透明に近いブルー").
+// Longer markers come first: the replace is sequential, so "新組版" must not be consumed by a
+// shorter prefix of itself.
+const EDITION_MARKERS = ['新装改訂版', '新装版', '新組版', '完全版', '愛蔵版', '図書館版'];
 const stripEditionMarkers = (s: string): string =>
 	EDITION_MARKERS.reduce((acc, marker) => acc.split(marker).join(''), s);
 
@@ -241,7 +258,8 @@ const romanToArabic = (s: string): string =>
 const canonicalizeTitle = (title: string): string => {
 	const nfkc = title.normalize('NFKC');
 	const noBonus = stripBonusTags(nfkc);
-	const noEdition = stripEditionMarkers(noBonus);
+	const noTag = stripLeadingVolumeTag(noBonus);
+	const noEdition = stripEditionMarkers(noTag);
 	const noSuffix = stripTrailingRoundParens(noEdition);
 	return romanToArabic(noSuffix);
 };
