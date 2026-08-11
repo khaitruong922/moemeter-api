@@ -321,14 +321,14 @@ type BookPair = { id1: number; id2: number };
 
 // Ported from syncBookMerges (src/db/book_merges.ts) — the same rule the production auto-merge
 // job uses (extra ASCII-paren annotation with matching paren-stripped title, or an exact match
-// after space/digit normalization). Scoped to still-active books so it surfaces pairs the cron
+// after space/digit normalization). Runs over the whole library so it surfaces pairs the cron
 // job hasn't auto-merged yet, and catches cases our NFKC heuristic above might miss.
 const selectAlgorithmicDuplicatePairs = async (sql: postgres.Sql<{}>): Promise<BookPair[]> => {
 	return await sql<BookPair[]>`
     WITH active_books AS (
-      SELECT DISTINCT b.id, b.title, b.author
-      FROM reads r
-      JOIN books b ON b.id = r.merged_book_id
+      SELECT b.id, b.title, b.author
+      FROM books b
+      WHERE b.id NOT IN (SELECT variant_id FROM final_book_merges)
     ),
     cleaned AS (
       SELECT
@@ -377,13 +377,22 @@ class UnionFind {
 export const selectDuplicateBookCandidates = async (
 	sql: postgres.Sql<{}>
 ): Promise<PotentialBookMerge[]> => {
+	// The whole library, not just books someone has logged. Series volumes pulled in by the series
+	// sync usually have no reads at all, so joining through `reads` hid every duplicate among them.
+	// Books already recorded as a merge variant are excluded — they have been resolved, and
+	// re-including them would just re-propose merges that already exist.
 	const activeBooks = await sql<DuplicateCandidateBook[]>`
-    SELECT b.id, b.title, b.author, b.thumbnail_url, COUNT(r.id)::int AS read_count,
+    SELECT b.id, b.title, b.author, b.thumbnail_url,
+           COALESCE(rc.read_count, 0)::int AS read_count,
            s.id AS series_id, s.name AS series_name
-    FROM reads r
-    JOIN books b ON b.id = r.merged_book_id
+    FROM books b
+    LEFT JOIN (
+      SELECT merged_book_id, COUNT(*)::int AS read_count
+      FROM reads
+      GROUP BY merged_book_id
+    ) rc ON rc.merged_book_id = b.id
     LEFT JOIN series s ON s.id = b.series_id
-    GROUP BY b.id, b.title, b.author, b.thumbnail_url, s.id, s.name
+    WHERE b.id NOT IN (SELECT variant_id FROM final_book_merges)
   `;
 
 	const exceptionRows = await sql<{ variant_id: number }[]>`
@@ -406,10 +415,13 @@ export const selectDuplicateBookCandidates = async (
 		for (let i = 1; i < ids.length; i++) dsu.union(ids[0], ids[i]);
 	}
 
-	// A record scraped without an author can never match on the composite key, so it sits forever
-	// beside its properly attributed twin (e.g. "KAエスマ文庫 ヴァイオレット・エヴァーガーデン 上巻"
-	// with a blank author vs the same title credited to 暁 佳奈). Fall back to a title-only key for
-	// those — deliberately only when one side is blank, so this never becomes author-blind matching.
+	// Same title, and one credit list contains the other. Covers two shapes the composite key
+	// cannot reach, both well attested in the merge history:
+	//   - a scraped record with no author beside its attributed twin (the empty set is a subset)
+	//   - an edition that additionally credits the illustrator, e.g. 有川 浩 vs 有川 浩,村上 勉,
+	//     or 日向 夏 vs 日向夏,ねこクラゲ (14 such merges accepted)
+	// Requiring a subset relation keeps disjoint credits apart, so 羅生門 by 芥川 竜之介 never
+	// joins 羅生門 by 楠山 正雄.
 	const titleGroups = new Map<string, number[]>();
 	for (const book of activeBooks) {
 		if (exceptions.has(book.id)) continue;
@@ -418,10 +430,23 @@ export const selectDuplicateBookCandidates = async (
 		if (ids) ids.push(book.id);
 		else titleGroups.set(key, [book.id]);
 	}
-	const hasNoAuthor = (id: number): boolean => !byId.get(id)!.author?.trim();
+	const creditSet = (id: number): Set<string> =>
+		new Set(
+			(byId.get(id)!.author ?? '')
+				.split(',')
+				.map((name) => normalize(name))
+				.filter(Boolean)
+		);
+	const isSubset = (a: Set<string>, b: Set<string>): boolean => [...a].every((name) => b.has(name));
 	for (const ids of titleGroups.values()) {
-		if (ids.length < 2 || !ids.some(hasNoAuthor)) continue;
-		for (let i = 1; i < ids.length; i++) dsu.union(ids[0], ids[i]);
+		if (ids.length < 2) continue;
+		for (let i = 0; i < ids.length; i++) {
+			for (let j = i + 1; j < ids.length; j++) {
+				const a = creditSet(ids[i]);
+				const b = creditSet(ids[j]);
+				if (isSubset(a, b) || isSubset(b, a)) dsu.union(ids[i], ids[j]);
+			}
+		}
 	}
 
 	const algorithmicPairs = await selectAlgorithmicDuplicatePairs(sql);
