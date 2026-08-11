@@ -264,6 +264,115 @@ export const selectSeriesWithMultipleAuthors = async (
 	}));
 };
 
+export type SeriesReadGapVolume = {
+	book_id: number;
+	title: string | null;
+	thumbnail_url: string | null;
+	series_number: number;
+	read_count: number;
+	is_gap: boolean;
+};
+
+export type SeriesWithReadGaps = {
+	id: number;
+	name: string;
+	gap_count: number;
+	last_read_number: number;
+	volume_count: number;
+	volumes: SeriesReadGapVolume[];
+};
+
+// Series where an unread volume sits BEFORE or BETWEEN volumes that have reads — the shape that
+// usually means a missing merge or a bad series_number rather than a genuine reading gap:
+//
+//   0 0 0 5  -> reported (leading gap)
+//   5 5 0 5  -> reported (interior gap)
+//   5 5 0 0 0 -> NOT reported; trailing volumes are simply not read yet
+//
+// The cutoff is the highest series_number that has any reads: an unread volume counts as a gap
+// only when it is numbered below that. Volumes with a NULL series_number cannot be ordered, so
+// they take no part in the comparison.
+export const selectSeriesWithReadGaps = async (
+	sql: postgres.Sql<{}>
+): Promise<SeriesWithReadGaps[]> => {
+	const rows = await sql<
+		(Omit<SeriesWithReadGaps, 'volumes'> & { volumes: string | SeriesReadGapVolume[] })[]
+	>`
+    WITH canonical_books AS (
+      SELECT b.series_id, COALESCE(fm.base_id, b.id) AS book_id
+      FROM books b
+      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
+      WHERE b.series_id IS NOT NULL
+    ),
+    deduped AS (
+      SELECT DISTINCT series_id, book_id FROM canonical_books
+    ),
+    volumes AS (
+      SELECT
+        d.series_id,
+        d.book_id,
+        b.title,
+        b.thumbnail_url,
+        b.series_number,
+        COUNT(DISTINCT r.user_id)::int AS read_count
+      FROM deduped d
+      JOIN books b ON b.id = d.book_id
+      LEFT JOIN reads r ON r.merged_book_id = d.book_id
+      WHERE b.series_number IS NOT NULL
+      GROUP BY d.series_id, d.book_id, b.title, b.thumbnail_url, b.series_number
+    ),
+    last_read AS (
+      SELECT series_id, MAX(series_number) AS last_read_number
+      FROM volumes
+      WHERE read_count > 0
+      GROUP BY series_id
+    ),
+    flagged AS (
+      SELECT
+        v.*,
+        lr.last_read_number,
+        (v.read_count = 0 AND v.series_number < lr.last_read_number) AS is_gap
+      FROM volumes v
+      JOIN last_read lr ON lr.series_id = v.series_id
+    ),
+    series_gaps AS (
+      SELECT series_id, (COUNT(*) FILTER (WHERE is_gap))::int AS gap_count
+      FROM flagged
+      GROUP BY series_id
+      HAVING COUNT(*) FILTER (WHERE is_gap) > 0
+    )
+    SELECT
+      s.id,
+      s.name,
+      sg.gap_count,
+      MAX(f.last_read_number)::int AS last_read_number,
+      COUNT(*)::int AS volume_count,
+      jsonb_agg(
+        jsonb_build_object(
+          'book_id', f.book_id,
+          'title', f.title,
+          'thumbnail_url', f.thumbnail_url,
+          'series_number', f.series_number,
+          'read_count', f.read_count,
+          'is_gap', f.is_gap
+        ) ORDER BY f.series_number ASC
+      ) AS volumes
+    FROM series_gaps sg
+    JOIN series s ON s.id = sg.series_id
+    JOIN flagged f ON f.series_id = sg.series_id
+    GROUP BY s.id, s.name, sg.gap_count
+    ORDER BY sg.gap_count DESC, s.name
+  `;
+
+	return rows.map((r) => ({
+		...r,
+		gap_count: Number(r.gap_count),
+		last_read_number: Number(r.last_read_number),
+		volume_count: Number(r.volume_count),
+		volumes: typeof r.volumes === 'string' ? JSON.parse(r.volumes) : r.volumes,
+	}));
+};
+
 export type SeriesRow = { id: number; name: string };
 
 export const selectSeriesById = async (

@@ -8,6 +8,7 @@ import {
 	selectSeriesLeaderboard,
 	selectSeriesStats,
 	selectSeriesWithMultipleAuthors,
+	selectSeriesWithReadGaps,
 	selectUserSeriesProgress,
 	type SeriesLeaderboardOrder,
 } from '../db/series';
@@ -61,6 +62,17 @@ app.get('/duplicate', async (c) => {
 	const sql = c.get('db');
 	const candidates = await selectDuplicateSeriesCandidates(sql, threshold);
 	return c.json({ candidates, count: candidates.length });
+});
+
+// Must stay above '/:seriesId', which would otherwise match 'read-gaps' as a series id.
+app.get('/read-gaps', async (c) => {
+	const sql = c.get('db');
+	const series = await selectSeriesWithReadGaps(sql);
+	return c.json({
+		series,
+		count: series.length,
+		gap_count: series.reduce((total, s) => total + s.gap_count, 0),
+	});
 });
 
 app.get('/:seriesId', async (c) => {
