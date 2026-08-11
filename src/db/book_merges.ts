@@ -156,8 +156,11 @@ export type PotentialBookMerge = {
 // Punctuation/whitespace stripped when comparing titles — mirrors .claude/merge-books.md Step 2a.
 // Quotes, ※ and the non-ASCII dashes are here because NFKC does NOT unify them, and users
 // register the same book with either form (e.g. "“文学少女”" vs "“文学少女“", "※灼眼のシャナ").
+// U+301C WAVE DASH (〜) must be listed explicitly: NFKC leaves it alone, while the visually
+// identical U+FF5E FULLWIDTH TILDE (～) folds to ASCII "~". Without it "無職転生 〜…〜" and
+// "無職転生 ～…～" never compare equal.
 const PUNCTUATION_REGEX =
-	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\※'"“”‘’‟〝〟＂`:：;；]/g;
+	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～〜…・/／\\※'"“”‘’‟〝〟＂`:：;；]/g;
 
 const normalize = (s: string): string =>
 	s.normalize('NFKC').replace(PUNCTUATION_REGEX, '').toLowerCase();
@@ -185,13 +188,11 @@ const isVolumeMarker = (s: string): boolean => {
 	return ['上', '中', '下', '前', '後', '完', '黒', '白'].includes(trimmed);
 };
 
-// Children's imprints are a rewritten-for-young-readers edition, not a reprint. They must never
-// collapse into the adult edition, even though both suffixes end in "文庫" and strip identically
-// (e.g. "すずめの戸締まり (角川つばさ文庫)" vs "小説 すずめの戸締まり (角川文庫)").
-// "TOジュニア文庫" is listed here for the same reason, even though it does not end in "文庫" —
-// it is the young-readers retelling of 本好きの下剋上, not the light novel.
-const JUVENILE_IMPRINT_REGEX =
-	/(つばさ文庫|青い鳥文庫|みらい文庫|フォア文庫|岩波少年文庫|講談社KK|ジュニア文庫)/;
+// NOTE: a children's-imprint guard used to live here, keeping "…(角川つばさ文庫)" from collapsing
+// into the adult edition. It was removed because the merge history contradicts it: 9 juvenile↔adult
+// pairs have been merged by hand (君の名は。/ 天気の子 / すずめの戸締まり / 時をかける少女 /
+// きまぐれロボット / ほしのこえ / 銀河鉄道の夜 / 泣きたい私は猫をかぶる) and none appear in
+// book_merge_exceptions. A young-readers edition is treated as the same book here.
 
 // Digital/bonus purchase tags wrap the same text, so they are dropped — unlike EDITION_MARKERS
 // above, which mark a genuinely reissued book (e.g. "【電子版限定特典付き】陰キャの僕に…").
@@ -207,14 +208,13 @@ const stripBonusTags = (s: string): string =>
 	s.replace(BONUS_TAG_REGEX, '').replace(SPECIAL_EDITION_REGEX, '');
 
 // A leading "[2巻]" / "【小説1巻】" tag is a store-listing artifact on an otherwise normal title.
-// Deliberately narrow: it must be a bracketed volume count, so imprint tags such as
-// "【TOジュニア文庫】" are left alone (those mark a different book — see JUVENILE_IMPRINT_REGEX).
+// Deliberately narrow: it must be a bracketed volume count, so a bracketed imprint keeps its own
+// shape and is handled by LEADING_IMPRINT_REGEX below instead.
 const LEADING_VOLUME_TAG_REGEX =
 	/^[【[]\s*(?:小説)?\s*[0-9]+\s*巻(?:\s*・\s*[上中下])?\s*[】\]]\s*/;
 
 // Some records carry the imprint as a bare leading word instead of a trailing "(imprint)" suffix,
 // e.g. "KAエスマ文庫 ヴァイオレット・エヴァーガーデン 上巻" vs "ヴァイオレット・エヴァーガーデン 上巻".
-// Juvenile imprints are still caught by JUVENILE_IMPRINT_REGEX, which reads the untouched title.
 const LEADING_IMPRINT_REGEX = /^[^\s　]{2,12}(?:文庫|ブックス|ノベルス|BOOKS|NOVELS)[\s　]+(?=.)/i;
 const stripLeadingVolumeTag = (s: string): string =>
 	s.replace(LEADING_VOLUME_TAG_REGEX, '').replace(LEADING_IMPRINT_REGEX, '');
@@ -231,15 +231,26 @@ const stripEditionMarkers = (s: string): string =>
 // Iterative to catch double-stacked suffixes, e.g. "告白 (双葉文庫) (双葉文庫 み 21-1)".
 // Square and lenticular brackets count too — the same annotation shows up as "【KAエスマ文庫】".
 // 「」 is excluded on purpose: it wraps episode titles, not imprints.
+// The inner alternative allows ONE nested bracket pair, because catalogue suffixes are routinely
+// written that way: "(青空文庫POD（ポケット版）)". A flat character class can never match those.
+const TRAILING_ANNOTATION_REGEX =
+	/[(（【[［]((?:[^()（）【】[\]［］]|[(（][^()（）]{1,20}[)）]){1,40})[)）】\]］]\s*$/;
 const stripTrailingRoundParens = (s: string): string => {
 	let current = s.trim();
 	for (;;) {
-		const match = current.match(/[(（【[［]([^()（）【】[\]［］]{1,30})[)）】\]］]\s*$/);
+		const match = current.match(TRAILING_ANNOTATION_REGEX);
 		if (!match) return current;
 		if (isVolumeMarker(match[1])) return current;
 		current = current.slice(0, match.index).trim();
 	}
 };
+
+// "小説 君の名は。" is the novelisation label on an otherwise identical title, and the merge
+// history pairs every 小説-prefixed record with its bare twin.
+const NOVELISATION_PREFIX_REGEX = /^小説[\s　]+(?=.)/;
+
+// Trailing publisher written after a colon rather than in brackets: "…「兵士の娘1」: TO Books."
+const TRAILING_PUBLISHER_REGEX = /[:：]\s*(?:TO\s*Books|TOブックス)\.?\s*$/i;
 
 // "上巻"/"下巻" and bare "上"/"下" are the same split; collapse to the bare form so
 // "…ヴァイオレット・エヴァーガーデン 下巻" matches "…ヴァイオレット・エヴァーガーデン 下".
@@ -251,6 +262,18 @@ const normalizeVolumeParts = (s: string): string => s.replace(/([上中下])巻/
 // 立華高校マーチングバンドへようこそ 前編"), and dropping it would collapse unrelated books.
 const TRAILING_SERIES_REGEX = /[\s　][^\s　]{2,24}シリーズ\s*$/;
 const stripTrailingSeriesName = (s: string): string => s.replace(TRAILING_SERIES_REGEX, '').trim();
+
+// A first volume is routinely registered both with and without its number ("とらドラ!" / "とらドラ!1",
+// "スレイヤーズ" / "スレイヤーズ 1"), and the merge history treats those as the same book. Only "1"
+// is dropped — "X 2" keeps its number, so sibling volumes stay apart. The lookarounds pin the digit
+// run to exactly "1" so that "11" and "21" are untouched.
+const VOLUME_ONE_SUFFIX_REGEX =
+	/[\s　]*[(（[［]?[\s　]*(?:第)?(?<![0-9])1(?![0-9])(?:巻)?[\s　]*[)）\]］]?[\s　]*$/;
+const stripVolumeOneSuffix = (s: string): string => {
+	const stripped = s.replace(VOLUME_ONE_SUFFIX_REGEX, '').trim();
+	// never reduce a title to nothing (a book literally called "1")
+	return stripped || s.trim();
+};
 
 // "IV" <-> "4" — same volume, different numeral system (e.g. "狼と香辛料IV" vs "狼と香辛料 (4)").
 // Matched as one whole token rather than substring-by-substring: the old per-numeral passes
@@ -279,20 +302,17 @@ const canonicalizeTitle = (title: string): string => {
 	const nfkc = title.normalize('NFKC');
 	const noBonus = stripBonusTags(nfkc);
 	const noTag = stripLeadingVolumeTag(noBonus);
-	const noEdition = stripEditionMarkers(noTag);
+	const noEdition = stripEditionMarkers(noTag)
+		.replace(NOVELISATION_PREFIX_REGEX, '')
+		.replace(TRAILING_PUBLISHER_REGEX, '');
 	// Parens first so "…比嘉姉妹シリーズ (角川ホラー文庫)" exposes the series name, then parens again
 	// in case removing it uncovers a further annotation.
 	const noSeries = stripTrailingSeriesName(stripTrailingRoundParens(noEdition));
 	const noSuffix = stripTrailingRoundParens(noSeries);
-	return romanToArabic(normalizeVolumeParts(noSuffix));
+	return stripVolumeOneSuffix(romanToArabic(normalizeVolumeParts(noSuffix)));
 };
 
-// The juvenile marker rides along in the key so a children's edition can only ever group with
-// another children's edition — stripTrailingRoundParens erases the suffix that distinguishes them.
-const titleOnlyKey = (title: string): string => {
-	const juvenile = JUVENILE_IMPRINT_REGEX.test(title.normalize('NFKC')) ? '|juvenile' : '';
-	return `${normalize(canonicalizeTitle(title))}${juvenile}`;
-};
+const titleOnlyKey = (title: string): string => normalize(canonicalizeTitle(title));
 
 const duplicateKey = (title: string, author: string): string =>
 	`${titleOnlyKey(title)}|${normalize(author)}`;
@@ -405,14 +425,9 @@ export const selectDuplicateBookCandidates = async (
 	}
 
 	const algorithmicPairs = await selectAlgorithmicDuplicatePairs(sql);
-	const isJuvenile = (id: number): boolean =>
-		JUVENILE_IMPRINT_REGEX.test(byId.get(id)!.title.normalize('NFKC'));
 	for (const { id1, id2 } of algorithmicPairs) {
 		if (exceptions.has(id1) || exceptions.has(id2)) continue;
 		if (!byId.has(id1) || !byId.has(id2)) continue;
-		// The SQL prefix rule treats "(角川つばさ文庫)" as a plain publisher annotation and would
-		// fold the children's edition into the adult one.
-		if (isJuvenile(id1) !== isJuvenile(id2)) continue;
 		dsu.union(id1, id2);
 	}
 
