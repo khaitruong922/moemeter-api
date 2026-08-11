@@ -245,6 +245,13 @@ const stripTrailingRoundParens = (s: string): string => {
 // "…ヴァイオレット・エヴァーガーデン 下巻" matches "…ヴァイオレット・エヴァーガーデン 下".
 const normalizeVolumeParts = (s: string): string => s.replace(/([上中下])巻/g, '$1');
 
+// Some records append the series name to the title as a bare token, e.g.
+// "ぼぎわんが、来る 比嘉姉妹シリーズ" vs "ぼぎわんが、来る". Trailing-only on purpose: a *leading*
+// series name is often the only thing identifying the work (e.g. "響け! ユーフォニアムシリーズ
+// 立華高校マーチングバンドへようこそ 前編"), and dropping it would collapse unrelated books.
+const TRAILING_SERIES_REGEX = /[\s　][^\s　]{2,24}シリーズ\s*$/;
+const stripTrailingSeriesName = (s: string): string => s.replace(TRAILING_SERIES_REGEX, '').trim();
+
 // "IV" <-> "4" — same volume, different numeral system (e.g. "狼と香辛料IV" vs "狼と香辛料 (4)").
 // Matched as one whole token rather than substring-by-substring: the old per-numeral passes
 // could never convert XI and up, because every candidate was adjacent to another Roman letter
@@ -273,7 +280,10 @@ const canonicalizeTitle = (title: string): string => {
 	const noBonus = stripBonusTags(nfkc);
 	const noTag = stripLeadingVolumeTag(noBonus);
 	const noEdition = stripEditionMarkers(noTag);
-	const noSuffix = stripTrailingRoundParens(noEdition);
+	// Parens first so "…比嘉姉妹シリーズ (角川ホラー文庫)" exposes the series name, then parens again
+	// in case removing it uncovers a further annotation.
+	const noSeries = stripTrailingSeriesName(stripTrailingRoundParens(noEdition));
+	const noSuffix = stripTrailingRoundParens(noSeries);
 	return romanToArabic(normalizeVolumeParts(noSuffix));
 };
 
