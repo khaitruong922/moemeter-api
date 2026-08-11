@@ -209,8 +209,15 @@ const stripBonusTags = (s: string): string =>
 // A leading "[2巻]" / "【小説1巻】" tag is a store-listing artifact on an otherwise normal title.
 // Deliberately narrow: it must be a bracketed volume count, so imprint tags such as
 // "【TOジュニア文庫】" are left alone (those mark a different book — see JUVENILE_IMPRINT_REGEX).
-const LEADING_VOLUME_TAG_REGEX = /^[【[]\s*(?:小説)?\s*[0-9]+\s*巻(?:\s*・\s*[上中下])?\s*[】\]]\s*/;
-const stripLeadingVolumeTag = (s: string): string => s.replace(LEADING_VOLUME_TAG_REGEX, '');
+const LEADING_VOLUME_TAG_REGEX =
+	/^[【[]\s*(?:小説)?\s*[0-9]+\s*巻(?:\s*・\s*[上中下])?\s*[】\]]\s*/;
+
+// Some records carry the imprint as a bare leading word instead of a trailing "(imprint)" suffix,
+// e.g. "KAエスマ文庫 ヴァイオレット・エヴァーガーデン 上巻" vs "ヴァイオレット・エヴァーガーデン 上巻".
+// Juvenile imprints are still caught by JUVENILE_IMPRINT_REGEX, which reads the untouched title.
+const LEADING_IMPRINT_REGEX = /^[^\s　]{2,12}(?:文庫|ブックス|ノベルス|BOOKS|NOVELS)[\s　]+(?=.)/i;
+const stripLeadingVolumeTag = (s: string): string =>
+	s.replace(LEADING_VOLUME_TAG_REGEX, '').replace(LEADING_IMPRINT_REGEX, '');
 
 // Reprint/edition markers that don't change the underlying book — stripped wherever they occur,
 // not just trailing (e.g. "新装版 限りなく透明に近いブルー" vs "限りなく透明に近いブルー").
@@ -222,15 +229,21 @@ const stripEditionMarkers = (s: string): string =>
 
 // Strips a trailing parenthesized publisher/catalog suffix, e.g. "(講談社BOX)" "(角川文庫 か 1-2)".
 // Iterative to catch double-stacked suffixes, e.g. "告白 (双葉文庫) (双葉文庫 み 21-1)".
+// Square and lenticular brackets count too — the same annotation shows up as "【KAエスマ文庫】".
+// 「」 is excluded on purpose: it wraps episode titles, not imprints.
 const stripTrailingRoundParens = (s: string): string => {
 	let current = s.trim();
 	for (;;) {
-		const match = current.match(/[(（]([^()（）]{1,30})[)）]\s*$/);
+		const match = current.match(/[(（【[［]([^()（）【】[\]［］]{1,30})[)）】\]］]\s*$/);
 		if (!match) return current;
 		if (isVolumeMarker(match[1])) return current;
 		current = current.slice(0, match.index).trim();
 	}
 };
+
+// "上巻"/"下巻" and bare "上"/"下" are the same split; collapse to the bare form so
+// "…ヴァイオレット・エヴァーガーデン 下巻" matches "…ヴァイオレット・エヴァーガーデン 下".
+const normalizeVolumeParts = (s: string): string => s.replace(/([上中下])巻/g, '$1');
 
 // "IV" <-> "4" — same volume, different numeral system (e.g. "狼と香辛料IV" vs "狼と香辛料 (4)").
 // Matched as one whole token rather than substring-by-substring: the old per-numeral passes
@@ -261,15 +274,18 @@ const canonicalizeTitle = (title: string): string => {
 	const noTag = stripLeadingVolumeTag(noBonus);
 	const noEdition = stripEditionMarkers(noTag);
 	const noSuffix = stripTrailingRoundParens(noEdition);
-	return romanToArabic(noSuffix);
+	return romanToArabic(normalizeVolumeParts(noSuffix));
 };
 
 // The juvenile marker rides along in the key so a children's edition can only ever group with
 // another children's edition — stripTrailingRoundParens erases the suffix that distinguishes them.
-const duplicateKey = (title: string, author: string): string => {
+const titleOnlyKey = (title: string): string => {
 	const juvenile = JUVENILE_IMPRINT_REGEX.test(title.normalize('NFKC')) ? '|juvenile' : '';
-	return `${normalize(canonicalizeTitle(title))}|${normalize(author)}${juvenile}`;
+	return `${normalize(canonicalizeTitle(title))}${juvenile}`;
 };
+
+const duplicateKey = (title: string, author: string): string =>
+	`${titleOnlyKey(title)}|${normalize(author)}`;
 
 type BookPair = { id1: number; id2: number };
 
@@ -360,6 +376,24 @@ export const selectDuplicateBookCandidates = async (
 		for (let i = 1; i < ids.length; i++) dsu.union(ids[0], ids[i]);
 	}
 
+	// A record scraped without an author can never match on the composite key, so it sits forever
+	// beside its properly attributed twin (e.g. "KAエスマ文庫 ヴァイオレット・エヴァーガーデン 上巻"
+	// with a blank author vs the same title credited to 暁 佳奈). Fall back to a title-only key for
+	// those — deliberately only when one side is blank, so this never becomes author-blind matching.
+	const titleGroups = new Map<string, number[]>();
+	for (const book of activeBooks) {
+		if (exceptions.has(book.id)) continue;
+		const key = titleOnlyKey(book.title);
+		const ids = titleGroups.get(key);
+		if (ids) ids.push(book.id);
+		else titleGroups.set(key, [book.id]);
+	}
+	const hasNoAuthor = (id: number): boolean => !byId.get(id)!.author?.trim();
+	for (const ids of titleGroups.values()) {
+		if (ids.length < 2 || !ids.some(hasNoAuthor)) continue;
+		for (let i = 1; i < ids.length; i++) dsu.union(ids[0], ids[i]);
+	}
+
 	const algorithmicPairs = await selectAlgorithmicDuplicatePairs(sql);
 	const isJuvenile = (id: number): boolean =>
 		JUVENILE_IMPRINT_REGEX.test(byId.get(id)!.title.normalize('NFKC'));
@@ -381,11 +415,17 @@ export const selectDuplicateBookCandidates = async (
 		else components.set(root, [book.id]);
 	}
 
-	// Prefer the book that belongs to a series as base, even if it has fewer reads
+	// Prefer the book that belongs to a series as base, even if it has fewer reads. An attributed
+	// record also outranks an author-less one: the blank-author fallback above can pair a scraped
+	// stub with its proper twin, and the stub must not become the surviving book just because more
+	// people happened to log it.
 	const rankBook = (a: DuplicateCandidateBook, b: DuplicateCandidateBook): number => {
 		if ((a.series_id !== null) !== (b.series_id !== null)) {
 			return a.series_id !== null ? -1 : 1;
 		}
+		const aNamed = Boolean(a.author?.trim());
+		const bNamed = Boolean(b.author?.trim());
+		if (aNamed !== bNamed) return aNamed ? -1 : 1;
 		return b.read_count - a.read_count;
 	};
 
