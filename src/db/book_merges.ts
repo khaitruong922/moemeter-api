@@ -153,9 +153,11 @@ export type PotentialBookMerge = {
 	variants: DuplicateCandidateBook[];
 };
 
-// Punctuation/whitespace stripped when comparing titles — mirrors .claude/merge-books.md Step 2a
+// Punctuation/whitespace stripped when comparing titles — mirrors .claude/merge-books.md Step 2a.
+// Quotes, ※ and the non-ASCII dashes are here because NFKC does NOT unify them, and users
+// register the same book with either form (e.g. "“文学少女”" vs "“文学少女“", "※灼眼のシャナ").
 const PUNCTUATION_REGEX =
-	/[\s　\-・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\]/g;
+	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～…・/／\\※'"“”‘’‟〝〟＂`]/g;
 
 const normalize = (s: string): string =>
 	s.normalize('NFKC').replace(PUNCTUATION_REGEX, '').toLowerCase();
@@ -176,8 +178,24 @@ const isVolumeMarker = (s: string): boolean => {
 	// Kanji numerals (一, 二, 十一, 二十...) and "第◯巻/話/章/部" with a kanji numeral
 	if (/^[一二三四五六七八九十百千]+$/.test(trimmed)) return true;
 	if (/^第[一二三四五六七八九十百千]+\s*(巻|話|章|部)$/.test(trimmed)) return true;
+	// "前編", "上巻", "完結編" — the same split markers spelled out. Without these, "X(前編)" and
+	// "X(後編)" both strip down to "X" and collide as a false duplicate.
+	if (/^[上中下前後]\s*(編|巻)$/.test(trimmed)) return true;
+	if (/^(完結編|最終巻|前後編)$/.test(trimmed)) return true;
 	return ['上', '中', '下', '前', '後', '完', '黒', '白'].includes(trimmed);
 };
+
+// Children's imprints are a rewritten-for-young-readers edition, not a reprint. They must never
+// collapse into the adult edition, even though both suffixes end in "文庫" and strip identically
+// (e.g. "すずめの戸締まり (角川つばさ文庫)" vs "小説 すずめの戸締まり (角川文庫)").
+const JUVENILE_IMPRINT_REGEX =
+	/(つばさ文庫|青い鳥文庫|みらい文庫|フォア文庫|岩波少年文庫|講談社KK)/;
+
+// Digital/bonus purchase tags wrap the same text, so they are dropped — unlike EDITION_MARKERS
+// above, which mark a genuinely reissued book (e.g. "【電子版限定特典付き】陰キャの僕に…").
+const BONUS_TAG_REGEX =
+	/[【[(（][^】\])）]{0,16}?(電子版|電子限定|電子特典|特典付|限定特典|購入特典)[^】\])）]{0,16}?[】\])）]/g;
+const stripBonusTags = (s: string): string => s.replace(BONUS_TAG_REGEX, '');
 
 // Reprint/edition markers that don't change the underlying book — stripped wherever they occur,
 // not just trailing (e.g. "新装版 限りなく透明に近いブルー" vs "限りなく透明に近いブルー")
@@ -197,35 +215,43 @@ const stripTrailingRoundParens = (s: string): string => {
 	}
 };
 
-// "IV" <-> "4" — same volume, different numeral system (e.g. "狼と香辛料IV" vs "狼と香辛料 (4)")
-const ROMAN_TO_ARABIC: [string, string][] = [
-	['VIII', '8'],
-	['VII', '7'],
-	['III', '3'],
-	['IV', '4'],
-	['IX', '9'],
-	['VI', '6'],
-	['II', '2'],
-	['V', '5'],
-	['X', '10'],
-	['I', '1'],
-];
+// "IV" <-> "4" — same volume, different numeral system (e.g. "狼と香辛料IV" vs "狼と香辛料 (4)").
+// Matched as one whole token rather than substring-by-substring: the old per-numeral passes
+// could never convert XI and up, because every candidate was adjacent to another Roman letter
+// and failed the letter-boundary lookarounds (e.g. "キノの旅XI" stayed "XI" and never matched "(11)").
+const ROMAN_NUMERAL_REGEX = /(?<![A-Za-z])(X{1,3}(?:IX|IV|V?I{0,3})|IX|IV|V?I{1,3}|V)(?![A-Za-z])/g;
+const ROMAN_UNITS: Record<string, number> = {
+	'': 0,
+	I: 1,
+	II: 2,
+	III: 3,
+	IV: 4,
+	V: 5,
+	VI: 6,
+	VII: 7,
+	VIII: 8,
+	IX: 9,
+};
 const romanToArabic = (s: string): string =>
-	ROMAN_TO_ARABIC.reduce(
-		(acc, [roman, arabic]) =>
-			acc.replace(new RegExp(`(?<![A-Za-z])${roman}(?![A-Za-z])`, 'g'), arabic),
-		s
-	);
+	s.replace(ROMAN_NUMERAL_REGEX, (token: string) => {
+		const tens = (token.match(/^X{1,3}/) ?? [''])[0];
+		return String(tens.length * 10 + ROMAN_UNITS[token.slice(tens.length)]);
+	});
 
 const canonicalizeTitle = (title: string): string => {
 	const nfkc = title.normalize('NFKC');
-	const noEdition = stripEditionMarkers(nfkc);
+	const noBonus = stripBonusTags(nfkc);
+	const noEdition = stripEditionMarkers(noBonus);
 	const noSuffix = stripTrailingRoundParens(noEdition);
 	return romanToArabic(noSuffix);
 };
 
-const duplicateKey = (title: string, author: string): string =>
-	`${normalize(canonicalizeTitle(title))}|${normalize(author)}`;
+// The juvenile marker rides along in the key so a children's edition can only ever group with
+// another children's edition — stripTrailingRoundParens erases the suffix that distinguishes them.
+const duplicateKey = (title: string, author: string): string => {
+	const juvenile = JUVENILE_IMPRINT_REGEX.test(title.normalize('NFKC')) ? '|juvenile' : '';
+	return `${normalize(canonicalizeTitle(title))}|${normalize(author)}${juvenile}`;
+};
 
 type BookPair = { id1: number; id2: number };
 
@@ -317,9 +343,14 @@ export const selectDuplicateBookCandidates = async (
 	}
 
 	const algorithmicPairs = await selectAlgorithmicDuplicatePairs(sql);
+	const isJuvenile = (id: number): boolean =>
+		JUVENILE_IMPRINT_REGEX.test(byId.get(id)!.title.normalize('NFKC'));
 	for (const { id1, id2 } of algorithmicPairs) {
 		if (exceptions.has(id1) || exceptions.has(id2)) continue;
 		if (!byId.has(id1) || !byId.has(id2)) continue;
+		// The SQL prefix rule treats "(角川つばさ文庫)" as a plain publisher annotation and would
+		// fold the children's edition into the adult one.
+		if (isJuvenile(id1) !== isJuvenile(id2)) continue;
 		dsu.union(id1, id2);
 	}
 
