@@ -181,6 +181,11 @@ const isVolumeMarker = (s: string): boolean => {
 	// Kanji numerals (一, 二, 十一, 二十...) and "第◯巻/話/章/部" with a kanji numeral
 	if (/^[一二三四五六七八九十百千]+$/.test(trimmed)) return true;
 	if (/^第[一二三四五六七八九十百千]+\s*(巻|話|章|部)$/.test(trimmed)) return true;
+	// "第1部 下", "第2部 上" — a part number followed by its own upper/lower/front/back split.
+	// Without this, "夜明け前(第1部 下)" and "夜明け前(第2部 上)" both strip down to "夜明け前"
+	// and collide as a false duplicate even though they're different volumes.
+	if (/^第[0-9]+(\.[0-9]+)?\s*(巻|話|章|部)\s*[上中下前後]\s*(編|巻)?$/.test(trimmed)) return true;
+	if (/^第[一二三四五六七八九十百千]+\s*(巻|話|章|部)\s*[上中下前後]\s*(編|巻)?$/.test(trimmed)) return true;
 	// "前編", "上巻", "完結編" — the same split markers spelled out. Without these, "X(前編)" and
 	// "X(後編)" both strip down to "X" and collide as a false duplicate.
 	if (/^[上中下前後]\s*(編|巻)$/.test(trimmed)) return true;
