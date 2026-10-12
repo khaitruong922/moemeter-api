@@ -47,8 +47,7 @@ series_books (
   book_id        integer,   -- raw id as written; canonicalized at read time
   source         text,      -- 'bookmeter' | 'manual'
   series_id      integer REFERENCES series(id) ON DELETE CASCADE,
-  position       numeric(8,2),   -- Bookmeter position, or manual fractional (4.5)
-  anchor_book_id integer,        -- manual only: "placed after this book"
+  position       numeric(8,2),   -- Bookmeter position, or manual fractional (4.5, 7.1)
   updated_at     timestamptz,
   PRIMARY KEY (book_id, source)
 )
@@ -210,15 +209,32 @@ Implemented in `src/routes/manual_series.ts` + `src/db/manual_series.ts`, mounte
 | Endpoint | Body | Does |
 |---|---|---|
 | `GET /manual_series` | — | Ledger: every manual row with `status` — `pending` (Bookmeter has no series for the book), `confirmed` (Bookmeter agrees, or put it in the series this one was superseded by), `conflict` (Bookmeter put it elsewhere) |
-| `POST /manual_series` | `{ name, book_ids }` | New manual series (`insertManualSeries`), books at positions 1..n in order, each anchored to the previous. 409 if a book already has a manual row |
-| `POST /manual_series/books` | `{ book_id, series_id, after_book_id? }` | Add a book to any series. `after_book_id` → halfway to the next book (8, 9 → 8.5; 8.5, 9 → 8.75); omitted → append (`floor(last) + 1`); `null` → first (half the first position). Moves the book if it already has a manual row elsewhere |
+| `POST /manual_series` | `{ name, book_ids }` | New manual series (`insertManualSeries`), books at positions 1..n in order. 409 if a book already has a manual row |
+| `POST /manual_series/books` | `{ book_id, series_id, after_book_id? \| position? }` | Add a book to any series. `after_book_id` → halfway to the next book (8, 9 → 8.5; 8.5, 9 → 8.75); `null` → first (half the first position); `position` → that exact number (7.1; positive, ≤ 2 decimals, 409 if taken); neither → append (`floor(last) + 1`). Moves the book if it already has a manual row elsewhere |
 | `POST /manual_series/books/delete` | `{ book_id }` | Remove the book's manual row; Bookmeter's membership (if any) takes effect again |
 | `POST /manual_series/delete` | `{ series_id }` | Delete a manual series and its rows. Refuses Bookmeter series |
+| `POST /manual_series/rename` | `{ series_id, name }` | Rename a manual series; refreshes `series_leaderboard` only. Refuses Bookmeter series (the sync owns their names) |
+| `GET /manual_series/exclusions` | — | Per-series blacklist of Bookmeter memberships |
+| `POST /manual_series/exclusions` | `{ book_id, series_id }` | "This Bookmeter volume does not belong to this series" — `book_series` ignores the matching Bookmeter row; the sync can keep writing it. 404 if Bookmeter does not list the book in that series; 409 if the book has a manual row there (delete that instead) |
+| `POST /manual_series/exclusions/delete` | `{ book_id, series_id }` | Undo an exclusion |
 
 Responses report `overrides_series_id` when the manual row now overrides a different Bookmeter
 series for that book. Errors: 400 bad input / anchor not in the series or unpositioned, 404
-unknown book or series, 409 book already in the series, series superseded, or no room left
-between two positions (two decimals).
+unknown book or series, 409 book already in the series, position taken, series superseded, or
+no room left between two positions (two decimals).
+
+Exclusions live in `series_book_exclusions (book_id, series_id)` (canonical ids,
+`ON DELETE CASCADE` from `series`; [`migrations/create_series_book_exclusions.sql`](../../migrations/create_series_book_exclusions.sql)).
+Scoped to one series, so if Bookmeter later moves the book elsewhere it shows up there. Excluded
+volumes leave a gap in positions (24, 26), which is harmless: only the order is used. So far:
+`13399813` 混物語 out of `4720` 物語シリーズ (a crossover collection) — the series went from 30 to
+29 books and from 0 to 1 completed reader.
+
+Manual series so far: `100000000` デルタとガンマの理学部ノートシリーズ (逆井卓馬, books 22207676 / 22701722 / 23051451 at 1–3).
+
+Example — series 9682 (負けヒロインが多すぎる!), Bookmeter positions 1–8, plus manual
+`22027558` SSS at 7.1, `23090751` (8.5) at 8.5 and `23439180` (9) at 9. Order to add: append 9
+first, then 8.5 `after_book_id` 8 — appending 8.5 first would have given it 9.
 
 **New series with books** — `POST /manual_series` `{ name, books: [{ book_id, after_book_id? }] }`
 → `insertManualSeries` (id ≥ 10^8, `source = 'manual'`), insert `manual` rows into
@@ -228,9 +244,12 @@ between two positions (two decimals).
 `{ book_id, series_id, after_book_id }`. The UI asks *where* the book goes, not for a number:
 
 - appended after the last book → `last + 1`
-- between 4 and 5 → `4.5`
-- `after_book_id` is stored as the anchor; after Bookmeter renumbers, the anchor is what lets
-  the reconciler re-place the book correctly.
+- between 4 and 5 → `4.5`, or any exact `position`
+- nothing records what the book follows: the reconciler derives each manual book's predecessor
+  from the current order, inside the series sync, before Bookmeter's new positions are written,
+  and re-places it after that book. (An `anchor_book_id` column existed briefly and was dropped
+  by `migrations/drop_series_books_anchor.sql`: a stored anchor went stale whenever another
+  book was inserted in front of it.)
 
 `deleteUnreadBooks` and `deleteOrphanSeriesAndBooks` already skip manual memberships and
 `source = 'manual'` series (step 3).

@@ -46,8 +46,8 @@ const selectSeriesMembers = async (sql: postgres.Sql<{}>, seriesId: number): Pro
 // Position for a book placed after `anchorId`, halfway to the next book (8 and 9 -> 8.5).
 // anchorId undefined appends after the last positioned book; null places the book first.
 const positionAfter = (members: Member[], anchorId: number | null | undefined): number => {
-	const positioned = members.filter((m): m is { book_id: number; position: number } =>
-		m.position !== null
+	const positioned = members.filter(
+		(m): m is { book_id: number; position: number } => m.position !== null
 	);
 	if (anchorId === undefined) {
 		const last = positioned.at(-1)?.position ?? 0;
@@ -84,7 +84,6 @@ export type ManualSeriesBookResult = {
 	book_id: number;
 	series_id: number;
 	position: number;
-	anchor_book_id: number | null;
 	// Bookmeter's series for this book, when it differs: the manual row now overrides it
 	overrides_series_id: number | null;
 };
@@ -127,7 +126,6 @@ export const createManualSeries = async (
 			source: 'manual',
 			series_id: seriesId,
 			position: i + 1,
-			anchor_book_id: i === 0 ? null : canonicalIds[i - 1],
 		}));
 		await tx`INSERT INTO series_books ${tx(rows)}`;
 
@@ -138,7 +136,6 @@ export const createManualSeries = async (
 				book_id: r.book_id,
 				series_id: r.series_id,
 				position: r.position,
-				anchor_book_id: r.anchor_book_id,
 				overrides_series_id: bookmeterSeries.get(r.book_id) ?? null,
 			})),
 		};
@@ -148,7 +145,9 @@ export const addManualSeriesBook = async (
 	sql: postgres.Sql<{}>,
 	bookId: number,
 	seriesId: number,
-	afterBookId: number | null | undefined
+	afterBookId: number | null | undefined,
+	// An explicit position (e.g. 7.1) instead of the halfway point after afterBookId
+	explicitPosition?: number
 ): Promise<ManualSeriesBookResult> =>
 	sql.begin(async (tx) => {
 		const [series] = await tx<{ id: number; superseded_by: number | null }[]>`
@@ -171,16 +170,23 @@ export const addManualSeriesBook = async (
 		if (members.some((m) => m.book_id === canonicalId)) {
 			throw new ManualSeriesError('この本は既にこのシリーズに含まれています', 409);
 		}
-		const position = positionAfter(members, anchorId);
+		let position: number;
+		if (explicitPosition === undefined) {
+			position = positionAfter(members, anchorId);
+		} else {
+			position = explicitPosition;
+			if (members.some((m) => m.position === position)) {
+				throw new ManualSeriesError('この位置には既に本があります', 409, { position });
+			}
+		}
 
 		// A book has at most one manual row: adding it here moves it out of any other manual series
 		await tx`
-      INSERT INTO series_books (book_id, source, series_id, position, anchor_book_id)
-      VALUES (${canonicalId}, 'manual', ${seriesId}, ${position}, ${anchorId ?? null})
+      INSERT INTO series_books (book_id, source, series_id, position)
+      VALUES (${canonicalId}, 'manual', ${seriesId}, ${position})
       ON CONFLICT (book_id, source) DO UPDATE SET
         series_id = EXCLUDED.series_id,
         position = EXCLUDED.position,
-        anchor_book_id = EXCLUDED.anchor_book_id,
         updated_at = now()
     `;
 
@@ -189,7 +195,6 @@ export const addManualSeriesBook = async (
 			book_id: canonicalId,
 			series_id: seriesId,
 			position,
-			anchor_book_id: anchorId ?? null,
 			overrides_series_id:
 				bookmeterSeries !== undefined && bookmeterSeries !== seriesId ? bookmeterSeries : null,
 		};
@@ -211,13 +216,32 @@ export const deleteManualSeries = async (
 	sql: postgres.Sql<{}>,
 	seriesId: number
 ): Promise<void> => {
-	const [series] = await sql<{ source: string }[]>`SELECT source FROM series WHERE id = ${seriesId}`;
+	const [series] = await sql<
+		{ source: string }[]
+	>`SELECT source FROM series WHERE id = ${seriesId}`;
 	if (!series) throw new ManualSeriesError('シリーズが存在しません', 404);
 	if (series.source !== 'manual') {
 		throw new ManualSeriesError('Bookmeterのシリーズは削除できません', 400);
 	}
 	// ON DELETE CASCADE removes its series_books rows
 	await sql`DELETE FROM series WHERE id = ${seriesId}`;
+};
+
+// Bookmeter series are renamed by the sync (upsertSeries), so only manual ones can be renamed here
+export const renameManualSeries = async (
+	sql: postgres.Sql<{}>,
+	seriesId: number,
+	name: string
+): Promise<{ id: number; name: string }> => {
+	const [series] = await sql<
+		{ source: string }[]
+	>`SELECT source FROM series WHERE id = ${seriesId}`;
+	if (!series) throw new ManualSeriesError('シリーズが存在しません', 404);
+	if (series.source !== 'manual') {
+		throw new ManualSeriesError('Bookmeterのシリーズは名前を変更できません', 400);
+	}
+	await sql`UPDATE series SET name = ${name} WHERE id = ${seriesId}`;
+	return { id: seriesId, name };
 };
 
 export type ManualSeriesLedgerRow = {
@@ -227,7 +251,6 @@ export type ManualSeriesLedgerRow = {
 	series_name: string | null;
 	series_source: string;
 	position: number | null;
-	anchor_book_id: number | null;
 	bookmeter_series_id: number | null;
 	bookmeter_position: number | null;
 	// confirmed: Bookmeter agrees on the series; conflict: Bookmeter put it elsewhere;
@@ -250,7 +273,7 @@ export const selectManualSeriesLedger = async (
     )
     SELECT
       m.book_id, b.title, m.series_id, s.name AS series_name, s.source AS series_source,
-      m.position::float8 AS position, m.anchor_book_id,
+      m.position::float8 AS position,
       bm.series_id AS bookmeter_series_id, bm.position::float8 AS bookmeter_position,
       CASE
         WHEN bm.series_id IS NULL THEN 'pending'
@@ -264,4 +287,70 @@ export const selectManualSeriesLedger = async (
     LEFT JOIN bookmeter bm ON bm.book_id = m.book_id
     WHERE m.source = 'manual'
     ORDER BY m.series_id, m.position ASC NULLS LAST, m.book_id
+  `;
+
+// Per-series blacklist of Bookmeter memberships (migrations/create_series_book_exclusions.sql).
+// book_series ignores a Bookmeter row matching an exclusion; the sync can keep rewriting it.
+export const excludeSeriesBook = async (
+	sql: postgres.Sql<{}>,
+	bookId: number,
+	seriesId: number
+): Promise<{ book_id: number; series_id: number }> => {
+	const [canonicalId] = await resolveCanonicalIds(sql, [bookId]);
+	const rows = await sql<{ source: string }[]>`
+    SELECT sb.source
+    FROM series_books sb
+    LEFT JOIN final_book_merges fm ON fm.variant_id = sb.book_id
+    WHERE sb.series_id = ${seriesId}
+      AND COALESCE(fm.base_id, sb.book_id) = ${canonicalId}
+  `;
+	if (rows.some((r) => r.source === 'manual')) {
+		// A manual membership wins over the exclusion; removing it is the way to take the book out
+		throw new ManualSeriesError(
+			'この本は手動でこのシリーズに登録されています。手動登録を削除してください',
+			409
+		);
+	}
+	if (!rows.some((r) => r.source === 'bookmeter')) {
+		throw new ManualSeriesError('この本はBookmeterでこのシリーズに含まれていません', 404);
+	}
+	await sql`
+    INSERT INTO series_book_exclusions (book_id, series_id)
+    VALUES (${canonicalId}, ${seriesId})
+    ON CONFLICT DO NOTHING
+  `;
+	return { book_id: canonicalId, series_id: seriesId };
+};
+
+export const deleteSeriesBookExclusion = async (
+	sql: postgres.Sql<{}>,
+	bookId: number,
+	seriesId: number
+): Promise<boolean> => {
+	const [canonicalId] = await resolveCanonicalIds(sql, [bookId]);
+	const rows = await sql`
+    DELETE FROM series_book_exclusions
+    WHERE book_id = ${canonicalId} AND series_id = ${seriesId}
+    RETURNING book_id
+  `;
+	return rows.length > 0;
+};
+
+export type SeriesBookExclusionRow = {
+	book_id: number;
+	title: string | null;
+	series_id: number;
+	series_name: string | null;
+	created_at: Date;
+};
+
+export const selectSeriesBookExclusions = async (
+	sql: postgres.Sql<{}>
+): Promise<SeriesBookExclusionRow[]> =>
+	sql<SeriesBookExclusionRow[]>`
+    SELECT e.book_id, b.title, e.series_id, s.name AS series_name, e.created_at
+    FROM series_book_exclusions e
+    JOIN series s ON s.id = e.series_id
+    LEFT JOIN books b ON b.id = e.book_id
+    ORDER BY e.series_id, e.book_id
   `;

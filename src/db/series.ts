@@ -345,14 +345,14 @@ export const selectSeriesWithReadGaps = async (
 	}));
 };
 
-export type SeriesRow = { id: number; name: string };
+export type SeriesRow = { id: number; name: string; source: 'bookmeter' | 'manual' };
 
 export const selectSeriesById = async (
 	sql: postgres.Sql<{}>,
 	seriesId: number
 ): Promise<SeriesRow | null> => {
 	const rows = await sql<SeriesRow[]>`
-    SELECT id, name FROM series WHERE id = ${seriesId}
+    SELECT id, name, source FROM series WHERE id = ${seriesId}
   `;
 	return rows[0] ?? null;
 };

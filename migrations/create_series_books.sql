@@ -15,8 +15,6 @@ CREATE TABLE public.series_books (
     series_id      integer NOT NULL REFERENCES public.series(id) ON DELETE CASCADE,
     -- Bookmeter's positional number, or a manual fractional one (4.5 = between 4 and 5)
     position       numeric(8,2),
-    -- Manual only: the book this one is placed after, used to re-check order after a resync
-    anchor_book_id integer,
     updated_at     timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (book_id, source)
 );
@@ -40,7 +38,8 @@ SELECT DISTINCT ON (canonical_id)
     position,
     source
 FROM (
-    SELECT COALESCE(fm.base_id, sb.book_id) AS canonical_id, sb.*
+    SELECT COALESCE(fm.base_id, sb.book_id) AS canonical_id,
+        sb.book_id, sb.source, sb.series_id, sb.position, sb.updated_at
     FROM public.series_books sb
     LEFT JOIN public.final_book_merges fm ON fm.variant_id = sb.book_id
 ) x
