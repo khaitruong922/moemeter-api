@@ -13,6 +13,7 @@ import bookMergeExceptions from './routes/book_ merge_exceptions';
 import bookMerges from './routes/book_merges';
 import books from './routes/books';
 import manualBookMerges from './routes/manual_book_merges';
+import manualSeries from './routes/manual_series';
 import metadata from './routes/metadata';
 import reads from './routes/reads';
 import users from './routes/users';
@@ -49,6 +50,7 @@ app.route('/book_merge_exceptions', bookMergeExceptions);
 app.route('/reads', reads);
 app.route('/metadata', metadata);
 app.route('/series', series);
+app.route('/manual_series', manualSeries);
 
 app.notFound((c) => {
 	return c.json(createErrorMessage('見つかりません'), 404);

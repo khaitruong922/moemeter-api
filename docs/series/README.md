@@ -8,9 +8,9 @@ Claude-assisted scan for missing series. Status as of 2026-10-12.
 | [1. Membership table `series_books`](#1-storage-series_books) | ✅ applied, backfilled |
 | [1b. Manual series ids from 10^8](#manual-series-ids) | ✅ allocated in code; sequence + check dropped |
 | [2. Dual-write from the sync](#2-migration-to-series_books) | ✅ superseded by step 4 (never deployed) |
-| [3. Readers move to `book_series`](#2-migration-to-series_books) | ⏳ coded locally + verified; leaderboard migration not applied |
-| [4. Drop `books.series_id` / `series_number`](#2-migration-to-series_books) | ⏳ coded locally; drop migration not applied |
-| [Manual series workflows](#4-manual-workflows) | planned |
+| [3. Readers move to `book_series`](#2-migration-to-series_books) | ✅ leaderboard rebuilt on live DB 2026-10-12; code not deployed |
+| [4. Drop `books.series_id` / `series_number`](#2-migration-to-series_books) | ✅ columns dropped on live DB 2026-10-12; code not deployed |
+| [Manual series workflows](#4-manual-workflows) | ⏳ API coded locally (`/manual_series`), not deployed |
 | [Reconciliation with Bookmeter](#5-reconciliation-when-bookmeter-catches-up) | planned |
 | [Review panel](#6-review-panel) | planned |
 | [Claude scan](#7-claude-scan) | planned |
@@ -170,8 +170,14 @@ its base `19042215` has none. A base-only backfill would have dropped it.
    Migration: [`migrations/drop_books_series_columns.sql`](../../migrations/drop_books_series_columns.sql),
    no `CASCADE`, so a forgotten dependent aborts it.
 
-   **Deploy-day order** — production runs the old code until deployed, and that code reads and
-   writes these columns, so the database changes must follow the deploy:
+   **Applied 2026-10-12, ahead of the deploy, by choice** — in one transaction: a final
+   `books` → `series_books` reconcile (0 rows needed), the leaderboard rebuild + refresh (460
+   rows, identical to before), then the drop. A fresh snapshot was taken first:
+   `backups/series-20261012-110711/`. **Production is broken until the step 3 + 4 code is
+   deployed** — the old code reads and writes the dropped columns (user syncs fail in
+   `bulkUpsertBooks`, series pages fail). After deploying, run `./schema-pull.sh`.
+
+   The order originally planned:
    1. deploy the step 3 + 4 code
    2. `migrations/series_leaderboard_book_series.sql`
    3. `migrations/drop_books_series_columns.sql` (irreversible)
@@ -196,6 +202,23 @@ changes will not reach `series_books` (or this diff) until then.
 
 All manual decisions go through API endpoints (never raw SQL, which skips `refreshAll`).
 Book ids are resolved to their base via `final_book_merges` before writing.
+
+Implemented in `src/routes/manual_series.ts` + `src/db/manual_series.ts`, mounted at
+`/manual_series`. Writes need the bearer token (same as `/manual_book_merges`) and call
+`refreshAll`.
+
+| Endpoint | Body | Does |
+|---|---|---|
+| `GET /manual_series` | — | Ledger: every manual row with `status` — `pending` (Bookmeter has no series for the book), `confirmed` (Bookmeter agrees, or put it in the series this one was superseded by), `conflict` (Bookmeter put it elsewhere) |
+| `POST /manual_series` | `{ name, book_ids }` | New manual series (`insertManualSeries`), books at positions 1..n in order, each anchored to the previous. 409 if a book already has a manual row |
+| `POST /manual_series/books` | `{ book_id, series_id, after_book_id? }` | Add a book to any series. `after_book_id` → halfway to the next book (8, 9 → 8.5; 8.5, 9 → 8.75); omitted → append (`floor(last) + 1`); `null` → first (half the first position). Moves the book if it already has a manual row elsewhere |
+| `POST /manual_series/books/delete` | `{ book_id }` | Remove the book's manual row; Bookmeter's membership (if any) takes effect again |
+| `POST /manual_series/delete` | `{ series_id }` | Delete a manual series and its rows. Refuses Bookmeter series |
+
+Responses report `overrides_series_id` when the manual row now overrides a different Bookmeter
+series for that book. Errors: 400 bad input / anchor not in the series or unpositioned, 404
+unknown book or series, 409 book already in the series, series superseded, or no room left
+between two positions (two decimals).
 
 **New series with books** — `POST /manual_series` `{ name, books: [{ book_id, after_book_id? }] }`
 → `insertManualSeries` (id ≥ 10^8, `source = 'manual'`), insert `manual` rows into
@@ -304,8 +327,9 @@ book_series_status (book_id PK, status, recheck_after date, reason, decided_by)
 
 ## Rollout order
 
-1. ✅ `series_books` + backfill; ✅ manual ids from 10^8 in code; ⏳ deploy readers + drop
-   (steps 3–4), then the two migrations
+1. ✅ `series_books` + backfill; ✅ manual ids from 10^8 in code; ✅ leaderboard rebuilt and
+   old columns dropped on the live DB; ⏳ **deploy the step 3 + 4 code** (production is down
+   until then)
 2. Protect manual data from the cleanup jobs; manual endpoints; reconciler hook
 3. Review panel: Conflicts and Ledger tabs
 4. BookWalker index → generator → Claude skill → Candidates tab
