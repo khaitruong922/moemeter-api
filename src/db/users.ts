@@ -4,7 +4,6 @@ import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
 import {
 	deleteOrphanSeriesAndBooks,
-	fixOrphanSeriesNumbers,
 	refreshSeriesLeaderboard,
 } from './series';
 import { deleteUnreadBooks } from './books';
@@ -203,9 +202,6 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await refreshFutaribocchiLeaderboard(sql);
 	await refreshReadingAffinityLeaderboard(sql);
 	await refreshSeriesLeaderboard(sql);
-
-	// Fix orphan series numbers after all merges and deletions
-	await fixOrphanSeriesNumbers(sql);
 };
 
 export type SelectAllUsersParams = {

@@ -186,6 +186,11 @@ const isVolumeMarker = (s: string): boolean => {
 	// and collide as a false duplicate even though they're different volumes.
 	if (/^第[0-9]+(\.[0-9]+)?\s*(巻|話|章|部)\s*[上中下前後]\s*(編|巻)?$/.test(trimmed)) return true;
 	if (/^第[一二三四五六七八九十百千]+\s*(巻|話|章|部)\s*[上中下前後]\s*(編|巻)?$/.test(trimmed)) return true;
+	// "1年生", "小学4年生" — a school-grade level is the ONLY thing distinguishing some
+	// anthologies (齋藤孝のイッキによめる！名作選（1年生）/（2年生）/（3年生）are three different
+	// books). Without this, the parenthesized form is stripped as an annotation and all grades
+	// collapse to one key.
+	if (/^(小学|中学)?[0-9]+年生$/.test(trimmed)) return true;
 	// "前編", "上巻", "完結編" — the same split markers spelled out. Without these, "X(前編)" and
 	// "X(後編)" both strip down to "X" and collide as a false duplicate.
 	if (/^[上中下前後]\s*(編|巻)$/.test(trimmed)) return true;
@@ -396,7 +401,8 @@ export const selectDuplicateBookCandidates = async (
       FROM reads
       GROUP BY merged_book_id
     ) rc ON rc.merged_book_id = b.id
-    LEFT JOIN series s ON s.id = b.series_id
+    LEFT JOIN book_series bs ON bs.book_id = b.id
+    LEFT JOIN series s ON s.id = bs.series_id
     WHERE b.id NOT IN (SELECT variant_id FROM final_book_merges)
   `;
 
@@ -520,14 +526,23 @@ export const getFinalBookMerges = async (sql: postgres.Sql<{}>): Promise<FinalBo
     FROM final_book_merges fm
     JOIN books AS base_book
         ON base_book.id = fm.base_id
+    LEFT JOIN book_series AS base_bs
+        ON base_bs.book_id = base_book.id
     LEFT JOIN series AS base_series
-        ON base_series.id = base_book.series_id
+        ON base_series.id = base_bs.series_id
     LEFT JOIN read_counts AS base_reads
         ON base_reads.book_id = base_book.id
     JOIN books AS variant_book
         ON variant_book.id = fm.variant_id
+    -- book_series maps a variant onto its base, so read the variant's own row instead
+    LEFT JOIN LATERAL (
+        SELECT sb.series_id FROM series_books sb
+        WHERE sb.book_id = variant_book.id
+        ORDER BY (sb.source = 'manual') DESC
+        LIMIT 1
+    ) AS variant_sb ON TRUE
     LEFT JOIN series AS variant_series
-        ON variant_series.id = variant_book.series_id
+        ON variant_series.id = variant_sb.series_id
     LEFT JOIN read_counts AS variant_reads
         ON variant_reads.book_id = variant_book.id
     ORDER BY fm.base_id, fm.variant_id;

@@ -2,12 +2,11 @@ import postgres from 'postgres';
 import { bulkUpsertBooks } from '../db/books';
 import { Book } from '../db/models';
 import {
-	fixOrphanSeriesNumbers,
 	markSeriesFetched,
-	propagateSeriesNumbers,
+	selectBookAndMergeRelatives,
 	selectBlacklistedSeriesIds,
 	selectBooksNeedingSeriesFetch,
-	updateSeriesIdForBookAndVariants,
+	upsertBookmeterSeriesBooks,
 	upsertSeries,
 } from '../db/series';
 import { refreshAll } from '../db/users';
@@ -22,7 +21,6 @@ const toBook = (b: SeriesBook): Book => ({
 	author_url: b.author_url,
 	thumbnail_url: b.thumbnail_url,
 	page: b.page,
-	series_number: b.series_number,
 });
 
 const syncSeriesForBook = async (
@@ -44,9 +42,22 @@ const syncSeriesForBook = async (
 	const seriesBooks = await bookmeterApiService.fetchSeriesBooks(seriesId);
 	await bulkUpsertBooks(sql, seriesBooks.map(toBook));
 
-	const initialBookIds = [...new Set([bookId, ...seriesBooks.map((b) => b.id)])];
-	const allBookIds = await updateSeriesIdForBookAndVariants(sql, initialBookIds, seriesId);
-	await propagateSeriesNumbers(sql, allBookIds);
+	// series_number is Bookmeter's position in the series list; the fetched book itself is
+	// normally among seriesBooks, and gets an unpositioned row if it is not
+	const memberships = seriesBooks.map((b) => ({
+		book_id: b.id,
+		series_id: seriesId,
+		position: b.series_number,
+	}));
+	if (!memberships.some((m) => m.book_id === bookId)) {
+		memberships.push({ book_id: bookId, series_id: seriesId, position: null });
+	}
+	await upsertBookmeterSeriesBooks(sql, memberships);
+
+	const allBookIds = await selectBookAndMergeRelatives(
+		sql,
+		memberships.map((m) => m.book_id)
+	);
 	await markSeriesFetched(sql, allBookIds);
 
 	return allBookIds;

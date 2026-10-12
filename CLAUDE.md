@@ -60,4 +60,6 @@ Some users have a `bookcase` field — a secondary Bookmeter list that supplemen
 
 Finds and merges duplicate book entries. Trigger phrases: "find duplicate books", "check books that need merging", "merge duplicate books", "run book merge check".
 
-Runs in 5 steps: load exceptions from `book_merge_exceptions` table → exact-dupe SQL query → visual comparison via Explore agent on exported book list → approval → merge via `POST /manual_book_merges`. Never auto-merges. Requires local dev server (`npm run dev`) for merge API calls.
+Detection lives in `selectDuplicateBookCandidates` (`src/db/book_merges.ts`), exposed as `GET /books/duplicate` — it scans the **whole `books` table**, not just books with reads, and combines a normalized title+author key, credit-subset matching, and the SQL prefix rule used by the `syncBookMerges` cron. Run the endpoint first rather than rewriting the normalization by hand; the skill file documents the rules already implemented and the signals already measured and found worthless.
+
+Flow: `GET /books/duplicate` → present the full list → approval → `POST /manual_book_merges` per pair. Never auto-merges (`/manual_book_merges/apply_all` exists but skips review). Requires local dev server (`npm run dev`). To validate a change to the matching rules, score `titleOnlyKey` against the accepted pairs in `final_book_merges` — currently 96.7%.

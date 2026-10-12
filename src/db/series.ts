@@ -11,88 +11,69 @@ export const upsertSeries = async (
     INSERT INTO series (id, name)
     VALUES (${series.id}, ${series.name})
     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    WHERE series.source = 'bookmeter'
   `;
 };
 
-export const updateSeriesIdForBookAndVariants = async (
+// Manual series ids start at 10^8, far above Bookmeter's (~11k). Allocated in the same statement
+// as the insert; a concurrent insert that picks the same id fails on the primary key.
+export const MANUAL_SERIES_ID_START = 100_000_000;
+
+export const insertManualSeries = async (sql: postgres.Sql<{}>, name: string): Promise<number> => {
+	const [row] = await sql<{ id: number }[]>`
+    INSERT INTO series (id, name, source)
+    SELECT GREATEST(MAX(id) + 1, ${MANUAL_SERIES_ID_START}), ${name}, 'manual'
+    FROM series
+    WHERE id >= ${MANUAL_SERIES_ID_START}
+    RETURNING id
+  `;
+	return row.id;
+};
+
+// A book plus everything merged with it (its base and the base's other variants). Series fetch
+// state is marked on all of them, so a variant is not fetched again right after its base.
+export const selectBookAndMergeRelatives = async (
 	sql: postgres.Sql<{}>,
-	bookIds: number[],
-	seriesId: number
+	bookIds: number[]
 ): Promise<number[]> => {
 	if (!Array.isArray(bookIds) || bookIds.length === 0) return [];
 	const rows = await sql<{ id: number }[]>`
-    WITH series_bases AS (
-      SELECT COALESCE(fm.base_id, b.id) AS base_id
-      FROM books b
-      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
-      WHERE b.id IN ${sql(bookIds)}
-    ),
-    all_related AS (
-      SELECT base_id AS book_id FROM series_bases
-      UNION
-      SELECT fm.variant_id FROM final_book_merges fm
-      JOIN series_bases sb ON fm.base_id = sb.base_id
+    WITH bases AS (
+      SELECT COALESCE(fm.base_id, ids.id) AS base_id
+      FROM unnest(${bookIds}::int[]) AS ids(id)
+      LEFT JOIN final_book_merges fm ON fm.variant_id = ids.id
     )
-    UPDATE books SET series_id = ${seriesId}
-    WHERE id IN (SELECT book_id FROM all_related)
-    RETURNING id
+    SELECT base_id AS id FROM bases
+    UNION
+    SELECT fm.variant_id FROM final_book_merges fm JOIN bases b ON fm.base_id = b.base_id
+    UNION
+    SELECT unnest(${bookIds}::int[])
   `;
 	return rows.map((r) => r.id);
 };
 
-export const propagateSeriesNumbers = async (
-	sql: postgres.Sql<{}>,
-	bookIds: number[]
-): Promise<void> => {
-	if (bookIds.length === 0) return;
-	await sql`
-    UPDATE books
-    SET series_number = base.series_number
-    FROM books base
-    JOIN final_book_merges fm ON fm.base_id = base.id
-    WHERE books.id = fm.variant_id
-      AND books.id IN ${sql(bookIds)}
-      AND base.series_number IS NOT NULL
-      AND books.series_number IS NULL
-  `;
-	await sql`
-    UPDATE books
-    SET series_number = v.series_number
-    FROM books v
-    JOIN final_book_merges fm ON fm.variant_id = v.id
-    WHERE books.id = fm.base_id
-      AND books.id IN ${sql(bookIds)}
-      AND v.series_number IS NOT NULL
-      AND books.series_number IS NULL
-  `;
-};
+export type SeriesMembership = { book_id: number; series_id: number; position: number | null };
 
-export const fixOrphanSeriesNumbers = async (sql: postgres.Sql<{}>): Promise<void> => {
+// Bookmeter's view of membership, keyed by the raw ids Bookmeter returns. Merges are resolved at
+// read time by book_series, so nothing is copied onto variants. Manual rows are never touched.
+export const upsertBookmeterSeriesBooks = async (
+	sql: postgres.Sql<{}>,
+	rows: SeriesMembership[]
+): Promise<void> => {
+	if (rows.length === 0) return;
 	await sql`
-    UPDATE books
-    SET series_number = base.series_number
-    FROM books base
-    JOIN final_book_merges fm ON fm.base_id = base.id
-    WHERE books.id = fm.variant_id
-      AND books.series_id IS NOT NULL
-      AND base.series_number IS NOT NULL
-      AND books.series_number IS NULL
-  `;
-	await sql`
-    UPDATE books
-    SET series_number = v.series_number
-    FROM books v
-    JOIN final_book_merges fm ON fm.variant_id = v.id
-    WHERE books.id = fm.base_id
-      AND books.series_id IS NOT NULL
-      AND v.series_number IS NOT NULL
-      AND books.series_number IS NULL
+    INSERT INTO series_books ${sql(rows.map((r) => ({ ...r, source: 'bookmeter' })))}
+    ON CONFLICT (book_id, source) DO UPDATE SET
+      series_id = EXCLUDED.series_id,
+      position = EXCLUDED.position,
+      updated_at = now()
+    WHERE (series_books.series_id, series_books.position)
+      IS DISTINCT FROM (EXCLUDED.series_id, EXCLUDED.position)
   `;
 };
 
 export type BookForSeriesFetch = {
 	id: number;
-	series_id: number | null;
 	last_series_fetched: Date | null;
 };
 
@@ -101,7 +82,7 @@ export const selectBooksNeedingSeriesFetch = async (
 	limit: number
 ): Promise<BookForSeriesFetch[]> => {
 	return await sql<BookForSeriesFetch[]>`
-    SELECT id, series_id, last_series_fetched FROM books
+    SELECT id, last_series_fetched FROM books
     WHERE (last_series_fetched IS NULL
        OR last_series_fetched < now() - interval '1 month')
       AND id NOT IN (SELECT id FROM blacklisted_books)
@@ -135,10 +116,7 @@ export const blacklistSeriesIds = async (
     INSERT INTO blacklisted_series ${sql(seriesIds.map((id) => ({ id })))}
     ON CONFLICT DO NOTHING
   `;
-	await sql`
-    UPDATE books SET series_id = NULL, series_number = NULL
-    WHERE series_id IN ${sql(seriesIds)}
-  `;
+	// ON DELETE CASCADE removes the series' series_books rows
 	await sql`DELETE FROM series WHERE id IN ${sql(seriesIds)}`;
 	await refreshAll(sql);
 };
@@ -189,9 +167,9 @@ export const selectDuplicateSeriesCandidates = async (
 	threshold: number
 ): Promise<DuplicateSeriesCandidate[]> => {
 	const allSeries = await sql<{ id: number; name: string; book_count: number }[]>`
-    SELECT s.id, s.name, COUNT(b.id)::int AS book_count
+    SELECT s.id, s.name, COUNT(bs.book_id)::int AS book_count
     FROM series s
-    LEFT JOIN books b ON b.series_id = s.id
+    LEFT JOIN book_series bs ON bs.series_id = s.id
     GROUP BY s.id, s.name
   `;
 
@@ -230,13 +208,16 @@ export const selectSeriesWithMultipleAuthors = async (
 		{ id: number; name: string; author_count: number; author_distribution: string }[]
 	>`
     WITH author_counts AS (
+      -- Raw memberships, not book_series: a merge variant credited to a different author (often a
+      -- manga adaptation merged into the novel) is exactly what this report should surface
       SELECT
-        series_id,
-        remove_spaces(author) AS author,
-        COUNT(*)::int AS book_count
-      FROM books
-      WHERE author IS NOT NULL AND series_id IS NOT NULL
-      GROUP BY series_id, remove_spaces(author)
+        sb.series_id,
+        remove_spaces(b.author) AS author,
+        COUNT(DISTINCT b.id)::int AS book_count
+      FROM series_books sb
+      JOIN books b ON b.id = sb.book_id
+      WHERE b.author IS NOT NULL
+      GROUP BY sb.series_id, remove_spaces(b.author)
     ),
     series_multi AS (
       SELECT series_id, COUNT(*)::int AS author_count
@@ -298,28 +279,19 @@ export const selectSeriesWithReadGaps = async (
 	const rows = await sql<
 		(Omit<SeriesWithReadGaps, 'volumes'> & { volumes: string | SeriesReadGapVolume[] })[]
 	>`
-    WITH canonical_books AS (
-      SELECT b.series_id, COALESCE(fm.base_id, b.id) AS book_id
-      FROM books b
-      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
-      WHERE b.series_id IS NOT NULL
-    ),
-    deduped AS (
-      SELECT DISTINCT series_id, book_id FROM canonical_books
-    ),
-    volumes AS (
+    WITH volumes AS (
       SELECT
-        d.series_id,
-        d.book_id,
+        bs.series_id,
+        bs.book_id,
         b.title,
         b.thumbnail_url,
-        b.series_number,
+        bs.position::float8 AS series_number,
         COUNT(DISTINCT r.user_id)::int AS read_count
-      FROM deduped d
-      JOIN books b ON b.id = d.book_id
-      LEFT JOIN reads r ON r.merged_book_id = d.book_id
-      WHERE b.series_number IS NOT NULL
-      GROUP BY d.series_id, d.book_id, b.title, b.thumbnail_url, b.series_number
+      FROM book_series bs
+      JOIN books b ON b.id = bs.book_id
+      LEFT JOIN reads r ON r.merged_book_id = bs.book_id
+      WHERE bs.position IS NOT NULL
+      GROUP BY bs.series_id, bs.book_id, b.title, b.thumbnail_url, bs.position
     ),
     last_read AS (
       SELECT series_id, MAX(series_number) AS last_read_number
@@ -437,23 +409,18 @@ export const selectBooksForSeriesPage = async (
 	users: SeriesPageResponse['users'];
 }> => {
 	const bookRows = await sql<(SeriesBookRow & { user_ids: number[] | null })[]>`
-    WITH canonical AS (
-      SELECT DISTINCT COALESCE(fm.base_id, b.id) AS id
-      FROM books b
-      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
-      WHERE b.series_id = ${seriesId}
-    )
     SELECT
-      b.id, b.title, b.author, b.author_url, b.page, b.thumbnail_url, b.series_id,
-      b.series_number,
+      b.id, b.title, b.author, b.author_url, b.page, b.thumbnail_url, bs.series_id,
+      bs.position::float8 AS series_number,
       s.name AS series_name,
       COUNT(DISTINCT r.user_id)::int AS read_count
-    FROM canonical c
-    JOIN books b ON b.id = c.id
-    LEFT JOIN series s ON s.id = b.series_id
+    FROM book_series bs
+    JOIN books b ON b.id = bs.book_id
+    JOIN series s ON s.id = bs.series_id
     LEFT JOIN reads r ON r.merged_book_id = b.id
-    GROUP BY b.id, s.name
-    ORDER BY b.series_number ASC NULLS LAST, b.id ASC
+    WHERE bs.series_id = ${seriesId}
+    GROUP BY b.id, bs.series_id, bs.position, s.name
+    ORDER BY bs.position ASC NULLS LAST, b.id ASC
   `;
 
 	const bookIds = bookRows
@@ -554,9 +521,10 @@ export const selectSeriesLeaderboard = async (
 	const rows = await sql<SeriesLeaderboardEntry[]>`
     SELECT sl.*,
       (
-        SELECT b.thumbnail_url FROM books b
-        WHERE b.series_id = sl.id
-        ORDER BY b.series_number ASC NULLS LAST, b.id ASC
+        SELECT b.thumbnail_url FROM book_series bs
+        JOIN books b ON b.id = bs.book_id
+        WHERE bs.series_id = sl.id
+        ORDER BY bs.position ASC NULLS LAST, b.id ASC
         LIMIT 1
       ) AS cover_url
     FROM series_leaderboard sl
@@ -627,29 +595,18 @@ export const selectUserSeriesProgress = async (
       SELECT merged_book_id, MAX(date) AS date FROM reads WHERE user_id = ${userId}
       GROUP BY merged_book_id
     ),
-    canonical_books AS (
+    volumes AS (
       SELECT
-        b.series_id,
-        COALESCE(fm.base_id, b.id) AS book_id
-      FROM books b
-      LEFT JOIN final_book_merges fm ON fm.variant_id = b.id
-      WHERE b.series_id IS NOT NULL
-    ),
-    deduped AS (
-      SELECT DISTINCT series_id, book_id FROM canonical_books
-    ),
-    series_books AS (
-      SELECT
-        d.series_id,
-        d.book_id,
+        bs.series_id,
+        bs.book_id,
         b.title,
         b.thumbnail_url,
-        b.series_number,
+        bs.position::float8 AS series_number,
         (ur.merged_book_id IS NOT NULL) AS user_read,
         ur.date AS read_date
-      FROM deduped d
-      JOIN books b ON b.id = d.book_id
-      LEFT JOIN user_reads ur ON ur.merged_book_id = d.book_id
+      FROM book_series bs
+      JOIN books b ON b.id = bs.book_id
+      LEFT JOIN user_reads ur ON ur.merged_book_id = bs.book_id
     ),
     series_stats AS (
       SELECT
@@ -657,7 +614,7 @@ export const selectUserSeriesProgress = async (
         COUNT(*)::int AS total_book_count,
         (COUNT(*) FILTER (WHERE user_read))::int AS read_book_count,
         MAX(read_date) AS finished_at
-      FROM series_books
+      FROM volumes
       GROUP BY series_id
       HAVING (COUNT(*) FILTER (WHERE user_read)) > 0
     )
@@ -674,7 +631,7 @@ export const selectUserSeriesProgress = async (
       sb.user_read
     FROM series_stats ss
     JOIN series s ON s.id = ss.series_id
-    JOIN series_books sb ON sb.series_id = ss.series_id
+    JOIN volumes sb ON sb.series_id = ss.series_id
     ORDER BY ss.series_id, sb.series_number ASC NULLS LAST, sb.book_id ASC
   `;
 
@@ -708,18 +665,24 @@ export const selectUserSeriesProgress = async (
 
 export const deleteOrphanSeriesAndBooks = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
+    -- Manual series are kept even with no reads: someone curated them on purpose
     WITH orphan_series AS (
       SELECT s.id FROM series s
-      WHERE NOT EXISTS (
-        SELECT 1 FROM reads r
-        INNER JOIN books b ON b.id = r.book_id
-        WHERE b.series_id = s.id
-      )
+      WHERE s.source <> 'manual'
+        AND NOT EXISTS (
+          SELECT 1 FROM reads r
+          JOIN book_series bs ON bs.book_id = r.merged_book_id
+          WHERE bs.series_id = s.id
+        )
     ),
     deleted_series AS (
       DELETE FROM series WHERE id IN (SELECT id FROM orphan_series)
       RETURNING id
     )
-    DELETE FROM books WHERE series_id IN (SELECT id FROM deleted_series)
+    -- Every sub-statement sees the same snapshot, so series_books still lists the members here
+    -- even though deleting the series cascades its rows away
+    DELETE FROM books WHERE id IN (
+      SELECT book_id FROM series_books WHERE series_id IN (SELECT id FROM deleted_series)
+    )
   `;
 };

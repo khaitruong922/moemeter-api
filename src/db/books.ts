@@ -190,13 +190,16 @@ export const selectBooksWithUsersAndReviews = async (
 
   SELECT
     books.*,
+    MAX(book_series.series_id) as series_id,
+    MAX(book_series.position)::float8 as series_number,
     MAX(series.name) as series_name,
     COUNT(DISTINCT filtered_reads.user_id) as read_count
     ${includeDate ? sql`, MAX(filtered_reads.date) as date` : sql``}
     ${userId ? sql`, filtered_reads.id as read_id` : sql``}
   FROM filtered_reads
   JOIN books ON books.id = filtered_reads.merged_book_id
-  LEFT JOIN series ON series.id = books.series_id
+  LEFT JOIN book_series ON book_series.book_id = books.id
+  LEFT JOIN series ON series.id = book_series.series_id
   GROUP BY ${sql.unsafe(groupBy)}
   ORDER BY ${sql.unsafe(orderBy)}
   LIMIT ${limit}
@@ -272,15 +275,13 @@ export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Pro
 export const bulkUpsertBooks = async (sql: postgres.Sql<{}>, books: Book[]): Promise<void> => {
 	if (books.length === 0) return;
 	await sql`
-    INSERT INTO books ${sql(books)}
+    INSERT INTO books ${sql(books, 'id', 'title', 'author', 'author_url', 'thumbnail_url', 'page')}
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
       author = EXCLUDED.author,
       author_url = EXCLUDED.author_url,
       thumbnail_url = EXCLUDED.thumbnail_url,
-      page = EXCLUDED.page,
-      series_id = COALESCE(EXCLUDED.series_id, books.series_id),
-      series_number = COALESCE(EXCLUDED.series_number, books.series_number)
+      page = EXCLUDED.page
   `;
 };
 
@@ -291,7 +292,9 @@ export const deleteUnreadBooks = async (sql: postgres.Sql<{}>): Promise<void> =>
       SELECT book_id FROM reads
     ) AND books.id NOT IN (
       SELECT merged_book_id FROM reads
-    ) AND books.series_id IS NULL
+    ) AND books.id NOT IN (
+      SELECT book_id FROM series_books
+    )
   `;
 };
 
