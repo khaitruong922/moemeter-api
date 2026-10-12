@@ -10,6 +10,7 @@ import {
 	excludeSeriesBook,
 	ManualSeriesError,
 	renameManualSeries,
+	updateManualSeriesPositions,
 	selectManualSeriesLedger,
 	selectSeriesBookExclusions,
 	selectSeriesScanDecisions,
@@ -288,6 +289,41 @@ app.post('/scan_decisions', validateToken, async (c) => {
 	const sql = c.get('db');
 	await upsertSeriesScanDecisions(sql, decisions);
 	return c.json({ saved: decisions.length }, 201);
+});
+
+// Renumber manual books already in a series: { series_id, books: [{ book_id, position }] }
+app.post('/positions', validateToken, async (c) => {
+	const { series_id, books } = await c.req.json();
+	if (!isId(series_id)) return c.json({ error: '無効なseries_idです' }, 400);
+	if (
+		!Array.isArray(books) ||
+		books.length === 0 ||
+		books.length > MAX_BATCH ||
+		!books.every((b) => b && isId(b.book_id) && isPosition(b.position))
+	) {
+		return c.json(
+			{
+				error: `booksは1〜${MAX_BATCH}件の { book_id, position }（小数点以下2桁まで）である必要があります`,
+			},
+			400
+		);
+	}
+	const sql = c.get('db');
+	try {
+		const result = await updateManualSeriesPositions(
+			sql,
+			series_id,
+			books.map((b: { book_id: number; position: number }) => ({
+				book_id: b.book_id,
+				position: b.position,
+			}))
+		);
+		// positions decide the leaderboard cover; nothing else is denormalized
+		await refreshSeriesLeaderboard(sql);
+		return c.json({ updated: result });
+	} catch (e) {
+		return handleError(c, e);
+	}
 });
 
 export default app;

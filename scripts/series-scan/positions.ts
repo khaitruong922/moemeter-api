@@ -5,7 +5,8 @@
 //   - splits of one volume step by 0.1 (3 上, 3 下 -> 3, 3.1)
 //   - the same number twice (another edition, a merge case) steps by 0.01 (4.5, 4.5 -> 4.5, 4.51)
 //     so the rest keep their numbers; the review page flags it
-//   - all unnumbered, a later unnumbered book, or numbers that run backwards -> 1..n
+//   - all unnumbered, a later unnumbered book, numbers that run backwards, or one number ≥ 10
+//     shared by every book (it is part of the title) -> 1..n
 
 type Book = { volume: number | null; part: number | null };
 
@@ -15,6 +16,13 @@ export const newSeriesPositions = (books: Book[]): number[] => {
 	const sequential = books.map((_, i) => i + 1);
 	const firstNumbered = books.findIndex((b) => b.volume !== null);
 	if (firstNumbered === -1) return sequential;
+	// every book carrying the same number of 10 or more: the number is part of the title, not a
+	// volume (世界99 上/下, 字鏡集 20巻 [1]…[13]) — number them by order. Below 10 it is more likely
+	// one real volume split in parts (不良聖女の巡礼 3 上 / 3 下 keeps 3, 3.1).
+	const first = books[0].volume;
+	if (books.length > 1 && first !== null && first >= 10 && books.every((b) => b.volume === first)) {
+		return sequential;
+	}
 	// unnumbered books are only placeable when they all come first, as volume 1
 	if (books.slice(firstNumbered).some((b) => b.volume === null)) return sequential;
 	if (firstNumbered > 1) return sequential;

@@ -148,7 +148,10 @@ New-series **positions keep the volume numbers** (`scripts/series-scan/positions
 3 and 4 when 1–2 are missing, 7.5 stays 7.5; an unnumbered first book takes 1; 上/中/下 of one
 volume step by 0.1 (3, 3.1); the same number twice (another edition) steps by 0.01 (4.5, 4.51).
 Only when that is impossible — all unnumbered, an unnumbered book after numbered ones, numbers
-running backwards — do they fall back to 1..n. The card shows ⚠ when the series does not start at
+running backwards, or one number ≥ 10 shared by every book (part of the title: 世界99 上/下,
+字鏡集 20巻 [1]…) — do they fall back to 1..n. The parser also treats 1000+ as part of the title
+(a year: 異世界誕生 2006) and reads その2 as the counter その + 2. To fix numbers after applying, use
+`POST /manual_series/positions`. The card shows ⚠ when the series does not start at
 1 or two books share a volume number. Apply sends the positions with `POST /manual_series`
 (`positions`, one per book).
 

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev        # Start local dev server at http://localhost:8787 (via wrangler)
 npm test           # Run Jest tests (test files live in test/ directory, matched by **/test/**/*.+(ts|tsx))
 npm run format     # Prettier format all src/**/*.{ts,js,json}
-npm run deploy     # Deploy to Cloudflare Workers via wrangler
+npm run deploy     # Manual wrangler deploy — NOT the normal path: production deploys on commit + push to main
 ```
 
 Environment variables are stored as Wrangler secrets (not in `.env`). For local dev, use `.dev.vars` (gitignored).

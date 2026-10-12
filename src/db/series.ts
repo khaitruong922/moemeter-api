@@ -368,6 +368,7 @@ type SeriesBookRow = {
 	series_id: number | null;
 	series_name: string | null;
 	series_number: number | null;
+	membership_source: 'bookmeter' | 'manual';
 	read_count: number;
 };
 
@@ -413,6 +414,8 @@ export const selectBooksForSeriesPage = async (
     SELECT
       b.id, b.title, b.author, b.author_url, b.page, b.thumbnail_url, bs.series_id,
       bs.position::float8 AS series_number,
+      -- 'manual' when this volume was added by hand rather than by the Bookmeter sync
+      bs.source AS membership_source,
       s.name AS series_name,
       COUNT(DISTINCT r.user_id)::int AS read_count
     FROM book_series bs
@@ -420,7 +423,7 @@ export const selectBooksForSeriesPage = async (
     JOIN series s ON s.id = bs.series_id
     LEFT JOIN reads r ON r.merged_book_id = b.id
     WHERE bs.series_id = ${seriesId}
-    GROUP BY b.id, bs.series_id, bs.position, s.name
+    GROUP BY b.id, bs.series_id, bs.position, bs.source, s.name
     ORDER BY bs.position ASC NULLS LAST, b.id ASC
   `;
 
@@ -503,6 +506,7 @@ export type SeriesLeaderboardEntry = {
 	completed_count: number;
 	completed_rank: number;
 	cover_url: string | null;
+	source: 'bookmeter' | 'manual';
 };
 
 export const selectSeriesLeaderboard = async (
@@ -521,7 +525,8 @@ export const selectSeriesLeaderboard = async (
 						: 'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
     -- cover_url is stored in the view (migrations/series_leaderboard_cover.sql)
-    SELECT * FROM series_leaderboard
+    SELECT sl.*, s.source FROM series_leaderboard sl
+    JOIN series s ON s.id = sl.id
     ORDER BY ${sql(rankField)} ASC;
   `;
 	return rows.map((r) => ({

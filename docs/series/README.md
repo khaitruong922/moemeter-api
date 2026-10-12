@@ -214,6 +214,7 @@ Implemented in `src/routes/manual_series.ts` + `src/db/manual_series.ts`, mounte
 | `POST /manual_series/books/delete` | `{ book_id }` | Remove the book's manual row; Bookmeter's membership (if any) takes effect again |
 | `POST /manual_series/delete` | `{ series_id }` | Delete a manual series and its rows. Refuses Bookmeter series |
 | `POST /manual_series/rename` | `{ series_id, name }` | Rename a manual series (`シリーズ` appended when missing); refreshes `series_leaderboard` only. Refuses Bookmeter series |
+| `POST /manual_series/positions` | `{ series_id, books: [{ book_id, position }] }` | Renumber manual books already in a series (one transaction; 404 if a book has no manual row there, 409 if the result would repeat a position, Bookmeter-placed books included); refreshes `series_leaderboard` (its cover is the first position) |
 | `GET` / `POST /manual_series/scan_decisions` | array of `{ fingerprint, kind, decision, book_ids, series_id?, confidence? }` | Series scan review decisions (`new_series` / `add_to_series` / `standalone` × `approved` / `rejected`), so later scans skip them |
 | `GET /manual_series/exclusions` | — | Per-series blacklist of Bookmeter memberships |
 | `POST /manual_series/exclusions` | `{ book_id, series_id }` | "This Bookmeter volume does not belong to this series" — `book_series` ignores the matching Bookmeter row; the sync can keep writing it. 404 if Bookmeter does not list the book in that series; 409 if the book has a manual row there (delete that instead) |

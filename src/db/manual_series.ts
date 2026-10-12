@@ -429,3 +429,50 @@ export const selectSeriesScanDecisions = async (
     FROM series_scan_decisions
     ORDER BY created_at DESC
   `;
+
+export type PositionUpdate = { book_id: number; position: number };
+
+// Renumber manual books already in a series. Only manual rows change; the result must keep every
+// position in the series unique, Bookmeter-placed books included.
+export const updateManualSeriesPositions = async (
+	sql: postgres.Sql<{}>,
+	seriesId: number,
+	updates: PositionUpdate[]
+): Promise<PositionUpdate[]> =>
+	sql.begin(async (tx) => {
+		const canonical = await resolveCanonicalIds(
+			tx,
+			updates.map((u) => u.book_id)
+		);
+		const wanted = new Map(canonical.map((id, i) => [id, updates[i].position]));
+		if (wanted.size !== updates.length) {
+			throw new ManualSeriesError('同じ本が重複しています', 400);
+		}
+
+		const manual = await tx<{ book_id: number }[]>`
+      SELECT book_id FROM series_books
+      WHERE series_id = ${seriesId} AND source = 'manual' AND book_id IN ${tx([...wanted.keys()])}
+    `;
+		const manualIds = new Set(manual.map((r) => r.book_id));
+		const notManual = [...wanted.keys()].filter((id) => !manualIds.has(id));
+		if (notManual.length > 0) {
+			throw new ManualSeriesError('このシリーズに手動で登録されていない本が含まれています', 404, {
+				book_ids: notManual,
+			});
+		}
+
+		const members = await selectSeriesMembers(tx, seriesId);
+		const final = members.map((m) => wanted.get(m.book_id) ?? m.position);
+		const numbered = final.filter((p): p is number => p !== null);
+		if (new Set(numbered).size !== numbered.length) {
+			throw new ManualSeriesError('シリーズ内で番号が重複します', 409);
+		}
+
+		for (const [bookId, position] of wanted) {
+			await tx`
+        UPDATE series_books SET position = ${position}, updated_at = now()
+        WHERE series_id = ${seriesId} AND source = 'manual' AND book_id = ${bookId}
+      `;
+		}
+		return [...wanted].map(([book_id, position]) => ({ book_id, position }));
+	});

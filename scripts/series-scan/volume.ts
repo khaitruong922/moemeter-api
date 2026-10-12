@@ -51,7 +51,7 @@ const WRAPPED_REGEX = /[-~]\s*([^-~]{2,}?)\s*([0-9]+(?:\.[0-9]+)?)\s*[-~]\s*$/;
 // not glued to a following letter/digit ("1Q84", "2/3の殺人"), optionally bracketed or counted
 // ("(3)", "第3巻", "Vol.3", "Lv.6.5"), and followed by the end, a separator, or a subtitle.
 const NUMBERED_REGEX =
-	/^(.{2,}?)[\s(\[]*(?:第|[Vv]ol\.?\s*|VOL\.?\s*|[Ll][Vv]\.?\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:巻|部|集)?\s*[)\]]?(?=$|[\s:「『~\-(]|[上中下])(.*)$/;
+	/^(.{2,}?)[\s(\[]*(?:第|その|[Vv]ol\.?\s*|VOL\.?\s*|[Ll][Vv]\.?\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:巻|部|集)?\s*[)\]]?(?=$|[\s:「『~\-(]|[上中下])(.*)$/;
 
 // "新耳袋 第七夜", "屍鬼(一)", "営繕かるかや怪異譚 その弐": kanji-numeral counters
 const KANJI_COUNTER_REGEX =
@@ -71,7 +71,8 @@ export const splitVolume = (rawTitle: string): VolumeSplit => {
 	// The split landed inside a token when the stem ends in a digit or "." ("2033" -> "203" + 3,
 	// "2.43" -> "2." + 43) or in letters that follow a digit ("1Q84" -> "1Q" + 84). Letters alone
 	// are fine: "Missing2" is Missing volume 2.
-	if (numbered && !/[0-9.]$|[0-9][A-Za-z]+$/.test(numbered[1])) {
+	// 1000 and up is part of the title, usually a year: 異世界誕生 2006 / 2007
+	if (numbered && !/[0-9.]$|[0-9][A-Za-z]+$/.test(numbered[1]) && Number(numbered[2]) < 1000) {
 		return make(numbered[1], Number(numbered[2]), numbered[3]);
 	}
 
