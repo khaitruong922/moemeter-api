@@ -12,6 +12,7 @@ import {
 	renameManualSeries,
 	updateManualSeriesPositions,
 	selectManualSeriesLedger,
+	selectSeriesConflicts,
 	selectSeriesBookExclusions,
 	selectSeriesScanDecisions,
 	SeriesScanDecision,
@@ -43,6 +44,13 @@ const handleError = (c: Context, e: unknown) => {
 	}
 	throw e;
 };
+
+// Books where the manual and the Bookmeter membership disagree on the series (see /series-conflict)
+app.get('/conflicts', async (c) => {
+	const sql = c.get('db');
+	const conflicts = await selectSeriesConflicts(sql);
+	return c.json({ conflicts, count: conflicts.length });
+});
 
 app.get('/', async (c) => {
 	const sql = c.get('db');

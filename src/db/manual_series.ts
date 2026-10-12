@@ -476,3 +476,84 @@ export const updateManualSeriesPositions = async (
 		}
 		return [...wanted].map(([book_id, position]) => ({ book_id, position }));
 	});
+
+export type SeriesConflict = {
+	book: { id: number; title: string | null; author: string | null; thumbnail_url: string | null };
+	read_count: number;
+	manual: {
+		series_id: number;
+		series_name: string;
+		series_source: string;
+		position: number | null;
+	};
+	bookmeter: { series_id: number; series_name: string; position: number | null };
+};
+
+// Books whose manual membership and Bookmeter membership point at different series. The manual
+// row wins in book_series, so the book shows only in the manual series — the Bookmeter series is
+// missing it. Bookmeter rows are matched by canonical id (they are written for raw ids) and
+// excluded ones (series_book_exclusions) are not conflicts. Same-series pairs agree.
+export const selectSeriesConflicts = async (sql: postgres.Sql<{}>): Promise<SeriesConflict[]> => {
+	const rows = await sql<
+		{
+			book_id: number;
+			title: string | null;
+			author: string | null;
+			thumbnail_url: string | null;
+			read_count: number;
+			manual_series_id: number;
+			manual_series_name: string;
+			manual_series_source: string;
+			manual_position: number | null;
+			bookmeter_series_id: number;
+			bookmeter_series_name: string;
+			bookmeter_position: number | null;
+		}[]
+	>`
+    WITH bookmeter AS (
+      SELECT COALESCE(fm.base_id, sb.book_id) AS book_id, sb.series_id, sb.position
+      FROM series_books sb
+      LEFT JOIN final_book_merges fm ON fm.variant_id = sb.book_id
+      WHERE sb.source = 'bookmeter'
+        AND NOT EXISTS (
+          SELECT 1 FROM series_book_exclusions e
+          WHERE e.series_id = sb.series_id AND e.book_id = COALESCE(fm.base_id, sb.book_id)
+        )
+    )
+    SELECT DISTINCT ON (m.book_id, bm.series_id)
+      m.book_id, b.title, b.author, b.thumbnail_url,
+      (SELECT count(DISTINCT r.user_id) FROM reads r WHERE r.merged_book_id = m.book_id)::int AS read_count,
+      m.series_id AS manual_series_id, ms.name AS manual_series_name, ms.source AS manual_series_source,
+      m.position::float8 AS manual_position,
+      bm.series_id AS bookmeter_series_id, bs.name AS bookmeter_series_name,
+      bm.position::float8 AS bookmeter_position
+    FROM series_books m
+    JOIN books b ON b.id = m.book_id
+    JOIN series ms ON ms.id = m.series_id
+    JOIN bookmeter bm ON bm.book_id = m.book_id AND bm.series_id <> m.series_id
+    JOIN series bs ON bs.id = bm.series_id
+    WHERE m.source = 'manual'
+    ORDER BY m.book_id, bm.series_id, bm.position
+  `;
+	return rows
+		.map((r) => ({
+			book: { id: r.book_id, title: r.title, author: r.author, thumbnail_url: r.thumbnail_url },
+			read_count: r.read_count,
+			manual: {
+				series_id: r.manual_series_id,
+				series_name: r.manual_series_name,
+				series_source: r.manual_series_source,
+				position: r.manual_position,
+			},
+			bookmeter: {
+				series_id: r.bookmeter_series_id,
+				series_name: r.bookmeter_series_name,
+				position: r.bookmeter_position,
+			},
+		}))
+		.sort(
+			(a, b) =>
+				a.bookmeter.series_id - b.bookmeter.series_id ||
+				(a.bookmeter.position ?? 0) - (b.bookmeter.position ?? 0)
+		);
+};
