@@ -172,3 +172,5 @@ dist
 .wrangler/
 
 *.DS_Store
+# series scan build output
+scripts/series-scan/dist/

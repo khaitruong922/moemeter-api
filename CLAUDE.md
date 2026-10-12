@@ -63,3 +63,9 @@ Finds and merges duplicate book entries. Trigger phrases: "find duplicate books"
 Detection lives in `selectDuplicateBookCandidates` (`src/db/book_merges.ts`), exposed as `GET /books/duplicate` — it scans the **whole `books` table**, not just books with reads, and combines a normalized title+author key, credit-subset matching, and the SQL prefix rule used by the `syncBookMerges` cron. Run the endpoint first rather than rewriting the normalization by hand; the skill file documents the rules already implemented and the signals already measured and found worthless.
 
 Flow: `GET /books/duplicate` → present the full list → approval → `POST /manual_book_merges` per pair. Never auto-merges (`/manual_book_merges/apply_all` exists but skips review). Requires local dev server (`npm run dev`). To validate a change to the matching rules, score `titleOnlyKey` against the accepted pairs in `final_book_merges` — currently 96.7%.
+
+### series-scan (`.claude/skills/series-scan/SKILL.md`)
+
+Finds missing series: new series among books with no series, and additions to existing series (with a position). Trigger phrases: "scan for series", "find missing series", "run the series scan", or applying a reviewed `decisions.json`.
+
+Scripts in `scripts/series-scan/` (`npm run series:index | series:scan | series:apply`) match books against a local BookWalker index (`../series-scan/bookwalker.sqlite`, built from the BookWalker CSV) and write `review.html` for the user. Flow: index (when the CSV is new) → scan (read-only) → user reviews and exports `decisions.json` → apply (dry run first) through `/manual_series`. Decisions land in `series_scan_decisions` so later scans skip them. Scripts have their own tsconfig (`npx tsc --noEmit -p scripts/series-scan`); the root tsconfig excludes `scripts/`.

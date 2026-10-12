@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { pgIntArray } from '../utils/pg';
 import { insertManualSeries } from './series';
 
 // Manual series curation (docs/series/README.md §4). Manual memberships live in series_books with
@@ -16,6 +17,13 @@ export class ManualSeriesError extends Error {
 }
 
 type Member = { book_id: number; position: number | null };
+
+// Adds a batch entry's index to a ManualSeriesError's detail; other errors pass through
+const withIndex = (e: unknown, index: number): unknown => {
+	if (!(e instanceof ManualSeriesError)) return e;
+	const detail = e.detail && typeof e.detail === 'object' ? { index, ...e.detail } : { index };
+	return new ManualSeriesError(e.message, e.status, detail);
+};
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -43,41 +51,10 @@ const selectSeriesMembers = async (sql: postgres.Sql<{}>, seriesId: number): Pro
     ORDER BY position ASC NULLS LAST, book_id ASC
   `;
 
-// Position for a book placed after `anchorId`, halfway to the next book (8 and 9 -> 8.5).
-// anchorId undefined appends after the last positioned book; null places the book first.
-const positionAfter = (members: Member[], anchorId: number | null | undefined): number => {
-	const positioned = members.filter(
-		(m): m is { book_id: number; position: number } => m.position !== null
-	);
-	if (anchorId === undefined) {
-		const last = positioned.at(-1)?.position ?? 0;
-		return Math.floor(last) + 1;
-	}
-
-	let lower = 0;
-	let upper: number | undefined = positioned[0]?.position;
-	if (anchorId !== null) {
-		const index = positioned.findIndex((m) => m.book_id === anchorId);
-		if (index === -1) {
-			const unpositioned = members.some((m) => m.book_id === anchorId);
-			throw new ManualSeriesError(
-				unpositioned
-					? 'after_book_idの本には位置がないため基準にできません'
-					: 'after_book_idの本はこのシリーズに含まれていません',
-				400
-			);
-		}
-		lower = positioned[index].position;
-		upper = positioned[index + 1]?.position;
-	}
-
-	if (upper === undefined) return Math.floor(lower) + 1;
-	const position = round2((lower + upper) / 2);
-	// numeric(8,2): two decimals, so repeated halving of the same gap eventually runs out
-	if (position <= lower || position >= upper) {
-		throw new ManualSeriesError('この位置にはこれ以上本を挿入できません', 409, { lower, upper });
-	}
-	return position;
+// Position for a book appended after the last positioned book (8.5 -> 9)
+const appendPosition = (members: Member[]): number => {
+	const last = members.filter((m) => m.position !== null).at(-1)?.position ?? 0;
+	return Math.floor(last) + 1;
 };
 
 export type ManualSeriesBookResult = {
@@ -102,102 +79,151 @@ const selectBookmeterSeries = async (
 	return new Map(rows.map((r) => [r.book_id, r.series_id]));
 };
 
-export const createManualSeries = async (
+// positions: one per book, in the same order (e.g. 3, 4, 7.5); omitted -> 1..n
+export type CreateManualSeriesEntry = { name: string; book_ids: number[]; positions?: number[] };
+export type CreateManualSeriesResult = {
+	series_id: number;
+	name: string;
+	books: ManualSeriesBookResult[];
+};
+
+const createOne = async (
+	tx: postgres.Sql<{}>,
+	{ name, book_ids: bookIds, positions }: CreateManualSeriesEntry
+): Promise<CreateManualSeriesResult> => {
+	const resolved = await resolveCanonicalIds(tx, bookIds);
+	const canonicalIds = [...new Set(resolved)];
+	if (positions && canonicalIds.length !== resolved.length) {
+		// two ids that resolve to the same merged book would leave a position without a book
+		throw new ManualSeriesError('同じ本が重複しています', 400, { book_ids: bookIds });
+	}
+
+	const taken = await tx<{ book_id: number; series_id: number }[]>`
+    SELECT book_id, series_id FROM series_books
+    WHERE source = 'manual' AND book_id IN ${tx(canonicalIds)}
+  `;
+	if (taken.length > 0) {
+		throw new ManualSeriesError('既に手動でシリーズに登録されている本が含まれています', 409, {
+			books: taken,
+		});
+	}
+
+	const seriesId = await insertManualSeries(tx, name);
+	const rows = canonicalIds.map((bookId, i) => ({
+		book_id: bookId,
+		source: 'manual',
+		series_id: seriesId,
+		position: positions ? positions[i] : i + 1,
+	}));
+	await tx`INSERT INTO series_books ${tx(rows)}`;
+
+	const bookmeterSeries = await selectBookmeterSeries(tx, canonicalIds);
+	return {
+		series_id: seriesId,
+		name,
+		books: rows.map((r) => ({
+			book_id: r.book_id,
+			series_id: r.series_id,
+			position: r.position,
+			overrides_series_id: bookmeterSeries.get(r.book_id) ?? null,
+		})),
+	};
+};
+
+// New manual series, books at positions 1..n in the given order. One transaction for the whole
+// batch (each insertManualSeries sees the ids allocated before it); any failure rolls everything
+// back with the entry index in the error.
+export const createManualSeriesBatch = async (
 	sql: postgres.Sql<{}>,
-	name: string,
-	bookIds: number[]
-): Promise<{ series_id: number; books: ManualSeriesBookResult[] }> =>
+	entries: CreateManualSeriesEntry[]
+): Promise<CreateManualSeriesResult[]> =>
 	sql.begin(async (tx) => {
-		const canonicalIds = [...new Set(await resolveCanonicalIds(tx, bookIds))];
-
-		const taken = await tx<{ book_id: number; series_id: number }[]>`
-      SELECT book_id, series_id FROM series_books
-      WHERE source = 'manual' AND book_id IN ${tx(canonicalIds)}
-    `;
-		if (taken.length > 0) {
-			throw new ManualSeriesError('既に手動でシリーズに登録されている本が含まれています', 409, {
-				books: taken,
-			});
-		}
-
-		const seriesId = await insertManualSeries(tx, name);
-		const rows = canonicalIds.map((bookId, i) => ({
-			book_id: bookId,
-			source: 'manual',
-			series_id: seriesId,
-			position: i + 1,
-		}));
-		await tx`INSERT INTO series_books ${tx(rows)}`;
-
-		const bookmeterSeries = await selectBookmeterSeries(tx, canonicalIds);
-		return {
-			series_id: seriesId,
-			books: rows.map((r) => ({
-				book_id: r.book_id,
-				series_id: r.series_id,
-				position: r.position,
-				overrides_series_id: bookmeterSeries.get(r.book_id) ?? null,
-			})),
-		};
-	});
-
-export const addManualSeriesBook = async (
-	sql: postgres.Sql<{}>,
-	bookId: number,
-	seriesId: number,
-	afterBookId: number | null | undefined,
-	// An explicit position (e.g. 7.1) instead of the halfway point after afterBookId
-	explicitPosition?: number
-): Promise<ManualSeriesBookResult> =>
-	sql.begin(async (tx) => {
-		const [series] = await tx<{ id: number; superseded_by: number | null }[]>`
-      SELECT id, superseded_by FROM series WHERE id = ${seriesId}
-    `;
-		if (!series) throw new ManualSeriesError('シリーズが存在しません', 404);
-		if (series.superseded_by !== null) {
-			throw new ManualSeriesError('このシリーズは統合済みです', 409, {
-				superseded_by: series.superseded_by,
-			});
-		}
-
-		const [canonicalId, canonicalAnchor] = await resolveCanonicalIds(
-			tx,
-			afterBookId == null ? [bookId] : [bookId, afterBookId]
-		);
-		const anchorId = afterBookId == null ? afterBookId : canonicalAnchor;
-
-		const members = await selectSeriesMembers(tx, seriesId);
-		if (members.some((m) => m.book_id === canonicalId)) {
-			throw new ManualSeriesError('この本は既にこのシリーズに含まれています', 409);
-		}
-		let position: number;
-		if (explicitPosition === undefined) {
-			position = positionAfter(members, anchorId);
-		} else {
-			position = explicitPosition;
-			if (members.some((m) => m.position === position)) {
-				throw new ManualSeriesError('この位置には既に本があります', 409, { position });
+		const results: CreateManualSeriesResult[] = [];
+		for (const [index, entry] of entries.entries()) {
+			try {
+				results.push(await createOne(tx, entry));
+			} catch (e) {
+				throw withIndex(e, index);
 			}
 		}
+		return results;
+	});
 
-		// A book has at most one manual row: adding it here moves it out of any other manual series
-		await tx`
-      INSERT INTO series_books (book_id, source, series_id, position)
-      VALUES (${canonicalId}, 'manual', ${seriesId}, ${position})
-      ON CONFLICT (book_id, source) DO UPDATE SET
-        series_id = EXCLUDED.series_id,
-        position = EXCLUDED.position,
-        updated_at = now()
-    `;
+export type AddManualSeriesBookEntry = {
+	book_id: number;
+	series_id: number;
+	// An exact position (e.g. 7.1); omitted appends at the end
+	position?: number;
+};
 
-		const bookmeterSeries = (await selectBookmeterSeries(tx, [canonicalId])).get(canonicalId);
-		return {
-			book_id: canonicalId,
-			series_id: seriesId,
-			position,
-			overrides_series_id:
-				bookmeterSeries !== undefined && bookmeterSeries !== seriesId ? bookmeterSeries : null,
-		};
+const addOne = async (
+	tx: postgres.Sql<{}>,
+	entry: AddManualSeriesBookEntry
+): Promise<ManualSeriesBookResult> => {
+	const { book_id: bookId, series_id: seriesId } = entry;
+	const [series] = await tx<{ id: number; superseded_by: number | null }[]>`
+    SELECT id, superseded_by FROM series WHERE id = ${seriesId}
+  `;
+	if (!series) throw new ManualSeriesError('シリーズが存在しません', 404);
+	if (series.superseded_by !== null) {
+		throw new ManualSeriesError('このシリーズは統合済みです', 409, {
+			superseded_by: series.superseded_by,
+		});
+	}
+
+	const [canonicalId] = await resolveCanonicalIds(tx, [bookId]);
+
+	const members = await selectSeriesMembers(tx, seriesId);
+	if (members.some((m) => m.book_id === canonicalId)) {
+		throw new ManualSeriesError('この本は既にこのシリーズに含まれています', 409);
+	}
+	let position: number;
+	if (entry.position === undefined) {
+		position = appendPosition(members);
+	} else {
+		position = entry.position;
+		if (members.some((m) => m.position === position)) {
+			throw new ManualSeriesError('この位置には既に本があります', 409, { position });
+		}
+	}
+
+	// A book has at most one manual row: adding it here moves it out of any other manual series
+	await tx`
+    INSERT INTO series_books (book_id, source, series_id, position)
+    VALUES (${canonicalId}, 'manual', ${seriesId}, ${position})
+    ON CONFLICT (book_id, source) DO UPDATE SET
+      series_id = EXCLUDED.series_id,
+      position = EXCLUDED.position,
+      updated_at = now()
+  `;
+
+	const bookmeterSeries = (await selectBookmeterSeries(tx, [canonicalId])).get(canonicalId);
+	return {
+		book_id: canonicalId,
+		series_id: seriesId,
+		position,
+		overrides_series_id:
+			bookmeterSeries !== undefined && bookmeterSeries !== seriesId ? bookmeterSeries : null,
+	};
+};
+
+// Applied in order inside one transaction, so a later entry sees the books added before it
+// (e.g. two appends land at last + 1, then last + 2). All or nothing: a failing entry rolls the batch back and
+// its index is added to the error detail.
+export const addManualSeriesBooks = async (
+	sql: postgres.Sql<{}>,
+	entries: AddManualSeriesBookEntry[]
+): Promise<ManualSeriesBookResult[]> =>
+	sql.begin(async (tx) => {
+		const results: ManualSeriesBookResult[] = [];
+		for (const [index, entry] of entries.entries()) {
+			try {
+				results.push(await addOne(tx, entry));
+			} catch (e) {
+				throw withIndex(e, index);
+			}
+		}
+		return results;
 	});
 
 export const deleteManualSeriesBook = async (
@@ -353,4 +379,53 @@ export const selectSeriesBookExclusions = async (
     JOIN series s ON s.id = e.series_id
     LEFT JOIN books b ON b.id = e.book_id
     ORDER BY e.series_id, e.book_id
+  `;
+
+// Bookmeter's convention: every series name ends in "シリーズ"
+export const withSeriesSuffix = (name: string): string => {
+	const trimmed = name.trim();
+	return trimmed.endsWith('シリーズ') ? trimmed : `${trimmed}シリーズ`;
+};
+
+export type SeriesScanDecision = {
+	fingerprint: string;
+	kind: 'new_series' | 'add_to_series';
+	decision: 'approved' | 'rejected';
+	book_ids: number[];
+	series_id: number | null;
+	confidence: number | null;
+};
+
+// Review decisions from the series scan; a later scan skips anything recorded here
+export const upsertSeriesScanDecisions = async (
+	sql: postgres.Sql<{}>,
+	decisions: SeriesScanDecision[]
+): Promise<void> => {
+	if (decisions.length === 0) return;
+	await sql`
+    INSERT INTO series_scan_decisions ${sql(
+			decisions.map((d) => ({ ...d, book_ids: pgIntArray(d.book_ids) })),
+			'fingerprint',
+			'kind',
+			'decision',
+			'book_ids',
+			'series_id',
+			'confidence'
+		)}
+    ON CONFLICT (fingerprint) DO UPDATE SET
+      decision = EXCLUDED.decision,
+      book_ids = EXCLUDED.book_ids,
+      series_id = EXCLUDED.series_id,
+      confidence = EXCLUDED.confidence,
+      created_at = now()
+  `;
+};
+
+export const selectSeriesScanDecisions = async (
+	sql: postgres.Sql<{}>
+): Promise<(SeriesScanDecision & { created_at: Date })[]> =>
+	sql<(SeriesScanDecision & { created_at: Date })[]>`
+    SELECT fingerprint, kind, decision, book_ids, series_id, confidence, created_at
+    FROM series_scan_decisions
+    ORDER BY created_at DESC
   `;

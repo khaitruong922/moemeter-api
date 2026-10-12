@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { pgIntArray } from '../utils/pg';
 import { BookReview } from './books';
 import { selectReviewsByIds } from './reviews';
 import { refreshAll } from './users';
@@ -40,14 +41,14 @@ export const selectBookAndMergeRelatives = async (
 	const rows = await sql<{ id: number }[]>`
     WITH bases AS (
       SELECT COALESCE(fm.base_id, ids.id) AS base_id
-      FROM unnest(${bookIds}::int[]) AS ids(id)
+      FROM unnest(${pgIntArray(bookIds)}::int[]) AS ids(id)
       LEFT JOIN final_book_merges fm ON fm.variant_id = ids.id
     )
     SELECT base_id AS id FROM bases
     UNION
     SELECT fm.variant_id FROM final_book_merges fm JOIN bases b ON fm.base_id = b.base_id
     UNION
-    SELECT unnest(${bookIds}::int[])
+    SELECT unnest(${pgIntArray(bookIds)}::int[])
   `;
 	return rows.map((r) => r.id);
 };
@@ -519,15 +520,8 @@ export const selectSeriesLeaderboard = async (
 						? 'completed_rank'
 						: 'reads_rank';
 	const rows = await sql<SeriesLeaderboardEntry[]>`
-    SELECT sl.*,
-      (
-        SELECT b.thumbnail_url FROM book_series bs
-        JOIN books b ON b.id = bs.book_id
-        WHERE bs.series_id = sl.id
-        ORDER BY bs.position ASC NULLS LAST, b.id ASC
-        LIMIT 1
-      ) AS cover_url
-    FROM series_leaderboard sl
+    -- cover_url is stored in the view (migrations/series_leaderboard_cover.sql)
+    SELECT * FROM series_leaderboard
     ORDER BY ${sql(rankField)} ASC;
   `;
 	return rows.map((r) => ({

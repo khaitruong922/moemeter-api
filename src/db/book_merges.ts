@@ -162,13 +162,13 @@ export type PotentialBookMerge = {
 const PUNCTUATION_REGEX =
 	/[\s　\-‐–—―・＝=_[\]【】「」『』（）()［］<>《》〈〉〔〕{}。、.,!！?？~～〜…・/／\\※'"“”‘’‟〝〟＂`:：;；]/g;
 
-const normalize = (s: string): string =>
+export const normalize = (s: string): string =>
 	s.normalize('NFKC').replace(PUNCTUATION_REGEX, '').toLowerCase();
 
 // A bare number, number range, roman numeral, or single-kanji volume word is a meaningful volume
 // marker, not decorative — never strip it (e.g. "本（1～４５）" vs "本（46～90）" are different
 // volume ranges, not duplicates; validated against all 540 confirmed book merges in production)
-const isVolumeMarker = (s: string): boolean => {
+export const isVolumeMarker = (s: string): boolean => {
 	const trimmed = s.trim();
 	if (/^[0-9]+(\.[0-9]+)?$/.test(trimmed)) return true;
 	if (/^[0-9]+(\.[0-9]+)?\s*[~〜～\-－ー]\s*[0-9]+(\.[0-9]+)?$/.test(trimmed)) return true;
@@ -308,7 +308,7 @@ const romanToArabic = (s: string): string =>
 		return String(tens.length * 10 + ROMAN_UNITS[token.slice(tens.length)]);
 	});
 
-const canonicalizeTitle = (title: string): string => {
+export const canonicalizeTitle = (title: string): string => {
 	const nfkc = title.normalize('NFKC');
 	const noBonus = stripBonusTags(nfkc);
 	const noTag = stripLeadingVolumeTag(noBonus);
