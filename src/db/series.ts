@@ -561,6 +561,7 @@ export type UserSeriesBookRow = {
 export type UserSeriesEntryRow = {
 	series_id: number;
 	series_name: string;
+	series_source: 'bookmeter' | 'manual';
 	total_book_count: number;
 	read_book_count: number;
 	finished_at: string | null;
@@ -580,6 +581,7 @@ export const selectUserSeriesProgress = async (
 		{
 			series_id: number;
 			series_name: string;
+			series_source: 'bookmeter' | 'manual';
 			total_book_count: number;
 			read_book_count: number;
 			finished_at: string | null;
@@ -620,6 +622,7 @@ export const selectUserSeriesProgress = async (
     SELECT
       s.id AS series_id,
       s.name AS series_name,
+      s.source AS series_source,
       ss.total_book_count,
       ss.read_book_count,
       ss.finished_at::text,
@@ -640,6 +643,7 @@ export const selectUserSeriesProgress = async (
 			seriesMap.set(row.series_id, {
 				series_id: row.series_id,
 				series_name: row.series_name,
+				series_source: row.series_source,
 				total_book_count: Number(row.total_book_count),
 				read_book_count: Number(row.read_book_count),
 				finished_at: row.finished_at ?? null,

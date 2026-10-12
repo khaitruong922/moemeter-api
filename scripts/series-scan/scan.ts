@@ -3,6 +3,7 @@
 // candidates.json + review.html for review. See .claude/skills/series-scan/SKILL.md.
 //
 //   npm run series:scan -- <bookwalker.sqlite> <out dir>
+//   npm run series:scan -- - <out dir>          (title and author only, no BookWalker)
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,6 +38,7 @@ type ScannedBook = Book & {
 	imprint: string | null;
 	bw: BwMatch | null;
 	bwDate: string | null; // release date of the matched BookWalker volume — orders unnumbered books
+	prefixMatched?: string; // unnumbered, but its title starts with this numbered stem: volume 1
 };
 
 export type CandidateBook = Book & { volume: number | null; part: number | null };
@@ -118,13 +120,13 @@ class UnionFind {
 const main = async () => {
 	const [bwPath, outDir] = process.argv.slice(2);
 	if (!bwPath || !outDir) {
-		console.error('usage: series:scan <bookwalker.sqlite> <out dir>');
+		console.error('usage: series:scan <bookwalker.sqlite | -> <out dir>');
 		process.exit(1);
 	}
 
 	// ---- load (one read-only transaction; prepare:false for the transaction pooler) ----
 	const sql = postgres(readDatabaseUrl(), { prepare: false, max: 1 });
-	const { pool, members, decided } = await sql.begin('read only', async (tx) => {
+	const { pool, members, decided, excluded } = await sql.begin('read only', async (tx) => {
 		const pool = await tx<Book[]>`
       SELECT b.id, b.title, b.author, b.thumbnail_url,
              (SELECT count(DISTINCT r.user_id) FROM reads r WHERE r.merged_book_id = b.id)::int AS read_count
@@ -153,16 +155,28 @@ const main = async () => {
 		>`
       SELECT fingerprint, kind, decision, book_ids FROM series_scan_decisions
     `;
+		const exclusions = await tx<{ book_id: number; series_id: number }[]>`
+      SELECT book_id, series_id FROM series_book_exclusions
+    `;
 		return {
 			pool,
 			members,
 			decided: new Set(decisions.map((d) => d.fingerprint)),
+			// "this book does not belong to this series" — never propose it there again
+			excluded: new Set(exclusions.map((e) => `${e.book_id}:${e.series_id}`)),
 		};
 	});
 	await sql.end();
 
-	// ---- BookWalker matching ----
-	const bw = new DatabaseSync(bwPath, { readOnly: true });
+	// ---- BookWalker matching ("-" skips it: title and author only) ----
+	const noBookWalker = bwPath === '-';
+	const bw = new DatabaseSync(noBookWalker ? ':memory:' : bwPath, { readOnly: !noBookWalker });
+	if (noBookWalker) {
+		bw.exec(`CREATE TABLE volumes (series_id INTEGER, title TEXT, title_key TEXT, stem_key TEXT, volume REAL,
+      part INTEGER, date TEXT, label_key TEXT, category TEXT, url TEXT);
+      CREATE TABLE series (id INTEGER PRIMARY KEY, raw TEXT, name TEXT, label_key TEXT, category TEXT,
+      volume_count INTEGER, first_date TEXT, last_date TEXT);`);
+	}
 	const byTitle = bw.prepare(
 		'SELECT series_id, label_key, category, date FROM volumes WHERE title_key = ?'
 	);
@@ -252,6 +266,33 @@ const main = async () => {
 	};
 
 	const poolBooks = pool.map(scan);
+	const scannedMembers = members.map((m) => ({ m, s: { ...scan(m), position: m.position } }));
+
+	// Unnumbered first volumes with a subtitle ("うしろの席の…しまった。 もう俺は…" next to
+	// "…しまった。2 …") get a different stem from the numbered ones. Re-key an unnumbered book to the
+	// longest numbered stem by the same author that its own stem starts with (≥ 5 characters), and
+	// treat it as volume 1. Only numbered stems anchor, so unrelated titles sharing a prefix stay apart.
+	const numberedStems = new Map<string, Map<string, string>>(); // authorKey -> stemKey -> stem
+	for (const b of [...poolBooks, ...scannedMembers.map((x) => x.s)]) {
+		if (b.split.volume === null || b.split.stemKey.length < 5) continue;
+		const byAuthor = numberedStems.get(b.authorKey) ?? new Map<string, string>();
+		byAuthor.set(b.split.stemKey, b.split.stem);
+		numberedStems.set(b.authorKey, byAuthor);
+	}
+	const rekey = (b: ScannedBook) => {
+		if (b.split.volume !== null) return;
+		const own = b.split.stemKey;
+		let best: [string, string] | null = null;
+		for (const [key, stem] of numberedStems.get(b.authorKey) ?? []) {
+			if (key !== own && own.startsWith(key) && (!best || key.length > best[0].length))
+				best = [key, stem];
+		}
+		if (!best) return;
+		b.prefixMatched = best[1];
+		b.split = { ...b.split, stem: best[1], stemKey: best[0], volume: 1 };
+	};
+	poolBooks.forEach(rekey);
+	scannedMembers.forEach((x) => rekey(x.s));
 
 	// ---- existing series: stems, authors, BookWalker series of their members ----
 	type SeriesEntry = {
@@ -264,7 +305,7 @@ const main = async () => {
 		authors: Set<string>;
 	};
 	const seriesById = new Map<number, SeriesEntry>();
-	for (const m of members) {
+	for (const { m, s: scannedMember } of scannedMembers) {
 		let entry = seriesById.get(m.series_id);
 		if (!entry) {
 			entry = {
@@ -278,7 +319,7 @@ const main = async () => {
 			};
 			seriesById.set(m.series_id, entry);
 		}
-		const scanned = { ...scan(m), position: m.position };
+		const scanned = scannedMember;
 		entry.members.push(scanned);
 		entry.authors.add(scanned.authorKey);
 		if (scanned.split.stemKey.length >= 2)
@@ -307,6 +348,7 @@ const main = async () => {
 		const targets = [...new Set([...stemMatches, ...bwMatches])];
 		if (targets.length !== 1) continue; // none, or ambiguous between series
 		const s = targets[0];
+		if (excluded.has(`${b.id}:${s.id}`)) continue;
 		const viaStem = stemMatches.includes(s);
 		const viaBw = bwMatches.includes(s);
 
@@ -336,6 +378,11 @@ const main = async () => {
 		if (viaStem) {
 			confidence += 0.6;
 			evidence.push(`same author and title stem 「${b.split.stem}」 as the series' books`);
+		}
+		if (b.prefixMatched) {
+			evidence.push(
+				`no number, but the title starts with 「${b.prefixMatched}」 — read as volume 1`
+			);
 		}
 		if (viaBw) {
 			confidence += viaStem ? 0.3 : 0.7;
@@ -447,6 +494,7 @@ const main = async () => {
 				a.id - b.id
 		);
 		const stems = new Set(books.map((b) => b.split.stemKey));
+		const prefixed = books.filter((b) => b.prefixMatched);
 		// One work split into 上/中/下 (新世界より, かがみの孤城, Another), often alongside its one-volume
 		// edition: a single book, not a series — and the unsplit edition is a merge-books case
 		if (
@@ -458,6 +506,11 @@ const main = async () => {
 		}
 		const evidence: string[] = [];
 		let confidence = 0.4;
+		if (prefixed.length) {
+			evidence.push(
+				`${prefixed.map((b) => b.title.slice(0, 20)).join(', ')}: no number, title starts with 「${prefixed[0].prefixMatched}」 — read as volume 1`
+			);
+		}
 		evidence.push(
 			`${books.length} books by ${books[0].author}${stems.size === 1 ? ` sharing the stem 「${books[0].split.stem}」` : ''}`
 		);

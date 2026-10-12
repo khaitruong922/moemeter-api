@@ -51,18 +51,25 @@ const WRAPPED_REGEX = /[-~]\s*([^-~]{2,}?)\s*([0-9]+(?:\.[0-9]+)?)\s*[-~]\s*$/;
 // not glued to a following letter/digit ("1Q84", "2/3の殺人"), optionally bracketed or counted
 // ("(3)", "第3巻", "Vol.3", "Lv.6.5"), and followed by the end, a separator, or a subtitle.
 const NUMBERED_REGEX =
-	/^(.{2,}?)[\s(\[]*(?:第|その|[Vv]ol\.?\s*|VOL\.?\s*|[Ll][Vv]\.?\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:巻|部|集)?\s*[)\]]?(?=$|[\s:「『~\-(]|[上中下])(.*)$/;
+	/^(.{2,}?)[\s(\[〈《]*(?:第|その|[Vv]ol\.?\s*|VOL\.?\s*|[Ll][Vv]\.?\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:巻|部|集)?\s*[)\]〉》]?(?=$|[\s:「『~\-(―]|[上中下])(.*)$/;
 
 // "新耳袋 第七夜", "屍鬼(一)", "営繕かるかや怪異譚 その弐": kanji-numeral counters
 const KANJI_COUNTER_REGEX =
 	/^(.{2,}?)[\s(]*(?:第([一二三四五六七八九十]+)[巻夜部話集章]|その([一二三四五六七八九十壱弐参]+)|([一二三四五六七八九十]+))\)?(?=$|[\s:「『~\-])(.*)$/;
 
+// "(数学ガールシリーズ 2)": the series and its number in the annotation, which canonicalizeTitle
+// strips — read it from the raw title first
+const ANNOTATED_SERIES_REGEX = /[(（]「?([^()（）「」]{2,}?)」?シリーズ\s*([0-9]+)[)）]/;
+
 export const splitVolume = (rawTitle: string): VolumeSplit => {
 	const title = canonicalizeTitle(rawTitle).trim();
 	const make = (stem: string, volume: number | null, rest: string): VolumeSplit => {
-		const cleaned = stem.replace(/[\s:：\-~(]+$/, '').trim();
+		const cleaned = stem.replace(/[\s:：\-~(〈《]+$/, '').trim();
 		return { stem: cleaned, stemKey: normalize(cleaned), volume, part: partOf(rest) };
 	};
+
+	const annotated = rawTitle.normalize('NFKC').match(ANNOTATED_SERIES_REGEX);
+	if (annotated) return make(annotated[1], Number(annotated[2]), '');
 
 	const wrapped = title.match(WRAPPED_REGEX);
 	if (wrapped) return make(wrapped[1], Number(wrapped[2]), '');
@@ -103,6 +110,10 @@ export const normalizeImprint = (label: string): string => normalize(label.split
 
 // Bookmeter's convention: every series name ends in "シリーズ"
 export const withSeriesSuffix = (name: string): string => {
-	const trimmed = name.trim();
+	// stray quote marks from titles like "\"僕は今すぐ前世の記憶を捨てたい。2 …\""
+	const trimmed = name
+		.trim()
+		.replace(/^["'“”]+|["'“”]+$/g, '')
+		.trim();
 	return /シリーズ$/.test(trimmed) ? trimmed : `${trimmed}シリーズ`;
 };
