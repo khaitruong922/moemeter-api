@@ -2,9 +2,11 @@
 //   approved new series   -> POST /manual_series            (batches of 200)
 //   approved additions    -> POST /manual_series/books      (batches of 200)
 //   every decision        -> POST /manual_series/scan_decisions, so the next scan skips it
-// A batch is all-or-nothing on the server; an entry that fails (say, a position taken since the
-// scan) is reported, dropped, and the rest of its batch retried. Failed entries are not recorded
-// as decided, so the next scan proposes them again.
+// Additions are checked against the database first: a book already in its series is counted as
+// applied, and one whose position is taken (or whose series is gone) is skipped. A batch is
+// all-or-nothing on the server and is not retried — if one still fails, its entries are reported
+// and left out. Skipped and failed entries are not recorded as decided, so the next scan proposes
+// them again.
 //
 //   npm run series:apply -- <decisions.json> [--api http://localhost:8787] [--apply]
 // Without --apply it only prints what it would do. --decisions-only records the decisions without
@@ -13,6 +15,7 @@
 
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import postgres from 'postgres';
 
 type Decision = 'approved' | 'rejected';
 type Decisions = {
@@ -32,6 +35,14 @@ type Decisions = {
 		book_id: number;
 		series_id: number;
 		position: number;
+		// sequels not in the database yet: inserted before being added
+		book?: {
+			title: string;
+			author: string | null;
+			author_url: string | null;
+			thumbnail_url: string | null;
+			page: number | null;
+		};
 	}[];
 };
 type ScanDecision = {
@@ -43,7 +54,7 @@ type ScanDecision = {
 	confidence: number;
 };
 
-const BATCH = 200;
+const BATCH = 50;
 
 const devVar = (name: string): string => {
 	const line = readFileSync('.dev.vars', 'utf8')
@@ -103,26 +114,40 @@ const main = async () => {
 		return { status: res.status, json: (await res.json()) as any };
 	};
 
-	// Posts entries in batches; on a failing entry (detail.index) drops it and retries the rest
+	// Posts entries in batches, no retries: a failing batch is reported (with the entry the server
+	// blamed) and its entries left out
 	const postBatches = async <T>(path: string, entries: T[], label: (e: T) => string) => {
 		const ok: { entry: T; result: any }[] = [];
 		const failed: { entry: T; error: string }[] = [];
-		for (let batch of chunks(entries, BATCH)) {
-			while (batch.length > 0) {
-				const { status, json } = await post(path, batch);
-				if (status === 201) {
-					batch.forEach((entry, i) => ok.push({ entry, result: json[i] }));
-					break;
-				}
-				const index = json?.detail?.index;
-				if (typeof index !== 'number')
-					throw new Error(`${path} ${status}: ${JSON.stringify(json)}`);
-				failed.push({ entry: batch[index], error: `${status} ${json.error}` });
-				console.log(`  ✗ ${label(batch[index])}: ${json.error}`);
-				batch = batch.filter((_, i) => i !== index);
+		for (const batch of chunks(entries, BATCH)) {
+			const { status, json } = await post(path, batch);
+			if (status === 201) {
+				batch.forEach((entry, i) => ok.push({ entry, result: json[i] }));
+				continue;
 			}
+			const index = json?.detail?.index;
+			const blamed = typeof index === 'number' ? ` (${label(batch[index])})` : '';
+			console.log(`  ✗ batch of ${batch.length} failed: ${status} ${json?.error}${blamed}`);
+			batch.forEach((entry) => failed.push({ entry, error: `${status} ${json?.error}` }));
 		}
 		return { ok, failed };
+	};
+
+	// What the target series hold now: an addition already there needs no write, and one whose
+	// position is taken — by a book in the database or an earlier approval — would fail its batch
+	const readCurrent = async (seriesIds: number[]) => {
+		const sql = postgres(devVar('DATABASE_URL'), { prepare: false, max: 1 });
+		try {
+			return await sql.begin('read only', async (tx) => ({
+				series: await tx<{ id: number }[]>`SELECT id FROM series WHERE id IN ${sql(seriesIds)}`,
+				members: await tx<{ series_id: number; book_id: number; position: number }[]>`
+					SELECT series_id, book_id, position::float8 AS position FROM series_books
+					WHERE series_id IN ${sql(seriesIds)}
+				`,
+			}));
+		} finally {
+			await sql.end();
+		}
 	};
 
 	const decisions: ScanDecision[] = [];
@@ -167,16 +192,46 @@ const main = async () => {
 			(e) => e.name
 		);
 		console.log(`new series: ${series.ok.length} created, ${series.failed.length} failed`);
+		const seriesIds = [...new Set(approvedAdds.map((x) => x.series_id))];
+		const current = seriesIds.length ? await readCurrent(seriesIds) : { series: [], members: [] };
+		const liveSeries = new Set(current.series.map((s) => s.id));
+		const present = new Set(current.members.map((m) => `${m.series_id}|${m.book_id}`));
+		const taken = new Map<string, number>(
+			current.members.map((m) => [`${m.series_id}|${m.position}`, m.book_id] as const)
+		);
+		const already: typeof approvedAdds = [];
+		const toPost: typeof approvedAdds = [];
+		for (const x of approvedAdds) {
+			const at = `${x.series_id}|${x.position}`;
+			if (present.has(`${x.series_id}|${x.book_id}`)) already.push(x);
+			else if (!liveSeries.has(x.series_id))
+				console.log(`  - skip ${x.book_id} -> ${x.series_id}: series not found`);
+			else if (taken.has(at))
+				console.log(
+					`  - skip ${x.book_id} -> ${x.series_id} @ ${x.position}: position held by ${taken.get(at)}`
+				);
+			else {
+				taken.set(at, x.book_id);
+				toPost.push(x);
+			}
+		}
+		console.log(
+			`additions: ${already.length} already in place, ${toPost.length} to add, ${approvedAdds.length - already.length - toPost.length} skipped`
+		);
 		adds = await postBatches(
 			'/manual_series/books',
-			approvedAdds.map((x) => ({
+			toPost.map((x) => ({
 				book_id: x.book_id,
 				series_id: x.series_id,
 				position: x.position,
+				...(x.book ? { book: x.book } : {}),
 			})),
 			(e) => `${e.book_id} -> ${e.series_id} @ ${e.position}`
 		);
 		console.log(`additions: ${adds.ok.length} added, ${adds.failed.length} failed`);
+		adds.ok.push(
+			...already.map((x) => ({ entry: { book_id: x.book_id, series_id: x.series_id } }))
+		);
 	}
 
 	for (const { entry, result } of series.ok) {
@@ -223,8 +278,15 @@ const main = async () => {
 			confidence: x.confidence,
 		});
 
+	// Fingerprints use the canonical book, so two editions of one book share one; a statement may
+	// not upsert the same row twice. An approval wins over a rejection of the same fingerprint.
+	const unique = new Map<string, ScanDecision>();
+	for (const x of decisions) {
+		if (unique.get(x.fingerprint)?.decision !== 'approved') unique.set(x.fingerprint, x);
+	}
+
 	let saved = 0;
-	for (const batch of chunks(decisions, 2000)) {
+	for (const batch of chunks([...unique.values()], 2000)) {
 		const { status, json } = await post('/manual_series/scan_decisions', batch);
 		if (status !== 201) throw new Error(`scan_decisions ${status}: ${JSON.stringify(json)}`);
 		saved += json.saved;

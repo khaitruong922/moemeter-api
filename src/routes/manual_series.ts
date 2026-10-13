@@ -2,6 +2,7 @@ import { Context, Hono } from 'hono';
 import {
 	addManualSeriesBooks,
 	AddManualSeriesBookEntry,
+	BookImport,
 	createManualSeriesBatch,
 	CreateManualSeriesEntry,
 	deleteManualSeries,
@@ -127,7 +128,32 @@ const parseAddEntry = (body: unknown): AddManualSeriesBookEntry | string => {
 			return 'positionは小数点以下2桁までの正の数である必要があります';
 		}
 	}
+	let book: BookImport | undefined;
+	if (b.book !== undefined) {
+		const m = b.book as Record<string, unknown>;
+		const optStr = (v: unknown) => v === null || v === undefined || typeof v === 'string';
+		if (
+			!m ||
+			typeof m !== 'object' ||
+			typeof m.title !== 'string' ||
+			m.title.trim() === '' ||
+			!optStr(m.author) ||
+			!optStr(m.author_url) ||
+			!optStr(m.thumbnail_url) ||
+			!(m.page === null || m.page === undefined || (typeof m.page === 'number' && m.page >= 0))
+		) {
+			return 'bookはtitle（必須）, author, author_url, thumbnail_url, pageを持つオブジェクトである必要があります';
+		}
+		book = {
+			title: m.title,
+			author: (m.author as string | undefined) ?? null,
+			author_url: (m.author_url as string | undefined) ?? null,
+			thumbnail_url: (m.thumbnail_url as string | undefined) ?? null,
+			page: (m.page as number | undefined) ?? null,
+		};
+	}
 	return {
+		...(book ? { book } : {}),
 		book_id: b.book_id,
 		series_id: b.series_id,
 		...(position !== undefined ? { position: position as number } : {}),

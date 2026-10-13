@@ -41,6 +41,7 @@ export const renderReview = (result: ScanResult): string => {
   .name input { font: inherit; width: 28em; max-width: 100%; }
   .series-link { color: var(--green); }
   .warn { color: #c77800; font-size: 13px; cursor: help; }
+  .tag { font-size: 11px; font-weight: bold; color: #fff; background: #c77800; border-radius: 4px; padding: 1px 5px; }
   .num { color: #d00; font-weight: bold; }
   .bpos { display: flex; gap: 2px; align-items: center; margin-top: 3px; }
   .bpos input { width: 4.2em; font: inherit; font-weight: bold; color: var(--green); }
@@ -91,9 +92,27 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(state));
 // Candidate tabs list only undecided cards; a decision moves the card to 承認済み or 却下済み
 // (newest first), where clicking its decision again sends it back
 const KINDS = [
+  { id: 'sequels', label: '続刊' },
   { id: 'new_series', label: '新シリーズ' },
   { id: 'additions', label: '既存シリーズへの追加' },
 ];
+// 続刊: one card per series. The volumes stay individual underneath (own number, own decision
+// fingerprint on export) but are approved or rejected together; × leaves one out.
+DATA.sequelVolumes = DATA.sequels || [];
+DATA.sequels = Object.values(
+  DATA.sequelVolumes.reduce((groups, v) => {
+    const g = (groups[v.series.id] ||= { fingerprint: 'seq:' + v.series.id, series: v.series, volumes: [], confidence: 0 });
+    g.volumes.push(v);
+    g.confidence = Math.max(g.confidence, v.confidence);
+    return groups;
+  }, {})
+).map((g) => ({
+  ...g,
+  volumes: g.volumes.sort((a, b) => a.position - b.position),
+  // the group's evidence: what its volumes have in common, without the per-volume placement lines
+  evidence: [...new Set(g.volumes.flatMap((v) => v.evidence.filter((e) => !/→ position|placed/.test(e))))].slice(0, 6),
+}))
+  .sort((a, b) => b.confidence - a.confidence || b.volumes.length - a.volumes.length);
 const DECIDED = { approved: '承認済み', rejected: '却下済み' };
 const TABS = [...KINDS, ...Object.entries(DECIDED).map(([id, label]) => ({ id, label }))];
 let tab = TABS.some((t) => t.id === location.hash.slice(1)) ? location.hash.slice(1) : 'new_series';
@@ -170,8 +189,41 @@ function card(kind, c) {
       <span class="stats">\${books.length}冊 · \${esc(c.books[0].author)}</span>\${warn}\${tools}\${buttons}</div>
       <div class="books">\${bookCards}</div>\${ev}</div>\`;
   }
+  if (kind === 'sequels') {
+    const fp = c.fingerprint;
+    const dropped = new Set(state[fp]?.dropped || []);
+    const kept = c.volumes.filter((v) => !dropped.has(v.fingerprint));
+    const link = \`https://moemeter.netlify.app/series/\${c.series.id}\`;
+    const lo = Math.min(...c.volumes.map((v) => v.confidence)), hi = c.confidence;
+    const range = lo === hi ? hi.toFixed(2) : \`\${lo.toFixed(2)}–\${hi.toFixed(2)}\`;
+    const confG = kindTag + \`<span class="conf" style="background:\${confColor(hi)}">\${range}</span>\`;
+    const before = c.volumes[0].neighbours.before;
+    const vols = c.volumes.map((v) => {
+      const pos = state[v.fingerprint]?.position ?? v.position;
+      const off = dropped.has(v.fingerprint);
+      return \`
+      <div class="book new \${off ? 'ctx' : ''}">
+        <a href="https://bookmeter.com/books/\${v.book.id}" target="_blank" rel="noopener"><img loading="lazy" src="\${esc(v.book.thumbnail_url)}" alt=""></a>
+        <div class="bpos">
+          <input type="number" step="0.01" min="0.01" data-fp="\${v.fingerprint}" data-field="position" value="\${pos}" \${off ? 'disabled' : ''}>
+          <button data-act="\${off ? 'undropvol' : 'dropvol'}" data-fp="\${fp}" data-vol="\${v.fingerprint}" title="\${off ? '戻す' : 'この巻を外す'}">\${off ? '↺' : '×'}</button>
+        </div>
+        <a href="https://bookmeter.com/books/\${v.book.id}" target="_blank" rel="noopener"><div class="t">\${markNumbers(v.book.title)}</div></a>
+        <div>\${v.import ? '<span class="tag">DB未登録</span> ' : ''}\${v.published_at ? esc(v.published_at.slice(0, 10)) : ''}</div>
+        <div class="stats">登録 \${v.registration_count ?? 0} · \${v.confidence.toFixed(2)}</div>
+      </div>\`;
+    }).join('');
+    const evid = c.evidence;
+    return \`<div class="card \${d}"><div class="head">\${confG}
+      <span class="name"><a class="series-link" href="\${link}" target="_blank" rel="noopener">\${esc(c.series.name)}</a></span>
+      <span class="stats">新刊 \${kept.length}冊\${dropped.size ? \` (\${dropped.size}冊除外)\` : ''}</span>\${buttons}</div>
+      <div class="books">\${before ? bookHtml(before, 'ctx', String(before.position)) : ''}\${vols}</div>
+      <ul class="evidence">\${evid.map((e) => '<li>' + esc(e) + '</li>').join('')}</ul></div>\`;
+  }
   if (kind === 'additions') {
     const pos = state[c.fingerprint]?.position ?? c.position;
+    // sequels: volumes found on Bookmeter, usually not in the database yet (imported on apply)
+    const tags = '';
     const link = \`https://moemeter.netlify.app/series/\${c.series.id}\`;
     const ctx = [
       c.neighbours.before ? bookHtml(c.neighbours.before, 'ctx', String(c.neighbours.before.position)) : '',
@@ -179,7 +231,7 @@ function card(kind, c) {
       c.neighbours.after ? bookHtml(c.neighbours.after, 'ctx', String(c.neighbours.after.position)) : '',
     ].join('');
     return \`<div class="card \${d}"><div class="head">\${conf}
-      <span class="name"><a class="series-link" href="\${link}" target="_blank" rel="noopener">\${esc(c.series.name)}</a>\${c.series.source === 'manual' ? ' <small>(手動)</small>' : ''}</span>
+      <span class="name"><a class="series-link" href="\${link}" target="_blank" rel="noopener">\${esc(c.series.name)}</a>\${c.series.source === 'manual' ? ' <small>(手動)</small>' : ''}\${tags}</span>
       <span class="pos"><input type="number" step="0.01" min="0.01" data-fp="\${c.fingerprint}" data-field="position" value="\${pos}"></span>\${buttons}</div>
       <div class="books">\${ctx}</div>\${ev}</div>\`;
   }
@@ -223,6 +275,8 @@ document.addEventListener('click', (e) => {
     const fp = act.dataset.fp;
     const cur = state[fp] || {};
     const c = DATA.new_series.find((x) => x.fingerprint === fp);
+    if (act.dataset.act === 'dropvol') cur.dropped = [...new Set([...(cur.dropped || []), act.dataset.vol])];
+    if (act.dataset.act === 'undropvol') cur.dropped = (cur.dropped || []).filter((x) => x !== act.dataset.vol);
     if (act.dataset.act === 'remove') cur.removed = [...new Set([...(cur.removed || []), Number(act.dataset.book)])];
     if (act.dataset.act === 'restore') delete cur.removed;
     if (act.dataset.act === 'reset') { delete cur.positions; delete cur.removed; }
@@ -278,10 +332,25 @@ function decisions() {
       book_ids: seriesBooks(c).map((b) => b.id),
       positions: seriesBooks(c).map((b) => b.position),
     })),
-    additions: DATA.additions.filter(pick).map((c) => ({
-      fingerprint: c.fingerprint, decision: pick(c), confidence: c.confidence,
-      book_id: c.book.id, series_id: c.series.id, position: state[c.fingerprint]?.position ?? c.position,
-    })),
+    // sequels export as additions, one per volume: an approved group approves its kept volumes and
+    // rejects the ones left out; a rejected group rejects them all. book carries the metadata for
+    // importing a book that is not in the database.
+    additions: [
+      ...DATA.additions.filter(pick).map((c) => ({
+        fingerprint: c.fingerprint, decision: pick(c), confidence: c.confidence,
+        book_id: c.book.id, series_id: c.series.id, position: state[c.fingerprint]?.position ?? c.position,
+      })),
+      ...DATA.sequels.filter(pick).flatMap((g) => {
+        const dropped = new Set(state[g.fingerprint]?.dropped || []);
+        return g.volumes.map((v) => ({
+          fingerprint: v.fingerprint,
+          decision: pick(g) === 'approved' && !dropped.has(v.fingerprint) ? 'approved' : 'rejected',
+          confidence: v.confidence, book_id: v.book.id, series_id: v.series.id,
+          position: state[v.fingerprint]?.position ?? v.position,
+          ...(v.import ? { book: v.import } : {}),
+        }));
+      }),
+    ],
 
   };
 }

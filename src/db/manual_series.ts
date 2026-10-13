@@ -149,11 +149,22 @@ export const createManualSeriesBatch = async (
 		return results;
 	});
 
+// Metadata for a book that is not in `books` yet — a sequel found on Bookmeter that nobody in
+// the group has logged. Inserted before the book is added; an existing row is never overwritten.
+export type BookImport = {
+	title: string;
+	author: string | null;
+	author_url: string | null;
+	thumbnail_url: string | null;
+	page: number | null;
+};
+
 export type AddManualSeriesBookEntry = {
 	book_id: number;
 	series_id: number;
 	// An exact position (e.g. 7.1); omitted appends at the end
 	position?: number;
+	book?: BookImport;
 };
 
 const addOne = async (
@@ -218,6 +229,14 @@ export const addManualSeriesBooks = async (
 		const results: ManualSeriesBookResult[] = [];
 		for (const [index, entry] of entries.entries()) {
 			try {
+				if (entry.book) {
+					const b = entry.book;
+					await tx`
+            INSERT INTO books (id, title, author, author_url, thumbnail_url, page)
+            VALUES (${entry.book_id}, ${b.title}, ${b.author}, ${b.author_url}, ${b.thumbnail_url}, ${b.page})
+            ON CONFLICT (id) DO NOTHING
+          `;
+				}
 				results.push(await addOne(tx, entry));
 			} catch (e) {
 				throw withIndex(e, index);

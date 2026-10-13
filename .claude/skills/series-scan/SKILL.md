@@ -22,6 +22,94 @@ Design and API reference: `docs/series/README.md` (§4 manual series, §7 scan).
 
 Run every command from `moemeter-api/`.
 
+## Daily routine
+
+```bash
+npm run -s series:daily          # scan + sequels + render, then opens review.html
+```
+
+`series:daily` runs, in order: `series:scan` (database + BookWalker), `series:sequels` (Bookmeter
+search for missing volumes of manual series) and `series:render` (one review page). Review, export
+`decisions.json`, then apply as in Step 4. The page has three candidate tabs:
+
+- **続刊** — volumes of manual series found on Bookmeter, usually not in the database yet
+  (「DB未登録」); apply imports them before adding
+- **新シリーズ** — new series among logged books
+- **既存シリーズへの追加** — logged books to add to existing series
+
+## Sequels (`series:sequels`)
+
+```bash
+npm run -s series:sequels -- ../series-scan ../series-scan/bookwalker.sqlite
+npm run -s series:sequels -- ../series-scan ../series-scan/bookwalker.sqlite --series 100000466,100000000   # a few
+```
+
+For each manual series it searches Bookmeter (`/api/v1/search/books.json`) with each arc's stem
+(up to 3 per series: ようこそ's 1年生編 / 2年生編 / 3年生編), 3 pages of 20, cached for a week in
+`~/Library/Caches/moemeter-series-scan/bookmeter-search/` (override with `SERIES_SCAN_CACHE`; kept out
+of the project so a dev server watching it — VS Code Live Server — does not reload on every write). Searches run **3 in parallel** (`--concurrency`): Bookmeter
+allows a burst of ~20 requests and then answers 503 — measured 2026-10-13, 3 in parallel sustained
+2.4 req/s with no errors while 5 and 8 lost about half; 25 at once tripped the limit outright.
+Throttled requests (429/503) retry with backoff (Retry-After, else 2 s, 4 s, 8 s…, 5 tries).
+
+**Gap filling.** Bookmeter's search returns only a slice of a busy keyword (「恐怖コレクター」: 35
+results, 18 of the series, missing 11 and 17–21), so after the stem search each arc gets one
+targeted search per missing number, from 1 to the highest volume known (our books, the results,
+or BookWalker's list for the arc's series — BookWalker sets the range only, it never counts as
+present). The query is BookWalker's exact title for that volume when known (「恐怖コレクター 巻ノ十七
+消えた村」), else a member title with its number swapped (巻ノ十 → 巻ノ十一, 3 → 4), cut after the
+number, plus the series' imprint (「(HJ NOVELS)」) — Bookmeter's relevance often needs it. A query
+that misses its volume is retried with the space before the number toggled (「…黒猫。4」 ↔
+「…黒猫。 4」); up to 40 missing volumes per series get gap searches (7 query variants each at most), cached like the rest. Some records still cannot be
+found by search at all (槍使いと、黒猫。 4, 12403818, came back from one query once and from none
+after) — add those by id with `POST /manual_series/books`.
+
+A gap query that misses its volume is retried with variants, stopping at the first hit: as
+built, without the imprint (監禁王 8 is filed under ブレイブ文庫, so 「監禁王 8 (オルギスノベル)」 finds
+nothing), and cut right after the number (「Re:ゼロから始める異世界生活Ex5 緋色姫譚 (MF文庫J)」 misses
+where 「…Ex5」 hits) — each with and without the space before the number — and subtitle first with
+the stem's first 4 characters (「フレームオブマインド マリア様」).
+
+**Author sweep.** When volumes are still missing after the gap searches, the first author's name is
+searched (up to 10 pages) and each result goes through the same filters — this is what finds
+マリア様がみてる 28–37 and ヘルモード 10–11.
+
+**Arcs.** A result belongs to the arc whose stem it equals, extends, or — for titles with the number
+straight after a short head (「ヘルモード１０ ～やり込み好きの…～」, stem 「ヘルモード」) — is a prefix of,
+at least 4 characters long, provided the title with its number removed starts with the arc stem (so
+the main Re:ゼロ volumes do not join the Ex arc). A stem that equals any member's own stem wins
+first: 「…吹奏楽部日誌２」 goes with our 「…吹奏楽部日誌」, not the main 響け! ユーフォニアム arc.
+
+Imprints: a comics label (コミックス, KC, ガンガン…) on a prose series is the manga and is dropped. A
+different prose label is kept with −0.2 and a note — Bookmeter mislabels some records
+(モンスターがあふれる世界… 4 is filed as GA文庫 in a GAノベル series) — and a record under the series' own
+label still wins the per-volume dedupe. An imprint inside the title (「監禁王（ブレイブ文庫）７」, a
+reissue) is read as the imprint, not as part of the stem.
+
+Another Bookmeter record of a book already in the series (「響け！ ユーフォニアム 2 …」 next to our
+「【TVアニメ化】響け! ユーフォニアム 2 …」) is dropped: titles are compared without a leading 【…】
+promo tag.
+
+When several Bookmeter records are the same volume (regular edition, 特装版, a reissue), only the
+**most-registered** one (`registration_count`) is proposed; the others are listed in its evidence. A result is a volume only when its stem matches
+an arc stem (or starts with it), its first author matches, and its imprint matches when both are
+known. Dropped: books already in this series or any series, excluded or blacklisted books, another
+edition of a volume already in the arc, bonus listings (購入特典), box sets (セット, BOX, 合本,
+全N冊), companion books (ガイドブック, カレンダー, 公式, 画集, 映画原作 tie-in reprints…), and imprint-less listings when the
+series has an imprint (unless numbered). Position: the title's volume number in the arc's own
+numbering (3年生編5 → 305, since 3年生編n sit at 300 + n), else BookWalker's number for the same
+book, else Bookmeter's `published_at` among the arc's books, else the end. Confidence: base 0.55,
+same imprint +0.15, same BookWalker series as the arc +0.2 (a different one −0.25), numbered +0.1.
+
+Import: a sequel not in `books` carries `import` metadata; apply sends it as `book` on
+`POST /manual_series/books`, which inserts the row first (never overwriting). Unread imported
+volumes are kept by the cleanup jobs — `deleteUnreadBooks` skips any book with a `series_books`
+row, and `deleteOrphanSeriesAndBooks` skips manual series and Bookmeter series holding a manual
+addition.
+
+First test (2026-10-13) on 4 series found exactly the three real missing volumes: デルタとガンマの
+理学部ノート4, 響け! 北宇治高校の吹奏楽部日誌２, ようこそ 3年生編5.
+
 ## Step 1 — BookWalker index (only when the CSV is new)
 
 Skip if `../series-scan/bookwalker.sqlite` is newer than the CSV. A fresh BookWalker export is
@@ -146,7 +234,8 @@ is dropped — it is a single book, not a series.
 
 New-series **positions keep the volume numbers** (`scripts/series-scan/positions.ts`): 3 and 4 stay
 3 and 4 when 1–2 are missing, 7.5 stays 7.5; an unnumbered first book takes 1; 上/中/下 of one
-volume step by 0.1 (3, 3.1); the same number twice (another edition) steps by 0.01 (4.5, 4.51).
+volume step by 0.1 (3, 3.1); the same number twice without a 上/中/下 split (another edition, or
+unparsed titles like DX.1 / DX.2 both read as 1) falls back to 1..n — never .01 / .02.
 Only when that is impossible — all unnumbered, an unnumbered book after numbered ones, numbers
 running backwards, or one number ≥ 10 shared by every book (part of the title: 世界99 上/下,
 字鏡集 20巻 [1]…) — do they fall back to 1..n. The parser also treats 1000+ as part of the title

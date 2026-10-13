@@ -14,7 +14,9 @@
 		"series:index": "esbuild scripts/series-scan/bw-index.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/bw-index.mjs && node scripts/series-scan/dist/bw-index.mjs",
 		"series:scan": "esbuild scripts/series-scan/scan.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/scan.mjs && node scripts/series-scan/dist/scan.mjs",
 		"series:apply": "esbuild scripts/series-scan/apply.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/apply.mjs && node scripts/series-scan/dist/apply.mjs",
-		"series:render": "esbuild scripts/series-scan/render.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/render.mjs && node scripts/series-scan/dist/render.mjs"
+		"series:render": "esbuild scripts/series-scan/render.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/render.mjs && node scripts/series-scan/dist/render.mjs",
+		"series:sequels": "esbuild scripts/series-scan/sequels.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=scripts/series-scan/dist/sequels.mjs && node scripts/series-scan/dist/sequels.mjs",
+		"series:daily": "npm run -s series:scan -- ../series-scan/bookwalker.sqlite ../series-scan && npm run -s series:sequels -- ../series-scan ../series-scan/bookwalker.sqlite && npm run -s series:render -- ../series-scan/candidates.json ../series-scan/review.html && open ../series-scan/review.html"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20240222.0",

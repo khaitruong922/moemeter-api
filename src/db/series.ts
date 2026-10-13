@@ -668,10 +668,14 @@ export const selectUserSeriesProgress = async (
 
 export const deleteOrphanSeriesAndBooks = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await sql`
-    -- Manual series are kept even with no reads: someone curated them on purpose
+    -- Manual series are kept even with no reads: someone curated them on purpose. So is a Bookmeter
+    -- series holding a manual addition — an unread future volume added by hand must not be wiped.
     WITH orphan_series AS (
       SELECT s.id FROM series s
       WHERE s.source <> 'manual'
+        AND NOT EXISTS (
+          SELECT 1 FROM series_books m WHERE m.series_id = s.id AND m.source = 'manual'
+        )
         AND NOT EXISTS (
           SELECT 1 FROM reads r
           JOIN book_series bs ON bs.book_id = r.merged_book_id

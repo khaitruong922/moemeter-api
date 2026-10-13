@@ -3,8 +3,8 @@
 // 1..n when they cannot be used:
 //   - an unnumbered book at the start takes 1 if it is free (魔女と猟犬, 2, 3, 4 -> 1, 2, 3, 4)
 //   - splits of one volume step by 0.1 (3 上, 3 下 -> 3, 3.1)
-//   - the same number twice (another edition, a merge case) steps by 0.01 (4.5, 4.5 -> 4.5, 4.51)
-//     so the rest keep their numbers; the review page flags it
+//   - the same number twice without a 上/中/下 split (MM9 / MM9 invasion, DX.1 / DX.2 read as 1 / 1)
+//     means the numbers cannot be trusted -> 1..n; no .01 / .02 nudges. The review page flags it.
 //   - all unnumbered, a later unnumbered book, numbers that run backwards, or one number ≥ 10
 //     shared by every book (it is part of the title) -> 1..n
 
@@ -33,10 +33,11 @@ export const newSeriesPositions = (books: Book[]): number[] => {
 		const previous = positions[i - 1];
 		const sameVolume = i > 0 && (books[i - 1].volume ?? 1) === base;
 		if (sameVolume) {
-			// a real 上/中/下 split steps by 0.1; the same number twice is a duplicate edition, nudged
+			// a real 上/中/下 split steps by 0.1; the same number twice otherwise falls back to 1..n
 			const prevPart = books[i - 1].part;
 			const split = b.part !== null && prevPart !== null && b.part !== prevPart;
-			positions.push(round2(previous + (split ? 0.1 : 0.01)));
+			if (!split) return sequential;
+			positions.push(round2(previous + 0.1));
 		} else {
 			positions.push(base);
 		}

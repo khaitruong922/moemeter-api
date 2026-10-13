@@ -3,7 +3,8 @@
 //
 //   npm run series:render -- <candidates.json> <review.html>
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { renderReview } from './review';
 import type { ScanResult } from './scan';
 
@@ -13,5 +14,15 @@ if (!inPath || !outPath) {
 	process.exit(1);
 }
 const result = JSON.parse(readFileSync(inPath, 'utf8')) as ScanResult;
+// series:sequels output in the same directory becomes the 続刊 tab
+const sequelsPath = join(dirname(inPath), 'sequels.json');
+if (existsSync(sequelsPath)) {
+	const sequels = JSON.parse(readFileSync(sequelsPath, 'utf8')) as {
+		stats: Record<string, number>;
+		sequels: NonNullable<ScanResult['sequels']>;
+	};
+	result.sequels = sequels.sequels;
+	result.stats = { ...result.stats, sequels: sequels.stats.sequels ?? sequels.sequels.length };
+}
 writeFileSync(outPath, renderReview(result));
 console.log(`-> ${outPath} (scan ${result.generated_at})`);

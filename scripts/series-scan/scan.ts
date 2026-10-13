@@ -69,6 +69,18 @@ export type ScanResult = {
 	stats: Record<string, number>;
 	new_series: NewSeriesCandidate[];
 	additions: AdditionCandidate[];
+	// from series:sequels (sequels.json), merged in by series:render
+	sequels?: (AdditionCandidate & {
+		import?: {
+			title: string;
+			author: string | null;
+			author_url: string | null;
+			thumbnail_url: string | null;
+			page: number | null;
+		};
+		published_at?: string | null;
+		registration_count?: number;
+	})[];
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
