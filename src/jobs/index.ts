@@ -86,9 +86,11 @@ const syncUser = async (
 ): Promise<SyncResult> => {
 	const newUser = await bookmeterApiService.fetchUserProfile(currentUser.id, currentUser.bookcase);
 
-	const skip = newUser.bookcase
-		? shouldSkipBookcaseUser(currentUser, newUser)
-		: shouldSkipUser(currentUser, newUser);
+	const skip =
+		env.FORCE_FULL_SYNC !== 'true' &&
+		(newUser.bookcase
+			? shouldSkipBookcaseUser(currentUser, newUser)
+			: shouldSkipUser(currentUser, newUser));
 
 	if (skip) {
 		if (shouldUpdateNameAndAvatarUrl(currentUser, newUser)) {
