@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict iRG6zUcOdlfLW9kRbvW5vSNVWKBnEjcjUPkRXiPVwEs9k00mdRacz1a1skp81fO
+\restrict 4BlsPhSjIFaRLobrcq5jjQhnBozY9bPHHZcajE3Sz2qheiAOEeG6aMg8RMghne7
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -148,6 +148,95 @@ CREATE TABLE public.book_merges (
 ALTER TABLE public.book_merges OWNER TO postgres;
 
 --
+-- Name: manual_book_merges; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.manual_book_merges (
+    variant_id integer NOT NULL,
+    base_id integer NOT NULL
+);
+
+
+ALTER TABLE public.manual_book_merges OWNER TO postgres;
+
+--
+-- Name: final_book_merges; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.final_book_merges AS
+ WITH all_merges AS (
+         SELECT book_merges.variant_id,
+            book_merges.base_id
+           FROM public.book_merges
+          WHERE (NOT (book_merges.variant_id IN ( SELECT book_merge_exceptions.variant_id
+                   FROM public.book_merge_exceptions)))
+        UNION ALL
+         SELECT manual_book_merges.variant_id,
+            manual_book_merges.base_id
+           FROM public.manual_book_merges
+        )
+ SELECT variant_id,
+    base_id
+   FROM all_merges;
+
+
+ALTER VIEW public.final_book_merges OWNER TO postgres;
+
+--
+-- Name: series_book_exclusions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series_book_exclusions (
+    book_id integer NOT NULL,
+    series_id integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.series_book_exclusions OWNER TO postgres;
+
+--
+-- Name: series_books; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series_books (
+    book_id integer NOT NULL,
+    source text NOT NULL,
+    series_id integer NOT NULL,
+    "position" numeric(8,2),
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT series_books_source_check CHECK ((source = ANY (ARRAY['bookmeter'::text, 'manual'::text])))
+);
+
+
+ALTER TABLE public.series_books OWNER TO postgres;
+
+--
+-- Name: book_series; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.book_series AS
+ SELECT DISTINCT ON (canonical_id) canonical_id AS book_id,
+    series_id,
+    "position",
+    source
+   FROM ( SELECT COALESCE(fm.base_id, sb.book_id) AS canonical_id,
+            sb.book_id,
+            sb.source,
+            sb.series_id,
+            sb."position",
+            sb.updated_at
+           FROM (public.series_books sb
+             LEFT JOIN public.final_book_merges fm ON ((fm.variant_id = sb.book_id)))
+          WHERE (NOT ((sb.source = 'bookmeter'::text) AND (EXISTS ( SELECT 1
+                   FROM public.series_book_exclusions e
+                  WHERE ((e.series_id = sb.series_id) AND (e.book_id = COALESCE(fm.base_id, sb.book_id)))))))) x
+  ORDER BY canonical_id, (source = 'manual'::text) DESC, (book_id = canonical_id) DESC, updated_at DESC;
+
+
+ALTER VIEW public.book_series OWNER TO postgres;
+
+--
 -- Name: books; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -159,9 +248,7 @@ CREATE TABLE public.books (
     thumbnail_url text,
     page integer,
     title_cleaned text GENERATED ALWAYS AS (public.clean_title(title)) STORED,
-    series_id integer,
-    last_series_fetched timestamp without time zone,
-    series_number integer
+    last_series_fetched timestamp without time zone
 );
 
 
@@ -205,41 +292,6 @@ CREATE VIEW public.failed_users WITH (security_invoker='on') AS
 
 
 ALTER VIEW public.failed_users OWNER TO postgres;
-
---
--- Name: manual_book_merges; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.manual_book_merges (
-    variant_id integer NOT NULL,
-    base_id integer NOT NULL
-);
-
-
-ALTER TABLE public.manual_book_merges OWNER TO postgres;
-
---
--- Name: final_book_merges; Type: VIEW; Schema: public; Owner: postgres
---
-
-CREATE VIEW public.final_book_merges AS
- WITH all_merges AS (
-         SELECT book_merges.variant_id,
-            book_merges.base_id
-           FROM public.book_merges
-          WHERE (NOT (book_merges.variant_id IN ( SELECT book_merge_exceptions.variant_id
-                   FROM public.book_merge_exceptions)))
-        UNION ALL
-         SELECT manual_book_merges.variant_id,
-            manual_book_merges.base_id
-           FROM public.manual_book_merges
-        )
- SELECT variant_id,
-    base_id
-   FROM all_merges;
-
-
-ALTER VIEW public.final_book_merges OWNER TO postgres;
 
 --
 -- Name: reads; Type: TABLE; Schema: public; Owner: postgres
@@ -565,7 +617,10 @@ ALTER SEQUENCE public.reviews_id_seq OWNED BY public.reviews.id;
 
 CREATE TABLE public.series (
     id integer NOT NULL,
-    name text
+    name text,
+    source text DEFAULT 'bookmeter'::text NOT NULL,
+    superseded_by integer,
+    CONSTRAINT series_source_check CHECK ((source = ANY (ARRAY['bookmeter'::text, 'manual'::text])))
 );
 
 
@@ -576,56 +631,47 @@ ALTER TABLE public.series OWNER TO postgres;
 --
 
 CREATE MATERIALIZED VIEW public.series_leaderboard AS
- WITH canonical_books AS (
-         SELECT b.series_id,
-            COALESCE(fm.base_id, b.id) AS book_id
-           FROM (public.books b
-             LEFT JOIN public.final_book_merges fm ON ((fm.variant_id = b.id)))
-          WHERE (b.series_id IS NOT NULL)
-        ), deduped AS (
-         SELECT DISTINCT canonical_books.series_id,
-            canonical_books.book_id
-           FROM canonical_books
-        ), book_stats AS (
-         SELECT d.series_id,
-            d.book_id,
+ WITH book_stats AS (
+         SELECT bs.series_id,
+            bs.book_id,
             b.page,
             (count(DISTINCT r.user_id))::integer AS reader_count
-           FROM ((deduped d
-             JOIN public.books b ON ((b.id = d.book_id)))
-             LEFT JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
-          GROUP BY d.series_id, d.book_id, b.page
+           FROM ((public.book_series bs
+             JOIN public.books b ON ((b.id = bs.book_id)))
+             LEFT JOIN public.reads r ON ((r.merged_book_id = bs.book_id)))
+          GROUP BY bs.series_id, bs.book_id, b.page
         ), series_agg AS (
-         SELECT bs.series_id,
-            (count(bs.book_id))::integer AS total_book_count,
-            (sum(bs.reader_count))::integer AS total_reads_count,
-            (COALESCE(sum(COALESCE(bs.page, 0)), (0)::bigint))::integer AS total_pages
-           FROM book_stats bs
-          GROUP BY bs.series_id
+         SELECT book_stats.series_id,
+            (count(book_stats.book_id))::integer AS total_book_count,
+            (sum(book_stats.reader_count))::integer AS total_reads_count,
+            (COALESCE(sum(COALESCE(book_stats.page, 0)), (0)::bigint))::integer AS total_pages
+           FROM book_stats
+          GROUP BY book_stats.series_id
         ), series_readers AS (
-         SELECT d.series_id,
+         SELECT bs.series_id,
             (count(DISTINCT r.user_id))::integer AS read_count
-           FROM (deduped d
-             LEFT JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
-          GROUP BY d.series_id
-        ), series_book_count AS (
-         SELECT deduped.series_id,
-            count(DISTINCT deduped.book_id) AS total_books
-           FROM deduped
-          GROUP BY deduped.series_id
+           FROM (public.book_series bs
+             LEFT JOIN public.reads r ON ((r.merged_book_id = bs.book_id)))
+          GROUP BY bs.series_id
         ), user_series_reads AS (
-         SELECT d.series_id,
+         SELECT bs.series_id,
             r.user_id,
-            count(DISTINCT d.book_id) AS books_read
-           FROM (deduped d
-             JOIN public.reads r ON ((r.merged_book_id = d.book_id)))
-          GROUP BY d.series_id, r.user_id
+            count(DISTINCT bs.book_id) AS books_read
+           FROM (public.book_series bs
+             JOIN public.reads r ON ((r.merged_book_id = bs.book_id)))
+          GROUP BY bs.series_id, r.user_id
+        ), covers AS (
+         SELECT DISTINCT ON (bs.series_id) bs.series_id,
+            b.thumbnail_url AS cover_url
+           FROM (public.book_series bs
+             JOIN public.books b ON ((b.id = bs.book_id)))
+          ORDER BY bs.series_id, bs."position", b.id
         ), completed_agg AS (
          SELECT usr.series_id,
             (count(*))::integer AS completed_count
            FROM (user_series_reads usr
-             JOIN series_book_count sbc ON ((sbc.series_id = usr.series_id)))
-          WHERE (usr.books_read >= sbc.total_books)
+             JOIN series_agg sa_1 ON ((sa_1.series_id = usr.series_id)))
+          WHERE (usr.books_read >= sa_1.total_book_count)
           GROUP BY usr.series_id
         )
  SELECT s.id,
@@ -639,15 +685,36 @@ CREATE MATERIALIZED VIEW public.series_leaderboard AS
     (rank() OVER (ORDER BY sr.read_count DESC))::integer AS read_count_rank,
     (rank() OVER (ORDER BY sa.total_book_count DESC))::integer AS book_count_rank,
     (rank() OVER (ORDER BY sa.total_pages DESC))::integer AS pages_rank,
-    (rank() OVER (ORDER BY COALESCE(ca.completed_count, 0) DESC))::integer AS completed_rank
-   FROM (((public.series s
+    (rank() OVER (ORDER BY COALESCE(ca.completed_count, 0) DESC))::integer AS completed_rank,
+    cv.cover_url
+   FROM ((((public.series s
      JOIN series_agg sa ON ((sa.series_id = s.id)))
      JOIN series_readers sr ON ((sr.series_id = s.id)))
      LEFT JOIN completed_agg ca ON ((ca.series_id = s.id)))
+     LEFT JOIN covers cv ON ((cv.series_id = s.id)))
   WITH NO DATA;
 
 
 ALTER MATERIALIZED VIEW public.series_leaderboard OWNER TO postgres;
+
+--
+-- Name: series_scan_decisions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series_scan_decisions (
+    fingerprint text NOT NULL,
+    kind text NOT NULL,
+    decision text NOT NULL,
+    book_ids integer[] NOT NULL,
+    series_id integer,
+    confidence real,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT series_scan_decisions_decision_check CHECK ((decision = ANY (ARRAY['approved'::text, 'rejected'::text]))),
+    CONSTRAINT series_scan_decisions_kind_check CHECK ((kind = ANY (ARRAY['new_series'::text, 'add_to_series'::text])))
+);
+
+
+ALTER TABLE public.series_scan_decisions OWNER TO postgres;
 
 --
 -- Name: groups id; Type: DEFAULT; Schema: public; Owner: postgres
@@ -680,12 +747,12 @@ CREATE MATERIALIZED VIEW public.yearly_leaderboard AS
          SELECT u.id,
             u.name,
             u.avatar_url,
-            sum(b.page) AS pages_read,
-            count(DISTINCT r.merged_book_id) AS books_read
+            COALESCE(sum(b.page), (0)::bigint) AS pages_read,
+            count(*) AS books_read
            FROM ((public.reads r
-             JOIN public.books b ON ((r.merged_book_id = b.id)))
-             JOIN public.users u ON ((r.user_id = u.id)))
-          WHERE ((r.date >= date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone)) AND (r.date < (date_trunc('year'::text, (CURRENT_DATE)::timestamp with time zone) + '1 year'::interval)))
+             JOIN public.users u ON ((u.id = r.user_id)))
+             LEFT JOIN public.books b ON ((b.id = r.book_id)))
+          WHERE ((r.date >= (date_trunc('year'::text, (now() AT TIME ZONE 'Asia/Tokyo'::text)))::date) AND (r.date < ((date_trunc('year'::text, (now() AT TIME ZONE 'Asia/Tokyo'::text)) + '1 year'::interval))::date))
           GROUP BY u.id
         )
  SELECT id,
@@ -774,11 +841,42 @@ ALTER TABLE ONLY public.reviews
 
 
 --
+-- Name: series_book_exclusions series_book_exclusions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_book_exclusions
+    ADD CONSTRAINT series_book_exclusions_pkey PRIMARY KEY (book_id, series_id);
+
+
+--
+-- Name: series_books series_books_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_books
+    ADD CONSTRAINT series_books_pkey PRIMARY KEY (book_id, source);
+
+
+--
 -- Name: series series_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.series
     ADD CONSTRAINT series_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: series_scan_decisions series_scan_decisions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_scan_decisions
+    ADD CONSTRAINT series_scan_decisions_pkey PRIMARY KEY (fingerprint);
+
+
+--
+-- Name: idx_book_merges_base_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_book_merges_base_id ON public.book_merges USING btree (base_id);
 
 
 --
@@ -789,10 +887,10 @@ CREATE INDEX idx_books_last_series_fetched ON public.books USING btree (last_ser
 
 
 --
--- Name: idx_books_series_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_manual_book_merges_base_id; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_books_series_id ON public.books USING btree (series_id);
+CREATE INDEX idx_manual_book_merges_base_id ON public.manual_book_merges USING btree (base_id);
 
 
 --
@@ -845,6 +943,20 @@ CREATE INDEX idx_reads_merged_book_id ON public.reads USING btree (merged_book_i
 
 
 --
+-- Name: idx_series_books_series_position; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_series_books_series_position ON public.series_books USING btree (series_id, "position");
+
+
+--
+-- Name: idx_series_scan_decisions_books; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_series_scan_decisions_books ON public.series_scan_decisions USING gin (book_ids);
+
+
+--
 -- Name: pgroonga_books_author_nospace_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -878,6 +990,30 @@ CREATE INDEX users_books_pages_desc_idx ON public.users USING btree (books_read 
 
 ALTER TABLE ONLY public.reads
     ADD CONSTRAINT reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: series_book_exclusions series_book_exclusions_series_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_book_exclusions
+    ADD CONSTRAINT series_book_exclusions_series_id_fkey FOREIGN KEY (series_id) REFERENCES public.series(id) ON DELETE CASCADE;
+
+
+--
+-- Name: series_books series_books_series_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series_books
+    ADD CONSTRAINT series_books_series_id_fkey FOREIGN KEY (series_id) REFERENCES public.series(id) ON DELETE CASCADE;
+
+
+--
+-- Name: series series_superseded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series
+    ADD CONSTRAINT series_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES public.series(id);
 
 
 --
@@ -947,6 +1083,24 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.series ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: series_book_exclusions; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.series_book_exclusions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: series_books; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.series_books ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: series_scan_decisions; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.series_scan_decisions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: users; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -956,5 +1110,5 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict iRG6zUcOdlfLW9kRbvW5vSNVWKBnEjcjUPkRXiPVwEs9k00mdRacz1a1skp81fO
+\unrestrict 4BlsPhSjIFaRLobrcq5jjQhnBozY9bPHHZcajE3Sz2qheiAOEeG6aMg8RMghne7
 
