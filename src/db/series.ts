@@ -687,9 +687,13 @@ export const deleteOrphanSeriesAndBooks = async (sql: postgres.Sql<{}>): Promise
       RETURNING id
     )
     -- Every sub-statement sees the same snapshot, so series_books still lists the members here
-    -- even though deleting the series cascades its rows away
-    DELETE FROM books WHERE id IN (
+    -- even though deleting the series cascades its rows away.
+    -- A member is kept when it is also in a series by hand, or read: book_series shows such a book
+    -- in its manual series, so the reads check above does not count it for this one.
+    DELETE FROM books b WHERE b.id IN (
       SELECT book_id FROM series_books WHERE series_id IN (SELECT id FROM deleted_series)
     )
+      AND NOT EXISTS (SELECT 1 FROM series_books m WHERE m.book_id = b.id AND m.source = 'manual')
+      AND NOT EXISTS (SELECT 1 FROM reads r WHERE r.book_id = b.id OR r.merged_book_id = b.id)
   `;
 };
