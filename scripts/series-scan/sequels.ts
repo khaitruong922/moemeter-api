@@ -46,6 +46,8 @@ const MAX_GAP_VOLUMES = 40;
 const MAX_VARIANTS = 7;
 // last resort when volumes are still missing: the author's books, page by page
 const AUTHOR_SWEEP_PAGES = 10;
+// BookWalker-first lookups per series: every volume BookWalker lists that we do not have yet
+const MAX_BW_LOOKUPS = 30;
 
 // An imprint written inside the title rather than after it: 「監禁王（ブレイブ文庫）７」 is 監禁王 7
 // under ブレイブ文庫 (a reissue), not a series called 「監禁王（ブレイブ文庫）」
@@ -203,6 +205,9 @@ const main = async () => {
 	const bwSeriesVolumes = bw?.prepare(
 		'SELECT title, volume FROM volumes WHERE series_id = ? AND volume IS NOT NULL'
 	);
+	const bwAllVolumes = bw?.prepare(
+		'SELECT title, volume FROM volumes WHERE series_id = ? ORDER BY date, volume'
+	);
 	const bwOf = (title: string, imprint: string | null) => {
 		if (!bwByTitle) return null;
 		const rows = bwByTitle.all(normalize(canonicalizeTitle(title))) as {
@@ -266,6 +271,7 @@ const main = async () => {
 	let searched = 0;
 	let gapSearches = 0;
 	let authorSweeps = 0;
+	let bwLookups = 0;
 	const total = bySeries.size;
 	const processSeries = async (seriesId: number, members: Member[]) => {
 		members.sort((a, b) => (a.position ?? 1e9) - (b.position ?? 1e9));
@@ -488,6 +494,62 @@ const main = async () => {
 			}
 		}
 		gapSearches += used;
+
+		// ---- BookWalker first: the other direction ----
+		// The gap searches only cover numbered volumes of the series' own stems. BookWalker's series
+		// (matched through our volumes) also lists unnumbered volumes, extras and later arcs under
+		// other titles: look each one we do not have up on Bookmeter by its BookWalker title. A
+		// result found this way is a member by BookWalker's word even when its stem is not one of ours.
+		const bwConfirmed = new Map<number, { title: string; volume: number | null }>();
+		const covers = (t: string, bwTitle: string) => {
+			if (titleKey(t) === titleKey(bwTitle)) return true;
+			const a = splitResult(t);
+			const b = splitVolume(bwTitle);
+			return a.volume !== null && a.volume === b.volume && a.stemKey === b.stemKey;
+		};
+		const lookups: { title: string; volume: number | null }[] = [];
+		for (const id of bwSeries) {
+			for (const row of (bwAllVolumes?.all(id) ?? []) as {
+				title: string;
+				volume: number | null;
+			}[]) {
+				if (
+					BONUS_TITLE.test(row.title) ||
+					BUNDLE_TITLE.test(row.title) ||
+					COMPANION_TITLE.test(row.title)
+				)
+					continue;
+				if (members.some((m) => covers(m.title, row.title))) continue;
+				lookups.push(row);
+			}
+		}
+		for (const row of lookups.slice(0, MAX_BW_LOOKUPS)) {
+			const authorOk = (r: Result) => authors.has(authorKeyOf(r.author?.name ?? null));
+			const match = (rs: Result[]) => rs.find((r) => authorOk(r) && covers(r.title, row.title));
+			let hit = match(results);
+			const q = row.title
+				.normalize('NFKC')
+				.replace(/^【[^】]*】\s*/, '')
+				.replace(/\s*[(（][^()（）]*[)）]\s*$/, '')
+				.trim();
+			for (const variant of [...new Set([q, `${q} ${imprintText}`.trim(), toggleSpace(q)])]) {
+				if (hit || variant.length < 2) break;
+				bwLookups++;
+				try {
+					const found = await search(variant, 1);
+					for (const r of found) {
+						if (!seen.has(r.id)) results.push(r);
+						seen.add(r.id);
+					}
+					hit = match(found);
+				} catch (e) {
+					console.warn(
+						`  ! ${members[0].series_name} (BookWalker lookup 「${variant}」): ${(e as Error).message}`
+					);
+				}
+			}
+			if (hit) bwConfirmed.set(hit.id, row);
+		}
 		// Author sweep: volumes still missing after the targeted searches — page through the
 		// author's books (「今野 緒雪」 lists マリア様がみてる 28–35, which no title query finds)
 		for (const { q, n, key } of queries.slice(0, MAX_GAP_VOLUMES)) {
@@ -534,7 +596,15 @@ const main = async () => {
 			if (!authors.has(authorKeyOf(r.author?.name ?? null))) continue;
 
 			const parsed = splitResult(r.title);
-			const arc = arcOf(parsed.stemKey, r.title);
+			const confirmed = bwConfirmed.get(r.id);
+			const stemArc = arcOf(parsed.stemKey, r.title);
+			// BookWalker files a spin-off with its parent series (ハイスクールD×D DX, このすば よりみち):
+			// a title whose stem is a shorter head of this series' own stems is the parent's volume
+			const parentVolume =
+				!stemArc &&
+				parsed.stemKey.length >= 2 &&
+				[...stemKeys].some((k) => k.length > parsed.stemKey.length && k.startsWith(parsed.stemKey));
+			const arc = stemArc ?? (confirmed && !parentVolume ? parsed.stemKey : null);
 			if (!arc) continue;
 			// from here on the result is compared within its arc
 			const split = { ...parsed, stemKey: arc };
@@ -582,6 +652,18 @@ const main = async () => {
 			if (volume === null && stemKeys.has(split.stemKey) && bwMatch?.volume != null) {
 				volume = bwMatch.volume;
 				evidence.push(`volume ${volume} from BookWalker`);
+			}
+			if (confirmed) {
+				evidence.push(
+					`BookWalker lists 「${confirmed.title}」 in this series — found on Bookmeter by that title`
+				);
+				if (!bwMatch) confidence += 0.15;
+				// BookWalker's word alone: right for 館シリーズ or AX, wrong as often for the extras of a
+				// busy series (カービィ, KZ), so it ranks below a result that also shares the stem
+				if (!stemArc) {
+					confidence -= 0.35;
+					evidence.push('title shares no stem with the series — by BookWalker alone');
+				}
 			}
 
 			const positioned = members.filter((m) => m.position !== null) as (Member & {
@@ -777,6 +859,7 @@ const main = async () => {
 			throttled_retries: retries,
 			gap_searches: gapSearches,
 			author_sweeps: authorSweeps,
+			bookwalker_lookups: bwLookups,
 			cache_hits: cacheHits,
 			sequels: sequels.length,
 			not_in_db: sequels.filter((s) => s.import).length,

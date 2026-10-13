@@ -70,6 +70,14 @@ nothing), and cut right after the number (「Re:ゼロから始める異世界�
 where 「…Ex5」 hits) — each with and without the space before the number — and subtitle first with
 the stem's first 4 characters (「フレームオブマインド マリア様」).
 
+**BookWalker first.** The other direction: the BookWalker series our volumes match (through
+`bwOf`) lists every volume BookWalker sells, including unnumbered ones, extras and later arcs whose
+titles share no stem with ours (四つ子ぐらしSP!, 下ネタ… ○EX, 鹿の王 水底の橋). Each one we do not have
+is looked up on Bookmeter by its BookWalker title (as is, with the series' imprint, space toggled;
+up to 30 per series), and a hit by the same author is a member by BookWalker's word even when its
+stem is not one of ours — evidence 「BookWalker lists 「…」 in this series」, +0.15 when the result
+has no BookWalker match of its own. Placed by its number in its own arc, else by date.
+
 **Author sweep.** When volumes are still missing after the gap searches, the first author's name is
 searched (up to 10 pages) and each result goes through the same filters — this is what finds
 マリア様がみてる 28–37 and ヘルモード 10–11.
