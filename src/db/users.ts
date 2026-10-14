@@ -48,6 +48,26 @@ export type ReadingAffinityUser = User & {
 };
 export type ReadingAffinityOrder = 'points' | 'avg_readers' | 'books';
 
+export type RatingLeaderboardUser = {
+	id: number;
+	name: string;
+	avatar_url: string;
+	rating_count: number;
+	rating_avg: number;
+	count_rank: number;
+	average_rank: number;
+};
+
+export type RatingLeaderboardOrder = 'count' | 'average';
+
+export type RatingLeaderboard = {
+	users: RatingLeaderboardUser[];
+	// Across every rating, not per user: rating_avg is the mean of all rating_count ratings
+	rating_count: number;
+	rating_avg: number | null;
+	rater_count: number;
+};
+
 export const selectAllUsersWithRank = async (
 	sql: postgres.Sql<{}>,
 	order: RankOrder
@@ -106,6 +126,35 @@ export const selectHitoribocchiLeaderboard = async (
 		book_count_rank: Number(r.book_count_rank),
 		days_rank: Number(r.days_rank),
 	}));
+};
+
+export const selectRatingLeaderboard = async (
+	sql: postgres.Sql<{}>,
+	order: RatingLeaderboardOrder
+): Promise<RatingLeaderboard> => {
+	const rankField = order === 'average' ? 'average_rank' : 'count_rank';
+	const rows = await sql<RatingLeaderboardUser[]>`
+    SELECT users.id, users.name, users.avatar_url,
+      rl.rating_count, rl.rating_avg, rl.count_rank, rl.average_rank
+    FROM rating_leaderboard rl
+    JOIN users ON users.id = rl.user_id
+    ORDER BY ${sql(rankField)} ASC, users.id ASC;
+  `;
+	const users = rows.map((r) => ({
+		...r,
+		rating_count: Number(r.rating_count),
+		rating_avg: Number(r.rating_avg),
+		count_rank: Number(r.count_rank),
+		average_rank: Number(r.average_rank),
+	}));
+	const ratingCount = users.reduce((sum, u) => sum + u.rating_count, 0);
+	const ratingSum = users.reduce((sum, u) => sum + u.rating_avg * u.rating_count, 0);
+	return {
+		users,
+		rating_count: ratingCount,
+		rating_avg: ratingCount > 0 ? ratingSum / ratingCount : null,
+		rater_count: users.length,
+	};
 };
 
 export const selectFutaribocchiLeaderboard = async (
@@ -186,6 +235,12 @@ export const refreshFutaribocchiLeaderboard = async (sql: postgres.Sql<{}>): Pro
   `;
 };
 
+export const refreshRatingLeaderboard = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW rating_leaderboard;
+  `;
+};
+
 export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	// Delete and sync data
 	await deleteUnreadBooks(sql);
@@ -196,6 +251,7 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	await syncBookMerges(sql);
 	// After the merges: averages are grouped by merged_book_id
 	await refreshBookRatings(sql);
+	await refreshRatingLeaderboard(sql);
 
 	// Leaderboards
 	await refreshRankedUsers(sql);

@@ -15,6 +15,7 @@ import {
 	FutaribocchiOrder,
 	HitoribocchiOrder,
 	RankedUser,
+	RatingLeaderboardOrder,
 	ReadingAffinityOrder,
 	refreshAll,
 	selectAllUsersForSync,
@@ -22,6 +23,7 @@ import {
 	selectFutaribocchiLeaderboard,
 	selectHitoribocchiLeaderboard,
 	selectRankedUserById,
+	selectRatingLeaderboard,
 	selectReadingAffinityLeaderboard,
 	selectUserById,
 	selectUserByIds,
@@ -57,6 +59,12 @@ app.get('/lonely-leaderboard', async (c) => {
 	const order = (c.req.query('order') as HitoribocchiOrder) || 'book_count';
 	const users = await selectHitoribocchiLeaderboard(sql, order);
 	return c.json(users);
+});
+
+app.get('/rating-leaderboard', async (c) => {
+	const sql = c.get('db');
+	const order: RatingLeaderboardOrder = c.req.query('order') === 'average' ? 'average' : 'count';
+	return c.json(await selectRatingLeaderboard(sql, order));
 });
 
 app.get('/futaribocchi-leaderboard', async (c) => {
