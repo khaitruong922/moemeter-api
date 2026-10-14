@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { pgIntArray } from '../utils/pg';
-import { BookReview } from './books';
+import { BookRating, BookReview, selectBookRaters } from './books';
 import { selectReviewsByIds } from './reviews';
 import { refreshAll } from './users';
 
@@ -370,6 +370,9 @@ type SeriesBookRow = {
 	series_number: number | null;
 	membership_source: 'bookmeter' | 'manual';
 	read_count: number;
+	// From book_ratings; null when nobody rated the book
+	rating_avg: number | null;
+	rating_count: number | null;
 };
 
 export type SeriesStats = {
@@ -407,7 +410,11 @@ export const selectBooksForSeriesPage = async (
 	sql: postgres.Sql<{}>,
 	seriesId: number
 ): Promise<{
-	books: (SeriesBookRow & { user_ids: number[]; reviews: BookReview[] })[];
+	books: (SeriesBookRow & {
+		user_ids: number[];
+		reviews: BookReview[];
+		ratings: BookRating[];
+	})[];
 	users: SeriesPageResponse['users'];
 }> => {
 	const bookRows = await sql<(SeriesBookRow & { user_ids: number[] | null })[]>`
@@ -417,11 +424,14 @@ export const selectBooksForSeriesPage = async (
       -- 'manual' when this volume was added by hand rather than by the Bookmeter sync
       bs.source AS membership_source,
       s.name AS series_name,
-      COUNT(DISTINCT r.user_id)::int AS read_count
+      COUNT(DISTINCT r.user_id)::int AS read_count,
+      MAX(br.rating_avg) AS rating_avg,
+      MAX(br.rating_count) AS rating_count
     FROM book_series bs
     JOIN books b ON b.id = bs.book_id
     JOIN series s ON s.id = bs.series_id
     LEFT JOIN reads r ON r.merged_book_id = b.id
+    LEFT JOIN book_ratings br ON br.book_id = b.id
     WHERE bs.series_id = ${seriesId}
     GROUP BY b.id, bs.series_id, bs.position, bs.source, s.name
     ORDER BY bs.position ASC NULLS LAST, b.id ASC
@@ -471,10 +481,18 @@ export const selectBooksForSeriesPage = async (
 		bookReviewsMap[r.book_id].push(r);
 	});
 
+	// Raters are readers, so they are already in users
+	const bookRatingsMap: Record<number, BookRating[]> = {};
+	for (const rater of await selectBookRaters(sql, bookIds)) {
+		if (!bookRatingsMap[rater.book_id]) bookRatingsMap[rater.book_id] = [];
+		bookRatingsMap[rater.book_id].push({ user_id: rater.id, rating: rater.rating });
+	}
+
 	const books = bookRows.map((b) => ({
 		...b,
 		user_ids: [...new Set(bookUserIds[b.id] ?? [])],
 		reviews: bookReviewsMap[b.id] ?? [],
+		ratings: bookRatingsMap[b.id] ?? [],
 	}));
 
 	// Sort user_ids by books_read descending, consistent with /common_reads endpoint

@@ -15,6 +15,7 @@ export const selectReviewsByIds = async (
       reviews.is_spoiler,
       reviews.nice_count,
       reviews.created_at,
+      reads.rating,
       reads.user_id,
       reads.merged_book_id AS book_id,
       users.id AS user_id,

@@ -1,9 +1,5 @@
 import { Hono } from 'hono';
-import {
-	selectBookRatings,
-	selectBooksWithMergeData,
-	selectBooksWithUsersAndReviews,
-} from '../db/books';
+import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
 import { selectDuplicateBookCandidates } from '../db/book_merges';
 import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
@@ -26,6 +22,7 @@ app.get('/', async (c) => {
 	const userId = c.req.query('user_id') ? Number(c.req.query('user_id')) : undefined;
 	const lonely = c.req.query('lonely') === 'true';
 	const dateOrder = c.req.query('date_order') as 'ASC' | 'DESC' | undefined;
+	const includeRatings = c.req.query('include_ratings') === 'true';
 
 	// Validate field parameter
 	if (field && !['title', 'author'].includes(field)) {
@@ -49,6 +46,7 @@ app.get('/', async (c) => {
 			userId,
 			lonely,
 			dateOrder,
+			includeRatings,
 		}
 	);
 
@@ -73,24 +71,6 @@ app.get('/:bookId/reads', async (c) => {
 	const userMap = Object.fromEntries(users.map((user) => [user.id, user]));
 	return c.json({
 		reads,
-		users: userMap,
-	});
-});
-
-app.get('/:bookId/ratings', async (c) => {
-	const bookId = c.req.param('bookId');
-	if (!bookId || isNaN(Number(bookId))) {
-		return c.json({ error: '無効な本のIDです' }, 400);
-	}
-	const sql = c.get('db');
-	const ratings = await selectBookRatings(sql, Number(bookId));
-	const users = await selectUserByIds(
-		sql,
-		ratings.map((r) => r.user_id)
-	);
-	const userMap = Object.fromEntries(users.map((user) => [user.id, user]));
-	return c.json({
-		ratings,
 		users: userMap,
 	});
 });

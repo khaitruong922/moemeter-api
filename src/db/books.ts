@@ -6,6 +6,8 @@ import { selectReviewsByIds } from './reviews';
 export type BookReview = Review & {
 	book_id: number;
 	user_id: number;
+	// Rating of the reviewed read (review id = read id); null when unrated
+	rating: number | null;
 	user_name: string;
 	user_avatar_url: string;
 };
@@ -21,6 +23,8 @@ export type BookWithReaders = Book & {
 	// From book_ratings; null when nobody rated the book
 	rating_avg: number | null;
 	rating_count: number | null;
+	// Only with includeRatings: who rated the book, highest rating first
+	ratings?: BookRating[];
 	date?: Date | null;
 };
 
@@ -42,6 +46,8 @@ type BookReader = ReaderSummary & {
 	pages_read: number;
 };
 
+export type BookRater = ReaderSummary & BookRating & { book_id: number };
+
 type GetBooksResponse = {
 	books: BookWithReaders[];
 	users: Record<string, ReaderSummary>;
@@ -58,6 +64,7 @@ export type SelectBooksFilters = {
 	userId?: number;
 	lonely?: boolean;
 	dateOrder?: 'ASC' | 'DESC';
+	includeRatings?: boolean;
 };
 
 type GetBookOrderAndGroupByResult = {
@@ -98,7 +105,8 @@ export const selectBooksWithUsersAndReviews = async (
 	sql: postgres.Sql<{}>,
 	filters: SelectBooksFilters
 ): Promise<GetBooksResponse> => {
-	const { offset, limit, searchQuery, field, period, userId, lonely, dateOrder } = filters;
+	const { offset, limit, searchQuery, field, period, userId, lonely, dateOrder, includeRatings } =
+		filters;
 
 	const includeDate = lonely || userId !== undefined;
 	let searchCondition = sql``;
@@ -262,11 +270,29 @@ export const selectBooksWithUsersAndReviews = async (
 		bookReviewsMap[review.book_id].push(review);
 	});
 
+	// Ratings ignore the period filter, like the book_ratings average they make up, so a rater
+	// can be missing from the period's readers in users.
+	const bookRatingsMap: Record<string, BookRating[]> = {};
+	if (includeRatings) {
+		for (const rater of await selectBookRaters(sql, bookIds)) {
+			if (!bookRatingsMap[rater.book_id]) {
+				bookRatingsMap[rater.book_id] = [];
+			}
+			bookRatingsMap[rater.book_id].push({ user_id: rater.id, rating: rater.rating });
+			users[rater.id] = {
+				id: rater.id,
+				name: rater.name,
+				avatar_url: rater.avatar_url,
+			};
+		}
+	}
+
 	const books: BookWithReaders[] = bookRows.map((row) => {
 		return {
 			...row,
 			user_ids: [...new Set(bookUserIds[row.id] || [])],
 			reviews: bookReviewsMap[row.id] || [],
+			...(includeRatings && { ratings: bookRatingsMap[row.id] || [] }),
 		};
 	});
 
@@ -278,20 +304,23 @@ export const selectBooksWithUsersAndReviews = async (
 	};
 };
 
-// Who rated a book, for its rating modal. One row per user, with their highest rating across
-// the book's variants and rereads - the same rule book_ratings averages over.
-export const selectBookRatings = async (
+// Who rated the books, for the rating section under each book card. One row per user and book,
+// with the user's highest rating across the book's variants and rereads - the same rule
+// book_ratings averages over.
+export const selectBookRaters = async (
 	sql: postgres.Sql<{}>,
-	bookId: number
-): Promise<BookRating[]> => {
-	return await sql<BookRating[]>`
-    SELECT reads.user_id, MAX(reads.rating)::integer AS rating
+	bookIds: number[]
+): Promise<BookRater[]> => {
+	if (bookIds.length === 0) return [];
+	return await sql<BookRater[]>`
+    SELECT reads.merged_book_id AS book_id, users.id, users.name, users.avatar_url,
+      MAX(reads.rating)::integer AS rating
     FROM reads
     JOIN users ON users.id = reads.user_id
-    WHERE reads.merged_book_id = ${bookId}
+    WHERE reads.merged_book_id IN ${sql(bookIds)}
     AND reads.rating IS NOT NULL
-    GROUP BY reads.user_id, users.books_read
-    ORDER BY rating DESC, users.books_read DESC, reads.user_id ASC
+    GROUP BY reads.merged_book_id, users.id
+    ORDER BY rating DESC, users.books_read DESC, users.id ASC
   `;
 };
 
