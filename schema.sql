@@ -303,11 +303,35 @@ CREATE TABLE public.reads (
     merged_book_id integer DEFAULT 334913 NOT NULL,
     date date,
     id integer NOT NULL,
-    index integer
+    index integer,
+    rating smallint
 );
 
 
 ALTER TABLE public.reads OWNER TO postgres;
+
+--
+-- Name: book_ratings; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW public.book_ratings AS
+ WITH user_ratings AS (
+         SELECT reads.merged_book_id AS book_id,
+            reads.user_id,
+            max(reads.rating) AS rating
+           FROM public.reads
+          WHERE (reads.rating IS NOT NULL)
+          GROUP BY reads.merged_book_id, reads.user_id
+        )
+ SELECT book_id,
+    (avg(rating))::double precision AS rating_avg,
+    (count(*))::integer AS rating_count
+   FROM user_ratings
+  GROUP BY book_id
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW public.book_ratings OWNER TO postgres;
 
 --
 -- Name: futaribocchi_leaderboard; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
@@ -901,6 +925,13 @@ CREATE UNIQUE INDEX idx_ranked_users_id ON public.ranked_users USING btree (id);
 
 
 --
+-- Name: idx_book_ratings_book_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX idx_book_ratings_book_id ON public.book_ratings USING btree (book_id);
+
+
+--
 -- Name: idx_ranked_users_pages_rank; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -940,6 +971,13 @@ CREATE INDEX idx_reads_index ON public.reads USING btree (index);
 --
 
 CREATE INDEX idx_reads_merged_book_id ON public.reads USING btree (merged_book_id);
+
+
+--
+-- Name: idx_reads_rated; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reads_rated ON public.reads USING btree (merged_book_id, user_id, rating) WHERE (rating IS NOT NULL);
 
 
 --

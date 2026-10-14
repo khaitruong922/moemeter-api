@@ -10,10 +10,23 @@ export type BookReview = Review & {
 	user_avatar_url: string;
 };
 
+export type BookRating = {
+	user_id: number;
+	rating: number;
+};
+
 export type BookWithReaders = Book & {
 	user_ids: number[];
 	reviews: BookReview[];
+	// From book_ratings; null when nobody rated the book
+	rating_avg: number | null;
+	rating_count: number | null;
 	date?: Date | null;
+};
+
+export type RatedBook = Book & {
+	rating: number;
+	date: Date | null;
 };
 
 type ReaderSummary = {
@@ -193,13 +206,16 @@ export const selectBooksWithUsersAndReviews = async (
     MAX(book_series.series_id) as series_id,
     MAX(book_series.position)::float8 as series_number,
     MAX(series.name) as series_name,
-    COUNT(DISTINCT filtered_reads.user_id) as read_count
+    COUNT(DISTINCT filtered_reads.user_id) as read_count,
+    MAX(book_ratings.rating_avg) as rating_avg,
+    MAX(book_ratings.rating_count) as rating_count
     ${includeDate ? sql`, MAX(filtered_reads.date) as date` : sql``}
     ${userId ? sql`, filtered_reads.id as read_id` : sql``}
   FROM filtered_reads
   JOIN books ON books.id = filtered_reads.merged_book_id
   LEFT JOIN book_series ON book_series.book_id = books.id
   LEFT JOIN series ON series.id = book_series.series_id
+  LEFT JOIN book_ratings ON book_ratings.book_id = books.id
   GROUP BY ${sql.unsafe(groupBy)}
   ORDER BY ${sql.unsafe(orderBy)}
   LIMIT ${limit}
@@ -260,6 +276,45 @@ export const selectBooksWithUsersAndReviews = async (
 		total_count: Number(total),
 		total_reads_count: Number(total_reads_count),
 	};
+};
+
+// Who rated a book, for its rating modal. One row per user, with their highest rating across
+// the book's variants and rereads - the same rule book_ratings averages over.
+export const selectBookRatings = async (
+	sql: postgres.Sql<{}>,
+	bookId: number
+): Promise<BookRating[]> => {
+	return await sql<BookRating[]>`
+    SELECT reads.user_id, MAX(reads.rating)::integer AS rating
+    FROM reads
+    JOIN users ON users.id = reads.user_id
+    WHERE reads.merged_book_id = ${bookId}
+    AND reads.rating IS NOT NULL
+    GROUP BY reads.user_id, users.books_read
+    ORDER BY rating DESC, users.books_read DESC, reads.user_id ASC
+  `;
+};
+
+export const refreshBookRatings = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW book_ratings;
+  `;
+};
+
+export const selectRatedBooksOfUser = async (
+	sql: postgres.Sql<{}>,
+	userId: number
+): Promise<RatedBook[]> => {
+	return await sql<RatedBook[]>`
+    SELECT books.id, books.title, books.author, books.author_url, books.thumbnail_url, books.page,
+      MAX(reads.rating)::integer AS rating, MAX(reads.date) AS date
+    FROM reads
+    JOIN books ON books.id = reads.merged_book_id
+    WHERE reads.user_id = ${userId}
+    AND reads.rating IS NOT NULL
+    GROUP BY books.id
+    ORDER BY rating DESC, date DESC NULLS LAST, books.id ASC
+  `;
 };
 
 export const selectBookByIds = async (sql: postgres.Sql<{}>, ids: number[]): Promise<Book[]> => {

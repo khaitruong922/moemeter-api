@@ -6,7 +6,7 @@ import {
 	deleteOrphanSeriesAndBooks,
 	refreshSeriesLeaderboard,
 } from './series';
-import { deleteUnreadBooks } from './books';
+import { deleteUnreadBooks, refreshBookRatings } from './books';
 
 export type RankedUser = User & {
 	rank: number | string;
@@ -194,6 +194,8 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 
 	// Sync merges
 	await syncBookMerges(sql);
+	// After the merges: averages are grouped by merged_book_id
+	await refreshBookRatings(sql);
 
 	// Leaderboards
 	await refreshRankedUsers(sql);

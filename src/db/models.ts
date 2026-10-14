@@ -43,6 +43,7 @@ export interface Read {
 	merged_book_id: number;
 	date: Date | null;
 	index: number;
+	rating: number | null;
 }
 
 export interface Review {

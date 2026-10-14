@@ -11,6 +11,13 @@ import { AppEnv } from '../types/app_env';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
 import { getUniqueBooks, mapReadDataToBookModel } from './book';
 
+// reads.rating has no DB constraint, so anything outside 1-5 is stored as no rating. Also covers
+// undefined while a bookmeter-api build without ratings is still deployed.
+const toValidRating = (rating: number | null | undefined): number | null =>
+	typeof rating === 'number' && Number.isInteger(rating) && rating >= 1 && rating <= 5
+		? rating
+		: null;
+
 // Reads/writes are done on fresh, short-lived connections rather than one held for the
 // whole call, since fetchAllUserReadsV2/fetchAllUserReviews can take a long time (paginated
 // scraping) and Supabase's pooler closes connections left idle across that wait.
@@ -54,6 +61,7 @@ export const fullImportUser = async (
 		merged_book_id: reads.book_id,
 		date: reads.date,
 		index: reads.index,
+		rating: toValidRating(reads.rating),
 	}));
 
 	await withDbFromEnv(env, async (sql) => {

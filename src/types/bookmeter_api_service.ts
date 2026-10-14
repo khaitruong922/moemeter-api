@@ -8,6 +8,7 @@ export type UserReadData = {
 	page: number;
 	date: Date | null;
 	index: number;
+	rating: number | null;
 };
 type FetchUserReadsOfPagesResponse = {
 	reads: UserReadData[];

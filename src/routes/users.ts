@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { withDbFromEnv } from '../db';
-import { BookReview, selectBookByIds } from '../db/books';
+import { BookReview, selectBookByIds, selectRatedBooksOfUser } from '../db/books';
 import { selectCommonReadsOfUser, selectFutaribocchiReadsOfUser } from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
 import {
@@ -227,6 +227,16 @@ app.get('/:userId/common_reads', async (c) => {
 		books: relatedBooksMap,
 		users: relatedUsersMap,
 	});
+});
+
+app.get('/:userId/ratings', async (c) => {
+	const userId = c.req.param('userId');
+	if (!userId || isNaN(Number(userId))) {
+		return c.json({ error: '無効なユーザーIDです' }, 400);
+	}
+	const sql = c.get('db');
+	const books = await selectRatedBooksOfUser(sql, Number(userId));
+	return c.json({ books });
 });
 
 app.get('/:userId/futaribocchi_reads', async (c) => {
