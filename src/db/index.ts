@@ -15,7 +15,11 @@ export const withDbFromEnv = async <T>(
 	fn: (sql: postgres.Sql<{}>) => Promise<T>
 ): Promise<T> => {
 	const sql = createDbClientFromEnv(env);
-	return await fn(sql);
+	try {
+		return await fn(sql);
+	} finally {
+		if (env.CLOSE_DB_CONNECTIONS === 'true') await sql.end();
+	}
 };
 
 const createPostgres = (url: string, debug: boolean) => {

@@ -7,6 +7,10 @@ export const withDb = createMiddleware<{ Bindings: AppEnv; Variables: Variables 
 	async (c, next) => {
 		const sql = createDbClientFromEnv(c.env);
 		c.set('db', sql);
-		await next();
+		try {
+			await next();
+		} finally {
+			if (c.env.CLOSE_DB_CONNECTIONS === 'true') c.executionCtx.waitUntil(sql.end());
+		}
 	}
 );
