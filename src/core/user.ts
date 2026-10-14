@@ -44,6 +44,10 @@ export const fullImportUser = async (
 	const reviews: Review[] = shouldUpsertReviews ? await fetchAllUserReviews(user.id) : [];
 	delete user.reviews_count;
 
+	// Longer-scale users (a ★★★★★★+ bookcase) keep their reads but get no ratings
+	const ratingsExcluded = user.ratings_excluded === true;
+	delete user.ratings_excluded;
+
 	// user.books_read is still the raw scrape here (shelf book_count for bookcase users) -
 	// keep it as the baseline for the next sync's skip check, before it gets overwritten below.
 	user.bookcase_book_count = user.bookcase ? user.books_read : null;
@@ -61,7 +65,7 @@ export const fullImportUser = async (
 		merged_book_id: reads.book_id,
 		date: reads.date,
 		index: reads.index,
-		rating: toValidRating(reads.rating),
+		rating: ratingsExcluded ? null : toValidRating(reads.rating),
 	}));
 
 	await withDbFromEnv(env, async (sql) => {

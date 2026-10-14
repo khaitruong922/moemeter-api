@@ -20,6 +20,7 @@ export interface User {
 
 	// Optional fields when processing only
 	reviews_count?: number | null;
+	ratings_excluded?: boolean;
 }
 
 export interface Book {

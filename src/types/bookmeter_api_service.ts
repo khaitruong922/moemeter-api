@@ -44,6 +44,8 @@ export type ScrapedUser = {
 	first_log_date: Date | null;
 	// Missing from bookmeter-api builds before rating bookcase fingerprints
 	rating_bookcase_counts?: string;
+	// The user has a ★★★★★★+ bookcase (longer rating scale): store none of their ratings
+	ratings_excluded?: boolean;
 };
 
 export interface BookmeterApiService {
