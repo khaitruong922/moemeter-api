@@ -169,7 +169,10 @@ export const selectBooksWithUsersAndReviews = async (
 		}
 	}
 
-	const [{ total, total_reads_count }] = await sql<[{ total: number; total_reads_count: number }]>`
+	// Each query is a round trip to the database, which costs more than the queries themselves, so
+	// the ones that don't depend on each other run at the same time: the count beside the page of
+	// books, then readers (and their reviews) beside raters.
+	const countQuery = sql<[{ total: number; total_reads_count: number }]>`
   WITH filtered_reads AS (
     SELECT reads.*
     FROM reads
@@ -198,7 +201,9 @@ export const selectBooksWithUsersAndReviews = async (
 
 	const { orderBy, groupBy } = getBookOrderAndGroupBy({ userId, dateOrder });
 
-	const bookRows = await sql<BookWithReaders[]>`
+	const [[{ total, total_reads_count }], bookRows] = await Promise.all([
+		countQuery,
+		sql<BookWithReaders[]>`
   WITH filtered_reads AS (
     SELECT reads.*
     FROM reads
@@ -228,11 +233,12 @@ export const selectBooksWithUsersAndReviews = async (
   ORDER BY ${sql.unsafe(orderBy)}
   LIMIT ${limit}
   OFFSET ${offset}
-`;
+`,
+	]);
 
 	const bookIds = bookRows.map((book) => book.id);
 
-	const bookReadUsers = await sql<BookReader[]>`
+	const readersQuery = sql<BookReader[]>`
 	WITH book_read_users AS (
 		SELECT users.id, users.name, users.avatar_url, reads.id as read_id, reads.merged_book_id AS book_id, users.books_read, users.pages_read
 		FROM users
@@ -243,10 +249,19 @@ export const selectBooksWithUsersAndReviews = async (
 	SELECT * 
 	FROM book_read_users
 	ORDER BY books_read DESC, pages_read DESC
-  `;
+  `.then(async (readers) => ({
+		readers,
+		reviews: await selectReviewsByIds(
+			sql,
+			readers.map((reader) => reader.read_id)
+		),
+	}));
+	const [{ readers: bookReadUsers, reviews: bookReviews }, bookRaters] = await Promise.all([
+		readersQuery,
+		includeRatings ? selectBookRaters(sql, bookIds) : Promise.resolve([]),
+	]);
 
 	const users: Record<string, ReaderSummary> = {};
-	const reviewIds = bookReadUsers.map((user) => user.read_id);
 	const bookUserIds: Record<string, number[]> = {};
 	const bookReviewsMap: Record<string, BookReview[]> = {};
 
@@ -262,7 +277,6 @@ export const selectBooksWithUsersAndReviews = async (
 		};
 	});
 
-	const bookReviews = await selectReviewsByIds(sql, reviewIds);
 	bookReviews.forEach((review) => {
 		if (!bookReviewsMap[review.book_id]) {
 			bookReviewsMap[review.book_id] = [];
@@ -274,7 +288,7 @@ export const selectBooksWithUsersAndReviews = async (
 	// can be missing from the period's readers in users.
 	const bookRatingsMap: Record<string, BookRating[]> = {};
 	if (includeRatings) {
-		for (const rater of await selectBookRaters(sql, bookIds)) {
+		for (const rater of bookRaters) {
 			if (!bookRatingsMap[rater.book_id]) {
 				bookRatingsMap[rater.book_id] = [];
 			}
