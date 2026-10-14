@@ -288,7 +288,8 @@ export const upsertUser = async (sql: postgres.Sql<{}>, user: User): Promise<voi
       original_books_read = EXCLUDED.original_books_read,
       original_pages_read = EXCLUDED.original_pages_read,
       registration_date = EXCLUDED.registration_date,
-      first_log_date = EXCLUDED.first_log_date
+      first_log_date = EXCLUDED.first_log_date,
+      rating_bookcase_counts = EXCLUDED.rating_bookcase_counts
   `;
 };
 
@@ -308,6 +309,18 @@ export const updateUserNameAndAvatarUrl = async (
 	await sql`
     UPDATE users
     SET name = ${name}, avatar_url = ${avatarUrl}
+    WHERE id = ${userId}
+  `;
+};
+
+export const updateUserRatingBookcaseCounts = async (
+	sql: postgres.Sql<{}>,
+	userId: number,
+	ratingBookcaseCounts: string
+): Promise<void> => {
+	await sql`
+    UPDATE users
+    SET rating_bookcase_counts = ${ratingBookcaseCounts}
     WHERE id = ${userId}
   `;
 };

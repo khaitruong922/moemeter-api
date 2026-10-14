@@ -270,7 +270,8 @@ CREATE TABLE public.users (
     original_pages_read integer,
     first_log_date date,
     registration_date date,
-    bookcase_book_count integer
+    bookcase_book_count integer,
+    rating_bookcase_counts text
 );
 
 

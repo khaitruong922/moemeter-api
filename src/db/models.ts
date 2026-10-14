@@ -15,6 +15,9 @@ export interface User {
 	bookcase: string | null;
 	bookcase_book_count?: number | null;
 
+	// Rating bookcase fingerprint ('5:10,4:27'); null until a sync records it
+	rating_bookcase_counts?: string | null;
+
 	// Optional fields when processing only
 	reviews_count?: number | null;
 }

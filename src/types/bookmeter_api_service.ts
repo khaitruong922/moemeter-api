@@ -42,6 +42,8 @@ export type ScrapedUser = {
 	reviews_count: number | null;
 	registration_date: Date | null;
 	first_log_date: Date | null;
+	// Missing from bookmeter-api builds before rating bookcase fingerprints
+	rating_bookcase_counts?: string;
 };
 
 export interface BookmeterApiService {

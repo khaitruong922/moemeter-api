@@ -8,6 +8,7 @@ import {
 	SelectAllUsersParams,
 	updateSyncStatusByUserIds,
 	updateUserNameAndAvatarUrl,
+	updateUserRatingBookcaseCounts,
 } from '../db/users';
 import { AppEnv } from '../types/app_env';
 import { BookmeterApiService } from '../types/bookmeter_api_service';
@@ -98,16 +99,42 @@ const syncUser = async (
 				updateUserNameAndAvatarUrl(sql, currentUser.id, newUser.name, newUser.avatar_url)
 			);
 		}
+		// Only differs here when no baseline was recorded yet (null): save it as the baseline
+		const ratingBookcaseCounts = newUser.rating_bookcase_counts;
+		if (
+			ratingBookcaseCounts !== undefined &&
+			currentUser.rating_bookcase_counts !== ratingBookcaseCounts
+		) {
+			await withDbFromEnv(env, (sql) =>
+				updateUserRatingBookcaseCounts(sql, currentUser.id, ratingBookcaseCounts)
+			);
+		}
 		return { skipped: true, user: currentUser };
 	}
 	const { user } = await fullImportUser(env, bookmeterApiService, newUser);
 	return { skipped: false, user };
 };
 
+// Moving books onto, off or between rating bookcases leaves the read counts as they are, so the
+// count checks would skip the user. Compared with === and explicit null checks: '' (no rating
+// bookcases) is a real baseline. A null baseline (never recorded) or a bookmeter-api build
+// without the field (undefined) never forces a re-import.
+const hasRatingBookcaseChange = (currentUser: User, newUser: User): boolean => {
+	const stored = currentUser.rating_bookcase_counts ?? null;
+	const fetched = newUser.rating_bookcase_counts ?? null;
+	if (stored === null || fetched === null) return false;
+	const changed = stored !== fetched;
+	if (changed) {
+		console.log(`レーティング本棚変更 ユーザーID: ${currentUser.id}, ${stored} -> ${fetched}`);
+	}
+	return changed;
+};
+
 const shouldSkipUser = (currentUser: User, newUser: User): boolean => {
 	return (
 		currentUser.original_books_read === newUser.original_books_read &&
-		currentUser.original_pages_read === newUser.original_pages_read
+		currentUser.original_pages_read === newUser.original_pages_read &&
+		!hasRatingBookcaseChange(currentUser, newUser)
 	);
 };
 
