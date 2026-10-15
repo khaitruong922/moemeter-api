@@ -183,7 +183,7 @@ app.get('/:userId/common_reads', async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = c.get('db');
-	const [reads, { agreements: ratingAgreements, scale: affinityScale }] = await Promise.all([
+	const [reads, ratingAgreements] = await Promise.all([
 		selectCommonReadsOfUser(sql, Number(userId)),
 		selectRatingAgreementsOfUser(sql, Number(userId)),
 	]);
@@ -243,8 +243,6 @@ app.get('/:userId/common_reads', async (c) => {
 		users: relatedUsersMap,
 		// keyed by the other reader; only readers who rated a book this user rated too
 		rating_agreements: Object.fromEntries(ratingAgreements.map((a) => [a.user_id, a])),
-		// the 相性 curve's scale, the same for everyone (docs/affinity)
-		affinity_scale: affinityScale,
 	});
 });
 
