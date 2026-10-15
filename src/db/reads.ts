@@ -80,16 +80,16 @@ export type RatingAgreement = {
 	book_ratings: Record<string, [number, number]>;
 	avg_diff: number;
 	avg_abs_diff: number;
-	// the other reader's average rating over all their books, from rating_leaderboard, for 相性
-	// (docs/affinity)
-	rating_avg: number;
+	// 相性 (docs/affinity): the points total, for sorting, and as a percentage, for display
+	affinity: number;
+	affinity_percent: number;
 };
 
 export const selectRatingAgreementsOfUser = async (
 	sql: postgres.Sql<{}>,
 	userId: number
-): Promise<RatingAgreement[]> => {
-	return await sql<RatingAgreement[]>`
+): Promise<{ agreements: RatingAgreement[]; scale: number }> => {
+	const rows = await sql<Omit<RatingAgreement, 'affinity_percent'>[]>`
     WITH user_ratings AS (
       SELECT user_id, merged_book_id, max(rating) AS rating
       FROM reads
@@ -112,21 +112,43 @@ export const selectRatingAgreementsOfUser = async (
       jsonb_object_agg(merged_book_id, jsonb_build_array(my_rating, other_rating)) AS book_ratings,
       avg(diff)::float8 AS avg_diff,
       avg(abs(diff))::float8 AS avg_abs_diff,
-      max(rl.rating_avg)::float8 AS rating_avg
+      max(ra.score)::float8 AS affinity
     FROM pairs
-    JOIN rating_leaderboard rl ON rl.user_id = pairs.user_id
+    JOIN rating_affinity ra ON ra.user_id = ${userId} AND ra.other_id = pairs.user_id
     GROUP BY pairs.user_id
   `;
+	const scale = await selectAffinityScale(sql);
+	// totals and the scale go out to 2 decimals; the percentage uses the exact values
+	const round2 = (n: number) => Math.round(n * 100) / 100;
+	return {
+		agreements: rows.map((row) => ({
+			...row,
+			affinity: round2(row.affinity),
+			affinity_percent: affinityPercent(row.affinity, scale),
+		})),
+		scale: round2(scale),
+	};
 };
 
-// For 相性 (docs/affinity): this user's average rating over all their books, from
-// rating_leaderboard; null when they rated nothing
-export const selectUserRatingAverage = async (
-	sql: postgres.Sql<{}>,
-	userId: number
-): Promise<number | null> => {
-	const [row] = await sql<{ rating_avg: number }[]>`
-    SELECT rating_avg::float8 AS rating_avg FROM rating_leaderboard WHERE user_id = ${userId}
+// 相性 as a percentage: the points total on a logistic curve, 50% for no evidence either way,
+// at most 99% (never a perfect match). The curve's scale follows the group: the top 5% of pairs
+// (the 95th percentile of rating_affinity) show 80%, so as members rate more and totals grow,
+// percentages don't creep toward 99%. AFFINITY_MIN_SCALE keeps it from collapsing while few
+// pairs exist.
+const AFFINITY_REFERENCE_PERCENTILE = 0.95;
+const AFFINITY_REFERENCE_PERCENT = 0.8;
+const AFFINITY_MIN_SCALE = 10;
+
+export const selectAffinityScale = async (sql: postgres.Sql<{}>): Promise<number> => {
+	const [row] = await sql<{ reference: number | null }[]>`
+    SELECT percentile_cont(${AFFINITY_REFERENCE_PERCENTILE}) WITHIN GROUP (ORDER BY score)::float8
+      AS reference
+    FROM rating_affinity
+    WHERE user_id < other_id
   `;
-	return row?.rating_avg ?? null;
+	const logit = Math.log(AFFINITY_REFERENCE_PERCENT / (1 - AFFINITY_REFERENCE_PERCENT));
+	return Math.max((row?.reference ?? 0) / logit, AFFINITY_MIN_SCALE);
 };
+
+const affinityPercent = (score: number, scale: number): number =>
+	Math.min(99, Math.round(100 / (1 + Math.exp(-score / scale))));

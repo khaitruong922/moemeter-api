@@ -6,7 +6,6 @@ import {
 	selectCommonReadsOfUser,
 	selectFutaribocchiReadsOfUser,
 	selectRatingAgreementsOfUser,
-	selectUserRatingAverage,
 } from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
 import {
@@ -184,10 +183,9 @@ app.get('/:userId/common_reads', async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = c.get('db');
-	const [reads, ratingAgreements, ratingAverage] = await Promise.all([
+	const [reads, { agreements: ratingAgreements, scale: affinityScale }] = await Promise.all([
 		selectCommonReadsOfUser(sql, Number(userId)),
 		selectRatingAgreementsOfUser(sql, Number(userId)),
-		selectUserRatingAverage(sql, Number(userId)),
 	]);
 	const userBooks: Record<string, number[]> = {};
 	const bookUsers: Record<string, number[]> = {};
@@ -245,8 +243,8 @@ app.get('/:userId/common_reads', async (c) => {
 		users: relatedUsersMap,
 		// keyed by the other reader; only readers who rated a book this user rated too
 		rating_agreements: Object.fromEntries(ratingAgreements.map((a) => [a.user_id, a])),
-		// this user's average rating, for 相性 (docs/affinity)
-		rating_avg: ratingAverage,
+		// the 相性 curve's scale, the same for everyone (docs/affinity)
+		affinity_scale: affinityScale,
 	});
 });
 

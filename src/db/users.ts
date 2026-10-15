@@ -2,10 +2,7 @@ import postgres from 'postgres';
 import { deleteOrphanReviews } from './reviews';
 import { SyncStatus, User } from './models';
 import { syncBookMerges } from './book_merges';
-import {
-	deleteOrphanSeriesAndBooks,
-	refreshSeriesLeaderboard,
-} from './series';
+import { deleteOrphanSeriesAndBooks, refreshSeriesLeaderboard } from './series';
 import { deleteUnreadBooks, refreshBookRatings } from './books';
 
 export type RankedUser = User & {
@@ -241,6 +238,13 @@ export const refreshRatingLeaderboard = async (sql: postgres.Sql<{}>): Promise<v
   `;
 };
 
+// After rating_leaderboard: rating_affinity uses its averages
+export const refreshRatingAffinity = async (sql: postgres.Sql<{}>): Promise<void> => {
+	await sql`
+    REFRESH MATERIALIZED VIEW rating_affinity;
+  `;
+};
+
 export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	// Delete and sync data
 	await deleteUnreadBooks(sql);
@@ -252,6 +256,7 @@ export const refreshAll = async (sql: postgres.Sql<{}>): Promise<void> => {
 	// After the merges: averages are grouped by merged_book_id
 	await refreshBookRatings(sql);
 	await refreshRatingLeaderboard(sql);
+	await refreshRatingAffinity(sql);
 
 	// Leaderboards
 	await refreshRankedUsers(sql);
@@ -308,10 +313,7 @@ export const selectRankedUserById = async (
 	};
 };
 
-export const selectUserById = async (
-	sql: postgres.Sql<{}>,
-	id: number
-): Promise<User | null> => {
+export const selectUserById = async (sql: postgres.Sql<{}>, id: number): Promise<User | null> => {
 	const rows = await sql<User[]>`
     SELECT *
     FROM users

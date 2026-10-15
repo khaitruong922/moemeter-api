@@ -5,8 +5,9 @@ How similar two readers' taste is, from the books both rated. It orders the 読�
 
 | Part | Where |
 |---|---|
-| `rating_agreements` and `rating_avg` in `GET /users/:id/common_reads` | `src/db/reads.ts`, `src/routes/users.ts` |
-| Score, percentage, color | `moemeter/src/utils/rating.ts` (`computeAffinity`, `affinityToPercent`, `affinityColor`) |
+| Score per pair: `rating_affinity` view, `affinity_points()` | `migrations/create_rating_affinity.sql`, refreshed in `refreshAll` |
+| Dynamic scale and percentage, `affinity` / `affinity_percent` in `GET /users/:id/common_reads` | `src/db/reads.ts` |
+| Color | `moemeter/src/utils/rating.ts` (`affinityColor`) |
 | Sorts 共読数順 / 相性順 | `moemeter/src/components/profile/ProfileFriendsTab.tsx` |
 | Rating comparison bar, comparison stars | `moemeter/src/components/RatingAgreementBar.tsx`, `CompareStars.tsx` |
 
@@ -18,7 +19,8 @@ For a profile user A and another reader B, over every book both rated:
 shift        = clamp(½ × (avg(B) − avg(A)), −0.35, +0.35)
 points(book) = max(table(|B − A|), table(|B − A − shift|))
 相性          = Σ points over the books both rated
-shown as     = 1 / (1 + e^(−相性 ÷ 30)), as a percentage, at most 99%
+shown as     = 1 / (1 + e^(−相性 ÷ scale)), as a percentage, at most 99%
+scale        = max(95th percentile of 相性 over all pairs ÷ ln 4, 10)
 ```
 
 | gap (stars) | 0 | 1 | 2 | 3 | 4 |
@@ -74,8 +76,19 @@ Rejected along the way:
 ### Percentage
 
 The sum is unbounded (−6 to +3 per book), so it is mapped onto 0–1 with a logistic curve. Order
-is unchanged. 50% means no evidence either way. A sum of +30 shows about 73%, and +60 about 88%.
-The display is capped at 99%, so it never claims a perfect match.
+is unchanged. 50% means no evidence either way. The display is capped at 99%, so it never claims
+a perfect match.
+
+The curve's **scale is dynamic**. It is set so the top 5% of pairs (the 95th percentile of
+`rating_affinity`) show 80%. With a fixed scale, totals grow as members rate more, and every
+long-standing pair would creep toward 99%. With the dynamic scale, 80% keeps meaning "top 5% of
+the group". The 95th percentile was chosen because it gives today's scale (27.4 on 2026-10-15,
+against a fixed 30 before) and rests on about 15 pairs, so it doesn't jump. The 99th percentile
+rests on 3 pairs; the 90th would have raised nearly every score. A floor of 10 keeps the scale
+from collapsing while few pairs exist.
+
+The trade-off: a pair's percentage can move when other pairs change, even if nothing changed
+between the two. Their points total and their order only change with their own ratings.
 
 On 2026-10-15, across all 289 pairs with shared ratings: median 52%, 12 pairs at 80% or above,
 56 below 50%.
@@ -110,10 +123,9 @@ The color runs from red (≤30%) through amber (around 55%) to Bookmeter green (
 
 ## Tunables
 
-In `moemeter/src/utils/rating.ts`:
-
-- `AFFINITY_POINTS`: the points table.
-- `AFFINITY_SHIFT_STRENGTH`: ½.
-- `AFFINITY_MAX_SHIFT`: 0.35.
-- `AFFINITY_SCALE`: 30.
-- `AFFINITY_COLOR_STOPS`.
+- The points table: `affinity_points()` in `migrations/create_rating_affinity.sql`.
+- The shift (½, at most ±0.35): `rating_affinity` in the same file. Changing either needs a
+  migration that recreates the view.
+- The scale reference: `AFFINITY_REFERENCE_PERCENTILE` (0.95), `AFFINITY_REFERENCE_PERCENT` (0.8)
+  and `AFFINITY_MIN_SCALE` (10), in `src/db/reads.ts`.
+- The colors: `AFFINITY_COLOR_STOPS` in `moemeter/src/utils/rating.ts`.
