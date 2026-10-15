@@ -1,5 +1,9 @@
 import { Hono } from 'hono';
-import { selectBooksWithMergeData, selectBooksWithUsersAndReviews } from '../db/books';
+import {
+	selectBookRaters,
+	selectBooksWithMergeData,
+	selectBooksWithUsersAndReviews,
+} from '../db/books';
 import { selectDuplicateBookCandidates } from '../db/book_merges';
 import { withDb } from '../middlewares/db';
 import { AppEnv } from '../types/app_env';
@@ -56,6 +60,26 @@ app.get('/', async (c) => {
 		count: books.length,
 		total_reads_count,
 		total_count,
+	});
+});
+
+// Who rated one book, for a ratings modal opened from a cover (the profile series tab), so the
+// series list needn't carry every rater
+app.get('/:bookId/ratings', async (c) => {
+	const bookId = Number(c.req.param('bookId'));
+	if (!Number.isInteger(bookId)) {
+		return c.json({ error: '無効な本のIDです' }, 400);
+	}
+	const sql = c.get('db');
+	const raters = await selectBookRaters(sql, [bookId]);
+	return c.json({
+		ratings: raters.map((rater) => ({ user_id: rater.id, rating: rater.rating })),
+		users: Object.fromEntries(
+			raters.map((rater) => [
+				rater.id,
+				{ id: rater.id, name: rater.name, avatar_url: rater.avatar_url },
+			])
+		),
 	});
 });
 

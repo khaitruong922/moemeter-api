@@ -31,6 +31,9 @@ export type BookWithReaders = Book & {
 export type RatedBook = Book & {
 	rating: number;
 	date: Date | null;
+	// from book_ratings: every reader's average, beside this user's own rating
+	rating_avg: number;
+	rating_count: number;
 };
 
 type ReaderSummary = {
@@ -350,9 +353,12 @@ export const selectRatedBooksOfUser = async (
 ): Promise<RatedBook[]> => {
 	return await sql<RatedBook[]>`
     SELECT books.id, books.title, books.author, books.author_url, books.thumbnail_url, books.page,
-      MAX(reads.rating)::integer AS rating, MAX(reads.date) AS date
+      MAX(reads.rating)::integer AS rating, MAX(reads.date) AS date,
+      MAX(book_ratings.rating_avg)::float8 AS rating_avg,
+      MAX(book_ratings.rating_count)::integer AS rating_count
     FROM reads
     JOIN books ON books.id = reads.merged_book_id
+    LEFT JOIN book_ratings ON book_ratings.book_id = books.id
     WHERE reads.user_id = ${userId}
     AND reads.rating IS NOT NULL
     GROUP BY books.id
