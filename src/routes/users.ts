@@ -2,7 +2,12 @@ import { Hono } from 'hono';
 import { fullImportUser } from '../core/user';
 import { withDbFromEnv } from '../db';
 import { BookReview, selectBookByIds, selectRatedBooksOfUser } from '../db/books';
-import { selectCommonReadsOfUser, selectFutaribocchiReadsOfUser } from '../db/reads';
+import {
+	selectCommonReadsOfUser,
+	selectFutaribocchiReadsOfUser,
+	selectRatingAgreementsOfUser,
+	selectUserRatingAverage,
+} from '../db/reads';
 import { selectReviewsByIds } from '../db/reviews';
 import {
 	getBestFriendReads,
@@ -179,7 +184,11 @@ app.get('/:userId/common_reads', async (c) => {
 		return c.json({ error: '無効なユーザーIDです' }, 400);
 	}
 	const sql = c.get('db');
-	const reads = await selectCommonReadsOfUser(sql, Number(userId));
+	const [reads, ratingAgreements, ratingAverage] = await Promise.all([
+		selectCommonReadsOfUser(sql, Number(userId)),
+		selectRatingAgreementsOfUser(sql, Number(userId)),
+		selectUserRatingAverage(sql, Number(userId)),
+	]);
 	const userBooks: Record<string, number[]> = {};
 	const bookUsers: Record<string, number[]> = {};
 	for (const read of reads) {
@@ -234,6 +243,10 @@ app.get('/:userId/common_reads', async (c) => {
 	return c.json({
 		books: relatedBooksMap,
 		users: relatedUsersMap,
+		// keyed by the other reader; only readers who rated a book this user rated too
+		rating_agreements: Object.fromEntries(ratingAgreements.map((a) => [a.user_id, a])),
+		// this user's average rating, for 相性 (docs/affinity)
+		rating_avg: ratingAverage,
 	});
 });
 
